@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/denisakp/sentinel/pkg/backup"
+	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
 	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
 	"github.com/spf13/cobra"
@@ -76,6 +77,24 @@ var BackupCmd = &cobra.Command{
 			}
 
 			err = mysql_dump.Backup(mda)
+			if err != nil {
+				cmd.PrintErrln(err)
+				os.Exit(1)
+			}
+		}
+
+		if dbType == "mariadb" {
+			mda := &mariadb_dump.MariaDBDumpArgs{
+				Host:           host,
+				Port:           port,
+				Username:       user,
+				Password:       password,
+				Database:       database,
+				OutName:        output,
+				AdditionalArgs: additionalArgs,
+			}
+
+			err = mariadb_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				os.Exit(1)
