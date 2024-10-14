@@ -33,7 +33,7 @@ func TestArgsBuilder(t *testing.T) {
 		{
 			name:    "Default Host and Port",
 			args:    &MySqlDumpArgs{Username: "root", Password: "root", Database: "testdb"},
-			want:    []string{"--host=localhost", "--port=3306", "--user=root", "testdb"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "testdb"},
 			wantErr: false,
 		},
 		{
@@ -45,19 +45,19 @@ func TestArgsBuilder(t *testing.T) {
 		{
 			name:    "Skip password",
 			args:    &MySqlDumpArgs{Username: "root", Database: "test"},
-			want:    []string{"--host=localhost", "--port=3306", "--user=root", "--skip-password", "test"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--skip-password", "test"},
 			wantErr: false,
 		},
 		{
 			name:    "Additional Arguments",
 			args:    &MySqlDumpArgs{Username: "root", Database: "test", AdditionalArgs: "--flush-privileges"},
-			want:    []string{"--host=localhost", "--port=3306", "--user=root", "--skip-password", "--flush-privileges", "test"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--skip-password", "--flush-privileges", "test"},
 			wantErr: false,
 		},
 		{
 			name:    "Remove duplicate",
 			args:    &MySqlDumpArgs{Username: "root", Database: "test", AdditionalArgs: "--port=3306"},
-			want:    []string{"--host=localhost", "--port=3306", "--user=root", "--skip-password", "test"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--skip-password", "test"},
 			wantErr: false,
 		},
 	}

@@ -1,10 +1,8 @@
-package mysql_dump
+package mariadb_dump
 
-import (
-	"github.com/denisakp/sentinel/pkg/backup"
-)
+import "github.com/denisakp/sentinel/pkg/backup"
 
-type MySqlDumpArgs struct {
+type MariaDBDumpArgs struct {
 	Host           string
 	Port           string
 	Username       string
@@ -14,8 +12,8 @@ type MySqlDumpArgs struct {
 	OutName        string
 }
 
-// ArgsBuilder builds the arguments for the mysql_dump command
-func ArgsBuilder(mda *MySqlDumpArgs) ([]string, error) {
+// ArgsBuilder builds the arguments for the mariadb_dump command
+func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 	if err := validateRequiredArgs(mda); err != nil {
 		return nil, err
 	}
@@ -29,8 +27,8 @@ func ArgsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 		"--user=" + mda.Username,
 	}
 
-	if mda.Password == "" {
-		args = append(args, "--skip-password")
+	if mda.Password != "" {
+		args = append(args, "--password="+mda.Password)
 	}
 
 	if mda.AdditionalArgs != "" {
