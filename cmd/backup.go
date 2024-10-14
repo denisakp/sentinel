@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/denisakp/sentinel/pkg/backup"
+	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
 	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
 	"github.com/spf13/cobra"
 	"os"
@@ -29,10 +30,10 @@ var BackupCmd = &cobra.Command{
 		password, _ = cmd.Flags().GetString("password")
 		database, _ = cmd.Flags().GetString("database")
 		output, _ = cmd.Flags().GetString("output")
-		compress, _ = cmd.Flags().GetBool("compress")
 		additionalArgs, _ = cmd.Flags().GetString("args")
 
 		if dbType == "postgres" {
+			compress, _ = cmd.Flags().GetBool("compress")
 			pgOutFormat, _ = cmd.Flags().GetString("pg-out-format")
 			pgCompressionAlgo, _ = cmd.Flags().GetString("pg-compression-algo")
 			pgCompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
@@ -56,7 +57,25 @@ var BackupCmd = &cobra.Command{
 				AdditionalArgs:       additionalArgs,
 			}
 
-			err = pg_dump.BackupPgDatabase(pda)
+			err = pg_dump.Backup(pda)
+			if err != nil {
+				cmd.PrintErrln(err)
+				os.Exit(1)
+			}
+		}
+
+		if dbType == "mysql" {
+			mda := &mysql_dump.MySqlDumpArgs{
+				Host:           host,
+				Port:           port,
+				Username:       user,
+				Password:       password,
+				Database:       database,
+				OutName:        output,
+				AdditionalArgs: additionalArgs,
+			}
+
+			err = mysql_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				os.Exit(1)
@@ -67,7 +86,7 @@ var BackupCmd = &cobra.Command{
 
 func init() {
 	BackupCmd.Flags().StringVarP(&dbType, "type", "t", "", "Database type (mysql, postgres, mariadb, mongodb)")
-	BackupCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Database host")
+	BackupCmd.Flags().StringVarP(&host, "host", "H", "", "Database host")
 	BackupCmd.Flags().StringVarP(&port, "port", "P", "", "Database port")
 	BackupCmd.Flags().StringVarP(&user, "user", "u", "", "Database user")
 	BackupCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")

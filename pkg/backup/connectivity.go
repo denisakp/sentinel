@@ -3,62 +3,77 @@ package backup
 import (
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	"log"
 	"net/url"
 )
 
 func CheckConnectivity(dbType, host, port, user, password, database string) (bool, error) {
-	var err error
-	var db *sql.DB
+	// Todo: the user maybe wants to use a tcp6 or unix socket, so this should be configurable in the future
 
-	conStr, err := buildConnectionString(dbType, host, port, user, password, database)
+	scheme, err := defineScheme(dbType)
 	if err != nil {
 		return false, err
 	}
 
-	switch conStr.Scheme {
-	case "mysql", "postgres":
-		db, err = sql.Open(conStr.Scheme, conStr.String())
-		if err != nil {
-			log.Fatalf("failed to open database connection: %v", err)
+	switch scheme {
+	case "mysql":
+		cfg := (&mysql.Config{
+			User:   user,
+			Passwd: password,
+			Net:    "tcp",
+			Addr:   fmt.Sprintf("%s:%s", host, port),
+			DBName: database,
+		}).FormatDSN()
+
+		if err := pingSqlDatabase("mysql", cfg); err != nil {
+			return false, fmt.Errorf("failed to ping database - %w", err)
 		}
-		pingErr := db.Ping()
-		if pingErr != nil {
-			log.Fatalf("failed to ping database - %v", pingErr)
-		}
-	default:
-		return false, fmt.Errorf("invalid database type: %s", conStr.Scheme)
-	}
-
-	for i := 0; i < 3; i++ {
-
-	}
-
-	return true, nil
-}
-
-// buildConnectionString builds a connection string for the given database type
-func buildConnectionString(dbType, host, port, user, password, database string) (*url.URL, error) {
-
-	switch dbType {
 	case "postgres":
-		return &url.URL{
+		cfg := (&url.URL{
 			Scheme:   dbType,
 			User:     url.UserPassword(user, password),
 			Host:     fmt.Sprintf("%s:%s", host, port),
 			Path:     "/" + database,
 			RawQuery: "sslmode=disable",
-		}, nil
-	case "mysql", "mariadb":
-		return &url.URL{
-			Scheme: "mysql",
-			User:   url.UserPassword(user, password),
-			Host:   fmt.Sprintf("%s:%s", host, port),
-			Path:   "/" + database,
-		}, nil
-
+		}).String()
+		if err := pingSqlDatabase("postgres", cfg); err != nil {
+			return false, fmt.Errorf("failed to ping database - %w", err)
+		}
 	default:
-		return nil, fmt.Errorf("invalid database type: %s", dbType)
+		return false, err
+	}
+
+	return true, nil
+}
+
+func pingSqlDatabase(driver, sourceName string) error {
+	db, err := sql.Open(driver, sourceName)
+	if err != nil {
+		return fmt.Errorf("failed to open database connection: %w", err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return nil
+}
+
+func defineScheme(dbType string) (string, error) {
+	if err := ValidateDbType(dbType); err != nil {
+		return "", err
+	}
+
+	switch dbType {
+	case "mysql", "mariadb":
+		return "mysql", nil
+	case "postgres":
+		return "postgres", nil
+	default:
+		return "", fmt.Errorf("invalid database type: %s", dbType)
 	}
 }

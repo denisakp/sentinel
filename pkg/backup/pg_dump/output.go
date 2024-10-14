@@ -7,12 +7,10 @@ import (
 
 // setOutName Helper function to set output name based on compression and format
 func setOutName(pda *PgDumpArgs) error {
-	if pda.OutName == "" {
-		pda.OutName = backup.GenerateBackupOutName(pda.Database)
-	}
+	pda.OutName = backup.DefaultString(pda.OutName, backup.GenerateBackupOutName(pda.Database))
 
-	if pda.Compress && pda.OutFormat == "" {
-		pda.OutFormat = "c"
+	if pda.Compress {
+		pda.OutFormat = backup.DefaultString(pda.OutFormat, "c")
 	}
 
 	switch pda.OutFormat {

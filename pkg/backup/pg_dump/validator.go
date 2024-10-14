@@ -41,3 +41,15 @@ func ValidatePgCompressionLevel(level int) error {
 
 	return nil
 }
+
+func validateRequiredArgs(pda *PgDumpArgs) error {
+	if pda.Database == "" {
+		return fmt.Errorf("database name is required")
+	}
+
+	if pda.Username == "" {
+		return fmt.Errorf("username is required")
+	}
+
+	return nil
+}

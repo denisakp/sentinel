@@ -66,3 +66,39 @@ func TestValidatePgOutFormat(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateRequiredArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    *PgDumpArgs
+		wantErr bool
+	}{
+		{
+			name:    "Missing required args",
+			args:    &PgDumpArgs{},
+			wantErr: true,
+		},
+		{
+			name:    "Missing database name",
+			args:    &PgDumpArgs{Username: "test"},
+			wantErr: true,
+		},
+		{
+			name:    "Missing username",
+			args:    &PgDumpArgs{Database: "test"},
+			wantErr: true,
+		},
+		{
+			name:    "Valid args",
+			args:    &PgDumpArgs{Username: "test", Database: "test"},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateRequiredArgs(tt.args); (err != nil) != tt.wantErr {
+				t.Errorf("validateRequiredArgs() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
