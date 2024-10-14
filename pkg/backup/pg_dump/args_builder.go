@@ -19,31 +19,18 @@ type PgDumpArgs struct {
 	AdditionalArgs       string
 }
 
-// PgDumpArgsBuilder builds the arguments for the pg_dump command
-func PgDumpArgsBuilder(pda *PgDumpArgs) ([]string, error) {
-	if pda.Database == "" {
-		return nil, fmt.Errorf("database name is required")
+// ArgsBuilder builds the arguments for the pg_dump command
+func ArgsBuilder(pda *PgDumpArgs) ([]string, error) {
+	if err := validateRequiredArgs(pda); err != nil {
+		return nil, err
 	}
 
-	if pda.Username == "" {
-		return nil, fmt.Errorf("username is required")
-	}
-
-	// set default host
-	host := pda.Host
-	if host == "" {
-		host = "localhost"
-	}
-
-	// set default port
-	port := pda.Port
-	if port == "" {
-		port = "5432"
-	}
+	pda.Host = backup.DefaultString(pda.Host, "127.0.0.1")
+	pda.Port = backup.DefaultString(pda.Port, "5432")
 
 	args := []string{
-		"--host=" + host,
-		"--port=" + port,
+		"--host=" + pda.Host,
+		"--port=" + pda.Port,
 		"--username=" + pda.Username,
 		"--dbname=" + pda.Database,
 		"--file=" + pda.OutName,
@@ -51,9 +38,7 @@ func PgDumpArgsBuilder(pda *PgDumpArgs) ([]string, error) {
 	}
 
 	if pda.Compress {
-		if pda.CompressionAlgorithm == "" {
-			pda.CompressionAlgorithm = "gzip"
-		}
+		pda.CompressionAlgorithm = backup.DefaultString(pda.CompressionAlgorithm, "gzip")
 
 		// handle compression algorithm
 		if err := ValidatePgCompressionAlgorithm(pda.CompressionAlgorithm); err != nil {

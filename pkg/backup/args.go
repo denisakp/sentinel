@@ -23,3 +23,10 @@ func RemoveArgsDuplicate(args []string) []string {
 	}
 	return list
 }
+
+func DefaultString(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
