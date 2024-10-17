@@ -63,13 +63,13 @@ func TestArgsBuilder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ArgsBuilder(tt.args)
+			got, err := argsBuilder(tt.args)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ArgsBuilder() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("argsBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ArgsBuilder() got = %v, want %v", got, tt.want)
+				t.Errorf("argsBuilder() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

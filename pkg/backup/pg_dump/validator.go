@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func ValidatePgOutFormat(format string) error {
+func validatePgOutFormat(format string) error {
 	validFormat := map[string]string{
 		"c": "custom",
 		"d": "directory",
@@ -19,7 +19,7 @@ func ValidatePgOutFormat(format string) error {
 	return nil
 }
 
-func ValidatePgCompressionAlgorithm(algorithm string) error {
+func validatePgCompressionAlgorithm(algorithm string) error {
 	validAlgorithm := map[string]string{
 		"gzip": "gzip",
 		"lz4":  "lz4",
@@ -34,7 +34,7 @@ func ValidatePgCompressionAlgorithm(algorithm string) error {
 	return nil
 }
 
-func ValidatePgCompressionLevel(level int) error {
+func validatePgCompressionLevel(level int) error {
 	if level < 0 || level > 9 {
 		return fmt.Errorf("invalid compression level: %d", level)
 	}

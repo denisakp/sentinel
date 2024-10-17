@@ -33,7 +33,7 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		{
 			name:    "Default host and port with compression",
 			args:    &PgDumpArgs{Username: "test", Database: "test", OutName: "test.backup", OutFormat: "c", Compress: true, CompressionAlgorithm: "gzip", CompressionLevel: 4},
-			want:    []string{"--host=localhost", "--port=5432", "--username=test", "--dbname=test", "--file=test.backup", "--format=c", "--compress=gzip:4"},
+			want:    []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--file=test.backup", "--format=c", "--compress=gzip:4"},
 			wantErr: false,
 		},
 		{
@@ -51,18 +51,18 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		{
 			name: "Additional args with no duplicates",
 			args: &PgDumpArgs{Username: "test", Database: "test", OutName: "test.backup", OutFormat: "c", Compress: false, AdditionalArgs: "--attribute-inserts --no-privileges"},
-			want: []string{"--host=localhost", "--port=5432", "--username=test", "--dbname=test", "--file=test.backup", "--format=c", "--attribute-inserts", "--no-privileges"},
+			want: []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--file=test.backup", "--format=c", "--attribute-inserts", "--no-privileges"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ArgsBuilder(tt.args)
+			got, err := argsBuilder(tt.args)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ArgsBuilder() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("argsBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ArgsBuilder() got = %v, want %v", got, tt.want)
+				t.Errorf("argsBuilder() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

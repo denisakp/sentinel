@@ -1,0 +1,86 @@
+networks:
+  sentinel:
+    external: true
+
+name: sentinel
+
+volumes:
+  sentinel:
+  pgdata:
+  mysql-data:
+  mariadb-data:
+
+services:
+  app:
+    build: .
+    networks:
+      - sentinel
+    volumes:
+      - sentinel:/app/backups
+    environment:
+      BACKUP_DIRECTORY: /app/backups
+    command: backup --type=mysql --host=mysql --user=root --password=root --database=classicmodels
+
+  mysql:
+    image: docker.io/mysql:lts
+    hostname: mydb
+    networks:
+      - sentinel
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sentinel
+      MYSQL_USER: sentinel
+      MYSQL_PASSWORD: sentinel
+
+  mariadb:
+    image: docker.io/mariadb:11.2.4-jammy
+    hostname: maria
+    networks:
+      - sentinel
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sentinel
+      MYSQL_USER: sentinel
+      MYSQL_PASSWORD: sentinel
+
+  phpmyadmin:
+    image: docker.io/phpmyadmin
+    networks:
+      - sentinel
+    ports:
+      - "8000:80"
+    environment:
+      PMA_ARBITRARY: 1
+      PMA_HOST: mysql
+
+  pgsql:
+    image: docker.io/postgres:16-alpine
+    hostname: pgdb
+    networks:
+      - sentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      PGPASSWORD: sentinel
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+
+  pgadmin:
+    image: docker.io/dpage/pgadmin4:8
+    networks:
+      - sentinel
+    ports:
+      - "3000:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user@sentinel.io
+      PGADMIN_DEFAULT_PASSWORD: secret1234
+

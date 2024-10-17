@@ -2,7 +2,7 @@ package pg_dump
 
 import (
 	"fmt"
-	"github.com/denisakp/sentinel/pkg/backup"
+	"github.com/denisakp/sentinel/internal/backup"
 )
 
 // setOutName Helper function to set output name based on compression and format

@@ -19,8 +19,8 @@ func TestValidatePgCompressionAlgorithm(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.algorithm, func(t *testing.T) {
-			if err := ValidatePgCompressionAlgorithm(tt.algorithm); (err != nil) != tt.wantErr {
-				t.Errorf("ValidatePgCompressionAlgorithm(%s) error = %v, wantErr %v", tt.algorithm, err, tt.wantErr)
+			if err := validatePgCompressionAlgorithm(tt.algorithm); (err != nil) != tt.wantErr {
+				t.Errorf("validatePgCompressionAlgorithm(%s) error = %v, wantErr %v", tt.algorithm, err, tt.wantErr)
 			}
 		})
 	}
@@ -38,8 +38,8 @@ func TestValidatePgCompressionLevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Level%d", tt.level), func(t *testing.T) {
-			if err := ValidatePgCompressionLevel(tt.level); (err != nil) != tt.wantErr {
-				t.Errorf("ValidatePgCompressionLevel(%d) error = %v, wantErr %v", tt.level, err, tt.wantErr)
+			if err := validatePgCompressionLevel(tt.level); (err != nil) != tt.wantErr {
+				t.Errorf("validatePgCompressionLevel(%d) error = %v, wantErr %v", tt.level, err, tt.wantErr)
 			}
 		})
 	}
@@ -60,8 +60,8 @@ func TestValidatePgOutFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.format, func(t *testing.T) {
-			if err := ValidatePgOutFormat(tt.format); (err != nil) != tt.wantErr {
-				t.Errorf("ValidatePgOutFormat(%s) error = %v, wantErr %v", tt.format, err, tt.wantErr)
+			if err := validatePgOutFormat(tt.format); (err != nil) != tt.wantErr {
+				t.Errorf("validatePgOutFormat(%s) error = %v, wantErr %v", tt.format, err, tt.wantErr)
 			}
 		})
 	}
