@@ -3,7 +3,8 @@ package mysql_dump
 import (
 	"bytes"
 	"fmt"
-	"github.com/denisakp/sentinel/pkg/backup"
+	backup2 "github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/backup/sql"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,13 +12,13 @@ import (
 
 // Backup backs up a MySQL database using mysqldump
 func Backup(mda *MySqlDumpArgs) error {
-	args, err := ArgsBuilder(mda)
+	args, err := argsBuilder(mda)
 	if err != nil {
 		return fmt.Errorf("failed to build mysql_dump args - %w", err)
 	}
 
 	// check database connectivity
-	if ok, err := backup.CheckConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
+	if ok, err := sql.CheckConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
 		return err
 	}
 
@@ -41,14 +42,14 @@ func Backup(mda *MySqlDumpArgs) error {
 	}
 
 	// create database backup directory
-	backupDirectory, err := backup.CreateBackupDirectory()
+	backupDirectory, err := backup2.CreateBackupDirectory()
 	if err != nil {
 		return err
 	}
 
 	// set output name with customizable extension (default is .sql)
-	extension := backup.DefaultString(filepath.Ext(mda.OutName), ".sql")
-	mda.OutName = backup.DefaultString(mda.OutName, backup.GenerateBackupOutName(mda.Database)) + extension
+	extension := backup2.DefaultString(filepath.Ext(mda.OutName), ".sql")
+	mda.OutName = backup2.DefaultString(mda.OutName, backup2.GenerateBackupOutName(mda.Database)) + extension
 
 	// define path for the backup file
 	backupFilePath := filepath.Join(backupDirectory, mda.OutName)

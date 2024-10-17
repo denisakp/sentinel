@@ -2,7 +2,8 @@ package pg_dump
 
 import (
 	"fmt"
-	"github.com/denisakp/sentinel/pkg/backup"
+	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/backup/sql"
 	"os/exec"
 	"path/filepath"
 )
@@ -16,7 +17,7 @@ func Backup(pda *PgDumpArgs) error {
 
 	// set default output format
 	pda.OutFormat = backup.DefaultString(pda.OutFormat, "p")
-	if err := ValidatePgOutFormat(pda.OutFormat); err != nil {
+	if err := validatePgOutFormat(pda.OutFormat); err != nil {
 		return err
 	}
 
@@ -26,18 +27,18 @@ func Backup(pda *PgDumpArgs) error {
 	}
 
 	// check connectivity
-	if ok, err := backup.CheckConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
+	if ok, err := sql.CheckConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
 		return err
 	}
 
 	// create backup directory
-	backupDirectory, err := backup.CreateBackupDirectory()
+	backupDirectory, err := backup.CreateBackupDirectory() // create backup directory
 	if err != nil {
 		return err
 	}
 
 	// define path for the backup file
-	pda.OutName = filepath.Join(backupDirectory, pda.OutName)
+	pda.OutName = filepath.Join(backupDirectory, pda.OutName) // set the backup file path
 
 	pgArgs := &PgDumpArgs{
 		Host:                 pda.Host,
@@ -53,22 +54,20 @@ func Backup(pda *PgDumpArgs) error {
 		AdditionalArgs:       pda.AdditionalArgs,
 	}
 
-	args, err := ArgsBuilder(pgArgs)
+	args, err := argsBuilder(pgArgs) // build pg_dump arguments
 	if err != nil {
 		return fmt.Errorf("failed to build pg_dump args - %w", err)
 	}
 
-	// execute pg_dump command
-	cmd := exec.Command("pg_dump", args...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", pda.Password))
+	cmd := exec.Command("pg_dump", args...)                               // run pg_dump command
+	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", pda.Password)) // set the password in the environment
 	defer func() {
 		cmd.Env = cmd.Env[:len(cmd.Env)-1]
-	}()
+	}() // remove the password from the environment
 
-	// capture the output of the command
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput() // get the output of the command
 	if err != nil {
-		return fmt.Errorf("failed to run pg_dump command: %w, %s", err, output)
+		return fmt.Errorf("failed to run pg_dump command: %w, output: %s", err, output)
 	}
 
 	fmt.Printf("Backup file created at %s\n", pda.OutName)

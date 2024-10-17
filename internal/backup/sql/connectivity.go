@@ -1,8 +1,8 @@
-package backup
+package sql
 
 import (
-	"database/sql"
 	"fmt"
+	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -11,8 +11,7 @@ import (
 
 func CheckConnectivity(dbType, host, port, user, password, database string) (bool, error) {
 	// Todo: the user maybe wants to use a tcp6 or unix socket, so this should be configurable in the future
-
-	scheme, err := defineScheme(dbType)
+	scheme, err := defineScheme(dbType) // define the scheme based on the database type
 	if err != nil {
 		return false, err
 	}
@@ -27,7 +26,7 @@ func CheckConnectivity(dbType, host, port, user, password, database string) (boo
 			DBName: database,
 		}).FormatDSN()
 
-		if err := pingSqlDatabase("mysql", cfg); err != nil {
+		if err := PingSqlDatabase("mysql", cfg); err != nil {
 			return false, fmt.Errorf("failed to ping database - %w", err)
 		}
 	case "postgres":
@@ -38,7 +37,7 @@ func CheckConnectivity(dbType, host, port, user, password, database string) (boo
 			Path:     "/" + database,
 			RawQuery: "sslmode=disable",
 		}).String()
-		if err := pingSqlDatabase("postgres", cfg); err != nil {
+		if err := PingSqlDatabase("postgres", cfg); err != nil {
 			return false, fmt.Errorf("failed to ping database - %w", err)
 		}
 	default:
@@ -48,23 +47,8 @@ func CheckConnectivity(dbType, host, port, user, password, database string) (boo
 	return true, nil
 }
 
-func pingSqlDatabase(driver, sourceName string) error {
-	db, err := sql.Open(driver, sourceName)
-	if err != nil {
-		return fmt.Errorf("failed to open database connection: %w", err)
-	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return nil
-}
-
 func defineScheme(dbType string) (string, error) {
-	if err := ValidateDbType(dbType); err != nil {
+	if err := backup.ValidateDbType(dbType); err != nil {
 		return "", err
 	}
 
