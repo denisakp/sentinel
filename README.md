@@ -91,12 +91,6 @@ For additional options, run:
 
 ## Contributions
 
-Here's the updated **Contributing** section for the README:
-
----
-
-## Contributing
-
 Sentinel is under active development, and we welcome contributions from the community! To get started, please review the
 following resources:
 

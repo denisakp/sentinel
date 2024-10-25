@@ -1,18 +1,18 @@
-networks:
-  sentinel:
-    external: true
-
 name: sentinel
 
 volumes:
   sentinel:
-  pgdata:
+  pg-data:
   mysql-data:
   mariadb-data:
 
+networks:
+  sentinel:
+    external: true
+
 services:
   app:
-    build: .
+    build: docker.io/denisakp/sentinel:v1.0
     networks:
       - sentinel
     volumes:
@@ -23,11 +23,8 @@ services:
 
   mysql:
     image: docker.io/mysql:lts
-    hostname: mydb
     networks:
       - sentinel
-    ports:
-      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     environment:
@@ -41,8 +38,6 @@ services:
     hostname: maria
     networks:
       - sentinel
-    ports:
-      - "3308:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: sentinel
@@ -64,10 +59,8 @@ services:
     hostname: pgdb
     networks:
       - sentinel
-    ports:
-      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pg-data
     environment:
       PGPASSWORD: sentinel
       POSTGRES_DB: sentinel
@@ -79,7 +72,7 @@ services:
     networks:
       - sentinel
     ports:
-      - "3000:80"
+      - "8001:80"
     environment:
       PGADMIN_DEFAULT_EMAIL: user@sentinel.io
       PGADMIN_DEFAULT_PASSWORD: secret1234
