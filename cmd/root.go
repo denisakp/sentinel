@@ -6,10 +6,17 @@ import (
 	"os"
 )
 
+var longDesc = "\"Sentinel is a cloud-native CLI tool designed for secure and reliable database backup and restoration," +
+	" supporting MySQL, MariaDB, PostgreSQL, and MongoDB. With advanced features like AES-256 encryption for data " +
+	"security, scheduled backups, and real-time notifications, Sentinel ensures your backups are protected and " +
+	"accessible. Store backups on popular cloud services such as AWS S3, Google Drive, or MinIO, and easily monitor" +
+	" operations with success or failure notifications. Sentinel is built to simplify database management, " +
+	"allowing users to automate, secure, and manage their backup workflows efficiently.\""
+
 var RootCmd = &cobra.Command{
 	Use:   "sentinel",
-	Short: "Open-source tool backs up SQL/NoSQL dbs, supports multiple storage options. Simplifies automation.",
-	Long:  `Sentinel is an open-source, cloud-native tool designed for backing up and restoring SQL and NoSQL databases, including PostgresSQL, MySQL, MariaDB, and MongoDB. It supports local and cloud storage options like Amazon S3, Google Drive, and Dropbox, providing data security through encryption and backup integrity validation. With built-in notifications, scheduling (cron jobs), and retention policies, Sentinel simplifies and automates database management in Docker, Kubernetes, and local environments.`,
+	Short: "Open-source tool for automated backup and restoration supporting SQL and NoSQL databases",
+	Long:  longDesc,
 }
 
 func Execute() {
