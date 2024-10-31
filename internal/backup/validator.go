@@ -2,6 +2,7 @@ package backup
 
 import "fmt"
 
+// ValidateDbType validates the database type provided by the user
 func ValidateDbType(dbType string) error {
 	validTypes := map[string]bool{
 		"mysql":    true,

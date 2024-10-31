@@ -2,15 +2,15 @@ package pg_dump
 
 import (
 	"fmt"
-	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 // setOutName Helper function to set output name based on compression and format
 func setOutName(pda *PgDumpArgs) error {
-	pda.OutName = backup.DefaultString(pda.OutName, backup.GenerateBackupOutName(pda.Database))
+	pda.OutName = utils.DefaultValue(pda.OutName, utils.DefaultBackupOutName())
 
 	if pda.Compress {
-		pda.OutFormat = backup.DefaultString(pda.OutFormat, "c")
+		pda.OutFormat = utils.DefaultValue(pda.OutFormat, "c")
 	}
 
 	switch pda.OutFormat {

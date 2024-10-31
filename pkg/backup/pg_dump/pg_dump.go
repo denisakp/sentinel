@@ -1,28 +1,34 @@
 package pg_dump
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/backup/sql"
+	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
-	"path/filepath"
 )
 
 // Backup backs up a PostgresSQL database using pg_dump
 func Backup(pda *PgDumpArgs) error {
-	// enable compression if compression algorithm is set
-	if pda.CompressionAlgorithm != "" {
-		pda.Compress = true
-	}
-
-	// set default output format
-	pda.OutFormat = backup.DefaultString(pda.OutFormat, "p")
-	if err := validatePgOutFormat(pda.OutFormat); err != nil {
+	// get the storage handler
+	storageHandler, err := storage.NewStorage(pda.StorageType)
+	if err != nil {
 		return err
 	}
 
-	// handle the backup output name
-	if err := setOutName(pda); err != nil {
+	backupPath, err := storageHandler.GetBackupPath(pda.StoragePath)
+	if err != nil {
+		return err
+	}
+
+	// build pg_dump arguments
+	args, err := argsBuilder(pda)
+	if err != nil {
+		return fmt.Errorf("failed to build pg_dump args - %w", err)
+	}
+
+	if err := validateRequiredArgs(pda); err != nil {
 		return err
 	}
 
@@ -31,43 +37,34 @@ func Backup(pda *PgDumpArgs) error {
 		return err
 	}
 
-	// create backup directory
-	backupDirectory, err := backup.CreateBackupDirectory() // create backup directory
-	if err != nil {
-		return err
-	}
+	// set the output name
+	pda.OutName = utils.FullPath(backupPath, pda.OutName)
 
-	// define path for the backup file
-	pda.OutName = filepath.Join(backupDirectory, pda.OutName) // set the backup file path
+	// run pg_dump command
+	cmd := exec.Command("pg_dump", args...)
 
-	pgArgs := &PgDumpArgs{
-		Host:                 pda.Host,
-		Port:                 pda.Port,
-		Username:             pda.Username,
-		Password:             pda.Password,
-		Database:             pda.Database,
-		OutName:              pda.OutName,
-		OutFormat:            pda.OutFormat,
-		Compress:             pda.Compress,
-		CompressionAlgorithm: pda.CompressionAlgorithm,
-		CompressionLevel:     pda.CompressionLevel,
-		AdditionalArgs:       pda.AdditionalArgs,
-	}
+	// capture the command error
+	var stdErr bytes.Buffer
+	cmd.Stderr = &stdErr
 
-	args, err := argsBuilder(pgArgs) // build pg_dump arguments
-	if err != nil {
-		return fmt.Errorf("failed to build pg_dump args - %w", err)
-	}
+	// capture the command output
+	var stdOut bytes.Buffer
+	cmd.Stdout = &stdOut
 
-	cmd := exec.Command("pg_dump", args...)                               // run pg_dump command
+	// remove the password from the environment after the command is done
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", pda.Password)) // set the password in the environment
 	defer func() {
 		cmd.Env = cmd.Env[:len(cmd.Env)-1]
-	}() // remove the password from the environment
+	}()
 
-	output, err := cmd.CombinedOutput() // get the output of the command
+	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to run pg_dump command: %w, output: %s", err, output)
+		return fmt.Errorf("failed to execute pg_dump command - %w, %s", err, stdErr.String())
+	}
+
+	// write the backup to the storage
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), pda.OutName); err != nil {
+		return err
 	}
 
 	fmt.Printf("Backup file created at %s\n", pda.OutName)
