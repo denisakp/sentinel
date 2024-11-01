@@ -2,7 +2,9 @@ package local
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 )
 
 // LocalStorage is a struct that implements the Storage interface
@@ -25,6 +27,28 @@ func (ls *LocalStorage) GetBackupPath(path string) (string, error) {
 }
 
 func (ls *LocalStorage) WriteBackup(data []byte, path string) error {
+	if isDirectory(path) {
+		tmpDir := path
+
+		files, err := os.ReadDir(tmpDir)
+		if err != nil {
+			return fmt.Errorf("failed to read backup directory: %w", err)
+		}
+
+		for _, file := range files {
+			srcPath := filepath.Join(tmpDir, file.Name())
+			destPath := filepath.Join(path, file.Name())
+
+			if err := copyFile(srcPath, destPath); err != nil {
+				return fmt.Errorf("failed to copy file %s: %w", file.Name(), err)
+			}
+		}
+
+		fmt.Printf("Backup successfully written to %s\n", path)
+
+		return nil
+	}
+
 	file, err := os.Create(path) // create the file
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -37,6 +61,35 @@ func (ls *LocalStorage) WriteBackup(data []byte, path string) error {
 	}
 
 	fmt.Printf("Backup successfully written to %s\n", path)
+
+	return nil
+}
+
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
+func copyFile(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy file: %w", err)
+	}
 
 	return nil
 }
