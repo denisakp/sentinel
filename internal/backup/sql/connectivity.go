@@ -19,11 +19,12 @@ func CheckConnectivity(dbType, host, port, user, password, database string) (boo
 	switch scheme {
 	case "mysql":
 		cfg := (&mysql.Config{
-			User:   user,
-			Passwd: password,
-			Net:    "tcp",
-			Addr:   fmt.Sprintf("%s:%s", host, port),
-			DBName: database,
+			User:                 user,
+			Passwd:               password,
+			Net:                  "tcp",
+			Addr:                 fmt.Sprintf("%s:%s", host, port),
+			DBName:               database,
+			AllowNativePasswords: true,
 		}).FormatDSN()
 
 		if err := PingSqlDatabase("mysql", cfg); err != nil {
