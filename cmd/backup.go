@@ -156,7 +156,7 @@ func init() {
 	// postgresql flags
 	BackupCmd.Flags().StringVar(&pgOutFormat, "pg-out-format", "", "PostgresSQL output format [p (plain), c (custom), d (directory), t (tar)] ")
 	BackupCmd.Flags().StringVar(&pgCompressionAlgo, "pg-compression-algo", "", "PostgresSQL compression algorithm [gzip, lz4, zstd, none]")
-	BackupCmd.Flags().IntVar(&pgCompressionLevel, "pg-compression-level", 0, "PostgresSQL compression level [0-9]")
+	BackupCmd.Flags().IntVar(&pgCompressionLevel, "pg-compression-level", 1, "PostgresSQL compression level [1-9]")
 
 	// mongodb flags
 	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
