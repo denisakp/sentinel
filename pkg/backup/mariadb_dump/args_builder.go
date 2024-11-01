@@ -23,8 +23,9 @@ func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 		return nil, err
 	}
 
-	mda.Host = utils.DefaultValue(mda.Host, "127.0.0.1") // set the default host to 127.0.0.1 if not provided
-	mda.Port = utils.DefaultValue(mda.Port, "3306")      // set the default port to 3306 if not provided
+	// set the default host and port if not provided
+	mda.Host = utils.DefaultValue(mda.Host, "127.0.0.1")
+	mda.Port = utils.DefaultValue(mda.Port, "3306")
 
 	args := []string{
 		"--host=" + mda.Host,
