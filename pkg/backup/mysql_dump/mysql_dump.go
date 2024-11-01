@@ -60,7 +60,7 @@ func Backup(mda *MySqlDumpArgs) error {
 		return fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
-	fmt.Printf("Backup file created at %s\n", fullPath)
+	fmt.Printf("Backup complete !\n")
 
 	return nil
 }
