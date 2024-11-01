@@ -23,9 +23,14 @@ type PgDumpArgs struct {
 }
 
 // argsBuilder builds the arguments for the pg_dump command
-func argsBuilder(pda *PgDumpArgs) ([]string, error) {
-	pda.Host = utils.DefaultValue(pda.Host, "127.0.0.1") // set the default host to 127.0.0.1 if not provided
-	pda.Port = utils.DefaultValue(pda.Port, "5432")      // set the default port to 5432 if not provided
+func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
+	if err := validateRequiredArgs(pda); err != nil {
+		return nil, err
+	}
+
+	// set the default host and port if not provided
+	pda.Host = utils.DefaultValue(pda.Host, "127.0.0.1")
+	pda.Port = utils.DefaultValue(pda.Port, "5432")
 
 	// enable compression if compression algorithm is set
 	if pda.CompressionAlgorithm != "" {
@@ -43,12 +48,13 @@ func argsBuilder(pda *PgDumpArgs) ([]string, error) {
 		return nil, err
 	}
 
+	pda.OutName = utils.FullPath(backupPath, pda.OutName)
+
 	args := []string{
 		"--host=" + pda.Host,
 		"--port=" + pda.Port,
 		"--username=" + pda.Username,
 		"--dbname=" + pda.Database,
-		"--file=" + pda.OutName,
 		"--format=" + pda.OutFormat,
 	}
 
@@ -56,6 +62,11 @@ func argsBuilder(pda *PgDumpArgs) ([]string, error) {
 		if err := addCompression(&args, pda); err != nil {
 			return nil, err
 		}
+	}
+
+	// handle the
+	if pda.OutFormat == "d" {
+		args = append(args, "--file="+pda.OutName)
 	}
 
 	// handle additional arguments
