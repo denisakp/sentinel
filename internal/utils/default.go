@@ -21,9 +21,13 @@ func DefaultBackupOutName() string {
 }
 
 func FinalOutName(outName string) string {
-	ext := DefaultValue(filepath.Ext(outName), ".sql")
+	ext := filepath.Ext(outName)
 
-	return DefaultValue(outName, DefaultBackupOutName()) + ext
+	if ext == "" {
+		return DefaultValue(outName, DefaultBackupOutName()) + ".sql"
+	}
+
+	return outName
 }
 
 func FullPath(path, fileName string) string {
