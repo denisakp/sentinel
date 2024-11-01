@@ -35,7 +35,7 @@ func validatePgCompressionAlgorithm(algorithm string) error {
 }
 
 func validatePgCompressionLevel(level int) error {
-	if level < 0 || level > 9 {
+	if level != -1 && (level < 1 || level > 9) {
 		return fmt.Errorf("invalid compression level: %d", level)
 	}
 

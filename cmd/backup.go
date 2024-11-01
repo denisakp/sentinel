@@ -68,6 +68,8 @@ var BackupCmd = &cobra.Command{
 				CompressionAlgorithm: pgCompressionAlgo,
 				CompressionLevel:     pgCompressionLevel,
 				AdditionalArgs:       additionalArgs,
+				StorageType:          storageType,
+				StoragePath:          localPath,
 			}
 
 			err = pg_dump.Backup(pda)
@@ -86,6 +88,8 @@ var BackupCmd = &cobra.Command{
 				Database:       database,
 				OutName:        output,
 				AdditionalArgs: additionalArgs,
+				StorageType:    storageType,
+				StoragePath:    localPath,
 			}
 
 			err = mysql_dump.Backup(mda)
@@ -104,6 +108,8 @@ var BackupCmd = &cobra.Command{
 				Database:       database,
 				OutName:        output,
 				AdditionalArgs: additionalArgs,
+				StorageType:    storageType,
+				StoragePath:    localPath,
 			}
 
 			err = mariadb_dump.Backup(mda)
@@ -122,6 +128,8 @@ var BackupCmd = &cobra.Command{
 				AdditionalArgs: additionalArgs,
 				OutName:        output,
 				Uri:            uri,
+				StorageType:    storageType,
+				StoragePath:    localPath,
 			}
 
 			err = mongo_dump.Backup(da)
@@ -136,9 +144,9 @@ var BackupCmd = &cobra.Command{
 func init() {
 	BackupCmd.Flags().StringVarP(&dbType, "type", "t", "", "Database type (mysql, postgres, mariadb, mongodb)")
 
-	BackupCmd.Flags().StringVarP(&host, "host", "H", "", "Database host")
+	BackupCmd.Flags().StringVarP(&host, "host", "H", "127.0.0.1", "Database host")
 	BackupCmd.Flags().StringVarP(&port, "port", "P", "", "Database port")
-	BackupCmd.Flags().StringVarP(&user, "user", "u", "", "Database user")
+	BackupCmd.Flags().StringVarP(&user, "user", "u", "root", "Database user")
 	BackupCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")
 	BackupCmd.Flags().StringVarP(&database, "database", "d", "", "Database name")
 
@@ -148,15 +156,15 @@ func init() {
 	// postgresql flags
 	BackupCmd.Flags().StringVar(&pgOutFormat, "pg-out-format", "", "PostgresSQL output format [p (plain), c (custom), d (directory), t (tar)] ")
 	BackupCmd.Flags().StringVar(&pgCompressionAlgo, "pg-compression-algo", "", "PostgresSQL compression algorithm [gzip, lz4, zstd, none]")
-	BackupCmd.Flags().IntVar(&pgCompressionLevel, "pg-compression-level", 0, "PostgresSQL compression level [0-9]")
+	BackupCmd.Flags().IntVar(&pgCompressionLevel, "pg-compression-level", 1, "PostgresSQL compression level [1-9]")
 
 	// mongodb flags
 	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
 
 	// storage flags
 	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
-	BackupCmd.Flags().StringVarP(&output, "local-path", "", "", "Local path to store the backup")
-	BackupCmd.Flags().StringVarP(&localPath, "output", "o", "", "Output name")
+	BackupCmd.Flags().StringVarP(&localPath, "local-path", "", "", "Local path to store the backup")
+	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
 
 	// required args
 	err := BackupCmd.MarkFlagRequired("type")

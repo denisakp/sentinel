@@ -16,14 +16,17 @@ func DefaultValue(value, defaultValue string) string {
 
 // DefaultBackupOutName returns the default backup output name
 func DefaultBackupOutName() string {
-	timestamp := time.Now().Format("2006-01-02T15-04-05") // format the current time
-	return fmt.Sprintf("SENTINEL_%s", timestamp)
+	return fmt.Sprintf("SENTINEL_%s", time.Now().Format("2006-01-02T15-04-05"))
 }
 
 func FinalOutName(outName string) string {
-	ext := DefaultValue(filepath.Ext(outName), ".sql")
+	ext := filepath.Ext(outName)
 
-	return DefaultValue(outName, DefaultBackupOutName()) + ext
+	if ext == "" {
+		return DefaultValue(outName, DefaultBackupOutName()) + ".sql"
+	}
+
+	return outName
 }
 
 func FullPath(path, fileName string) string {

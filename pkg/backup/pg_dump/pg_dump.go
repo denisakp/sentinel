@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
 )
 
@@ -17,28 +16,22 @@ func Backup(pda *PgDumpArgs) error {
 		return err
 	}
 
+	// get the backup path
 	backupPath, err := storageHandler.GetBackupPath(pda.StoragePath)
 	if err != nil {
 		return err
 	}
 
 	// build pg_dump arguments
-	args, err := argsBuilder(pda)
+	args, err := argsBuilder(pda, backupPath)
 	if err != nil {
 		return fmt.Errorf("failed to build pg_dump args - %w", err)
-	}
-
-	if err := validateRequiredArgs(pda); err != nil {
-		return err
 	}
 
 	// check connectivity
 	if ok, err := sql.CheckConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
 		return err
 	}
-
-	// set the output name
-	pda.OutName = utils.FullPath(backupPath, pda.OutName)
 
 	// run pg_dump command
 	cmd := exec.Command("pg_dump", args...)
@@ -64,10 +57,10 @@ func Backup(pda *PgDumpArgs) error {
 
 	// write the backup to the storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), pda.OutName); err != nil {
-		return err
+		return fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
-	fmt.Printf("Backup file created at %s\n", pda.OutName)
+	fmt.Printf("Backup complete !\n")
 
 	return nil
 }
