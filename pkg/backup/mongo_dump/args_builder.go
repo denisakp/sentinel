@@ -14,9 +14,13 @@ type DumpMongoArgs struct {
 	StoragePath    string // Storage path for the backup file
 }
 
-func argsBuilder(da *DumpMongoArgs) ([]string, error) {
+func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 	// set default values
 	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
+
+	// handle output name
+	outName := utils.DefaultValue(da.OutName, utils.DefaultBackupOutName())
+	da.OutName = utils.FullPath(backupPath, outName)
 
 	args := []string{
 		"--uri=" + da.Uri,
