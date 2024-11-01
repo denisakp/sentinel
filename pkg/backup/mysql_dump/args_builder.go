@@ -2,6 +2,7 @@ package mysql_dump
 
 import (
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 type MySqlDumpArgs struct {
@@ -12,6 +13,8 @@ type MySqlDumpArgs struct {
 	Database       string // MySQL database name
 	AdditionalArgs string // Additional arguments for the mysql_dump command
 	OutName        string // Output name for the backup file
+	StorageType    string // Storage type for the backup file
+	StoragePath    string // Storage path for the backup file
 }
 
 // argsBuilder builds the arguments for the mysql_dump command
@@ -20,8 +23,8 @@ func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 		return nil, err
 	}
 
-	mda.Host = backup.DefaultString(mda.Host, "127.0.0.1") // set the default host to 127.0.0.1 if not provided
-	mda.Port = backup.DefaultString(mda.Port, "3306")      // set the default port to 3306 if not provided
+	mda.Host = utils.DefaultValue(mda.Host, "127.0.0.1") // set the default host to 127.0.0.1 if not provided
+	mda.Port = utils.DefaultValue(mda.Port, "3306")      // set the default port to 3306 if not provided
 
 	args := []string{
 		"--host=" + mda.Host,

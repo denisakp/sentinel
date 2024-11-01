@@ -3,11 +3,10 @@ package mysql_dump
 import (
 	"bytes"
 	"fmt"
-	backup2 "github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/backup/sql"
-	"os"
+	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
-	"path/filepath"
 )
 
 // Backup backs up a MySQL database using mysqldump
@@ -41,33 +40,27 @@ func Backup(mda *MySqlDumpArgs) error {
 		return fmt.Errorf("failed to execute mysqldump command - %w, %s", err, stdErr.String())
 	}
 
-	// create database backup directory
-	backupDirectory, err := backup2.CreateBackupDirectory()
+	// get storage handler
+	storageHandler, err := storage.NewStorage(mda.StorageType)
 	if err != nil {
 		return err
 	}
 
-	// set output name with customizable extension (default is .sql)
-	extension := backup2.DefaultString(filepath.Ext(mda.OutName), ".sql")
-	mda.OutName = backup2.DefaultString(mda.OutName, backup2.GenerateBackupOutName(mda.Database)) + extension
+	// get backup path
+	backupPath, err := storageHandler.GetBackupPath(mda.StoragePath)
 
-	// define path for the backup file
-	backupFilePath := filepath.Join(backupDirectory, mda.OutName)
+	// set outName with customizable extension (default is .sql)
+	mda.OutName = utils.FinalOutName(mda.OutName)
 
-	// create output file
-	outfile, err := os.Create(backupFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file - %w", err)
-	}
-	defer outfile.Close()
+	// get full path
+	fullPath := utils.FullPath(backupPath, mda.OutName)
 
-	// write command output to the backup file
-	_, err = outfile.Write(stdOut.Bytes())
-	if err != nil {
-		return fmt.Errorf("failed to write to output file - %w", err)
+	// write backup to storage
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
+		return err
 	}
 
-	fmt.Printf("Backup file created at %s\n", backupFilePath)
+	fmt.Printf("Backup file created at %s\n", fullPath)
 
 	return nil
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
@@ -10,7 +11,7 @@ import (
 	"os"
 )
 
-var dbType, host, port, user, password, database, output, additionalArgs, pgOutFormat, pgCompressionAlgo, uri string
+var dbType, host, port, user, password, database, output, storageType, localPath, additionalArgs, pgOutFormat, pgCompressionAlgo, uri string
 var compress bool
 var pgCompressionLevel int
 var err error
@@ -21,6 +22,8 @@ var BackupCmd = &cobra.Command{
 	Long:  "Backup your database with the required options depending on the database type",
 	Run: func(cmd *cobra.Command, args []string) {
 		dbType, _ = cmd.Flags().GetString("type")
+
+		// validate the database type
 		if err = backup.ValidateDbType(dbType); err != nil {
 			cmd.PrintErrln(err)
 			return
@@ -31,8 +34,16 @@ var BackupCmd = &cobra.Command{
 		user, _ = cmd.Flags().GetString("user")           // get the user flag value
 		password, _ = cmd.Flags().GetString("password")   // get the password flag value
 		database, _ = cmd.Flags().GetString("database")   // get the database flag value
-		output, _ = cmd.Flags().GetString("output")       // get the output flag value
 		additionalArgs, _ = cmd.Flags().GetString("args") // get the args flag value
+
+		storageType, _ = cmd.Flags().GetString("storage") // get the storage flag value
+		// validate the storage type
+		if err = storage.ValidateStorageType(storageType); err != nil {
+			cmd.PrintErrln(err)
+			return
+		}
+		localPath, _ = cmd.Flags().GetString("local-path") // get the local-path flag value
+		output, _ = cmd.Flags().GetString("output")        // get the output flag value
 
 		if dbType == "postgres" {
 			compress, _ = cmd.Flags().GetBool("compress")                       // get the compress flag value
@@ -124,13 +135,13 @@ var BackupCmd = &cobra.Command{
 
 func init() {
 	BackupCmd.Flags().StringVarP(&dbType, "type", "t", "", "Database type (mysql, postgres, mariadb, mongodb)")
+
 	BackupCmd.Flags().StringVarP(&host, "host", "H", "", "Database host")
 	BackupCmd.Flags().StringVarP(&port, "port", "P", "", "Database port")
 	BackupCmd.Flags().StringVarP(&user, "user", "u", "", "Database user")
 	BackupCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")
 	BackupCmd.Flags().StringVarP(&database, "database", "d", "", "Database name")
 
-	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
 	BackupCmd.Flags().BoolVarP(&compress, "compress", "c", false, "Compress the backup")
 	BackupCmd.Flags().StringVar(&additionalArgs, "args", "", "Additional arguments you want to pass to the dump command")
 
@@ -140,7 +151,12 @@ func init() {
 	BackupCmd.Flags().IntVar(&pgCompressionLevel, "pg-compression-level", 0, "PostgresSQL compression level [0-9]")
 
 	// mongodb flags
-	BackupCmd.Flags().StringVarP(&uri, "uri", "", "", "MongoDB URI")
+	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
+
+	// storage flags
+	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
+	BackupCmd.Flags().StringVarP(&output, "local-path", "", "", "Local path to store the backup")
+	BackupCmd.Flags().StringVarP(&localPath, "output", "o", "", "Output name")
 
 	// required args
 	err := BackupCmd.MarkFlagRequired("type")

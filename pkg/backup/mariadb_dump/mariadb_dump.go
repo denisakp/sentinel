@@ -3,11 +3,10 @@ package mariadb_dump
 import (
 	"bytes"
 	"fmt"
-	backup2 "github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/backup/sql"
-	"os"
+	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
-	"path/filepath"
 )
 
 func Backup(mda *MariaDBDumpArgs) error {
@@ -22,8 +21,8 @@ func Backup(mda *MariaDBDumpArgs) error {
 		return err
 	}
 
-	// execute mariadb command
-	cmd := exec.Command("mysqldump", args...)
+	// execute mariadb-dump command
+	cmd := exec.Command("mariadb-dump", args...)
 
 	// capture command error
 	var stdErr bytes.Buffer
@@ -38,33 +37,26 @@ func Backup(mda *MariaDBDumpArgs) error {
 		return fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, stdErr.String())
 	}
 
-	// create database backup directory
-	backupDirectory, err := backup2.CreateBackupDirectory()
+	// get the storage handler
+	storageHandler, err := storage.NewStorage(mda.StorageType)
 	if err != nil {
 		return err
 	}
 
+	// get the backup path
+	backupPath, err := storageHandler.GetBackupPath(mda.StoragePath)
+
 	// set output name with customizable extension (default is .sql)
-	extension := backup2.DefaultString(filepath.Ext(mda.OutName), ".sql")
-	mda.OutName = backup2.DefaultString(mda.OutName, backup2.GenerateBackupOutName(mda.Database)) + extension
+	mda.OutName = utils.FinalOutName(mda.OutName)
 
-	// define path for the backup file
-	backupFilePath := filepath.Join(backupDirectory, mda.OutName)
+	// get the full path
+	fullPath := utils.FullPath(backupPath, mda.OutName)
 
-	// create output file
-	outfile, err := os.Create(backupFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file - %w", err)
-	}
-	defer outfile.Close()
-
-	// write command output to the backup file
-	_, err = outfile.Write(stdOut.Bytes())
-	if err != nil {
-		return fmt.Errorf("failed to write to output file - %w", err)
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
+		return err
 	}
 
-	fmt.Printf("Backup file created at %s\n", backupFilePath)
+	fmt.Printf("Backup file created at %s\n", fullPath)
 
 	return nil
 }

@@ -24,12 +24,3 @@ func RemoveArgsDuplicate(args []string) []string {
 
 	return list
 }
-
-// DefaultString sets the default value if the provided value is empty
-func DefaultString(value, defaultValue string) string {
-	if value == "" {
-		return defaultValue
-	}
-
-	return value
-}

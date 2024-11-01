@@ -2,17 +2,21 @@ package mongo_dump
 
 import (
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 type DumpMongoArgs struct {
-	Uri            string
-	Compress       bool
-	AdditionalArgs string
-	OutName        string
+	Uri            string // MongoDB URI
+	Compress       bool   // Compress the backup file
+	AdditionalArgs string // Additional arguments for the mongo_dump command
+	OutName        string // Output name for the backup file
+	StorageType    string // Storage type for the backup file
+	StoragePath    string // Storage path for the backup file
 }
 
 func argsBuilder(da *DumpMongoArgs) ([]string, error) {
-	da.Uri = backup.DefaultString(da.Uri, "mongodb://localhost:27017") // set default uri
+	// set default values
+	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
 
 	args := []string{
 		"--uri=" + da.Uri,
