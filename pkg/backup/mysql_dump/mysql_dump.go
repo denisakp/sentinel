@@ -57,7 +57,7 @@ func Backup(mda *MySqlDumpArgs) error {
 
 	// write backup to storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return err
+		return fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup file created at %s\n", fullPath)
