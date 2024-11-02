@@ -11,7 +11,10 @@ import (
 	"os"
 )
 
-var dbType, host, port, user, password, database, output, storageType, localPath, additionalArgs, pgOutFormat, pgCompressionAlgo, uri string
+var dbType, host, port, user, password, database,
+	pgOutFormat, pgCompressionAlgo, uri,
+	output, storageType, localPath, gDriveSaFile, gDriveFolderId,
+	additionalArgs string
 var compress bool
 var pgCompressionLevel int
 var err error
@@ -44,6 +47,21 @@ var BackupCmd = &cobra.Command{
 		}
 		localPath, _ = cmd.Flags().GetString("local-path") // get the local-path flag value
 		output, _ = cmd.Flags().GetString("output")        // get the output flag value
+
+		// handle gdrive storage
+		if storageType == "google-drive" {
+			gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
+			if gDriveFolderId == "" {
+				cmd.PrintErrln("Google Drive folder ID is required")
+				return
+			}
+
+			gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
+			if gDriveSaFile == "" {
+				cmd.PrintErrln("Google Drive service account file is required")
+				return
+			}
+		}
 
 		if dbType == "postgres" {
 			compress, _ = cmd.Flags().GetBool("compress")                       // get the compress flag value
@@ -165,6 +183,9 @@ func init() {
 	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
 	BackupCmd.Flags().StringVarP(&localPath, "local-path", "", "", "Local path to store the backup")
 	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
+	//google drive
+	BackupCmd.Flags().StringVarP(&gDriveFolderId, "gdrive-folder-id", "", "", "Google Drive folder ID")
+	BackupCmd.Flags().StringVarP(&gDriveSaFile, "gdrive-sa-file", "", "", "Google Drive service account file")
 
 	// required args
 	err := BackupCmd.MarkFlagRequired("type")
