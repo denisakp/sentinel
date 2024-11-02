@@ -1,6 +1,7 @@
 package mariadb_dump
 
 import (
+	"fmt"
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -27,14 +28,15 @@ func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 	mda.Host = utils.DefaultValue(mda.Host, "127.0.0.1")
 	mda.Port = utils.DefaultValue(mda.Port, "3306")
 
+	// build the required arguments
 	args := []string{
-		"--host=" + mda.Host,
-		"--port=" + mda.Port,
-		"--user=" + mda.Username,
-	} // build the required arguments
+		fmt.Sprintf("--host=%s", mda.Host),
+		fmt.Sprintf("--port=%s", mda.Port),
+		fmt.Sprintf("--user=%s", mda.Username),
+	}
 
 	if mda.Password != "" {
-		args = append(args, "--password="+mda.Password)
+		args = append(args, fmt.Sprintf("--password=%s", mda.Password))
 	} // add the password argument if provided
 
 	if mda.AdditionalArgs != "" {

@@ -28,17 +28,14 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		return nil, err
 	}
 
-	// set the default host and port if not provided
-	pda.Host = utils.DefaultValue(pda.Host, "127.0.0.1")
-	pda.Port = utils.DefaultValue(pda.Port, "5432")
+	// initialize default arguments
+	initializeDefaultArgs(pda)
 
-	// enable compression if compression algorithm is set
-	if pda.CompressionAlgorithm != "" {
-		pda.Compress = true
+	if err := validatePgOutFormat(pda.OutFormat); err != nil {
+		return nil, err
 	}
 
-	// set default output format
-	pda.OutFormat = utils.DefaultValue(pda.OutFormat, "p")
+	// validate output format
 	if err := validatePgOutFormat(pda.OutFormat); err != nil {
 		return nil, err
 	}
@@ -48,14 +45,12 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		return nil, err
 	}
 
-	pda.OutName = utils.FullPath(backupPath, pda.OutName)
-
 	args := []string{
-		"--host=" + pda.Host,
-		"--port=" + pda.Port,
-		"--username=" + pda.Username,
-		"--dbname=" + pda.Database,
-		"--format=" + pda.OutFormat,
+		fmt.Sprintf("--host=%s", pda.Host),
+		fmt.Sprintf("--port=%s", pda.Port),
+		fmt.Sprintf("--username=%s", pda.Username),
+		fmt.Sprintf("--dbname=%s", pda.Database),
+		fmt.Sprintf("--format=%s", pda.OutFormat),
 	}
 
 	if pda.Compress {
@@ -64,9 +59,13 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		}
 	}
 
-	// handle the
 	if pda.OutFormat == "d" {
-		args = append(args, "--file="+pda.OutName)
+		if pda.StorageType != "local" {
+			pda.OutName = utils.FormatResourceValue(pda.OutName)
+		} else {
+			pda.OutName = utils.FullPath(backupPath, pda.OutName)
+		}
+		args = append(args, fmt.Sprintf("--file=%s", pda.OutName))
 	}
 
 	// handle additional arguments
@@ -84,8 +83,6 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 func addCompression(args *[]string, pda *PgDumpArgs) error {
 	// set the default compression algorithm to gzip if not provided
 	pda.CompressionAlgorithm = utils.DefaultValue(pda.CompressionAlgorithm, "gzip")
-
-	// validate the compression algorithm
 	if err := validatePgCompressionAlgorithm(pda.CompressionAlgorithm); err != nil {
 		return err
 	}
@@ -95,8 +92,18 @@ func addCompression(args *[]string, pda *PgDumpArgs) error {
 		return err
 	}
 
-	// add compression arguments
+	// add the compression arguments
 	*args = append(*args, fmt.Sprintf("--compress=%s:%d", pda.CompressionAlgorithm, pda.CompressionLevel))
 
 	return nil
+}
+
+func initializeDefaultArgs(pda *PgDumpArgs) {
+	pda.Host = utils.DefaultValue(pda.Host, "127.0.0.1")
+	pda.Port = utils.DefaultValue(pda.Port, "5432")
+	pda.OutFormat = utils.DefaultValue(pda.OutFormat, "p")
+
+	if pda.CompressionAlgorithm != "" {
+		pda.Compress = true
+	}
 }

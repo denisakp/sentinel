@@ -1,6 +1,7 @@
 package mysql_dump
 
 import (
+	"fmt"
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -27,9 +28,9 @@ func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 	mda.Port = utils.DefaultValue(mda.Port, "3306")      // set the default port to 3306 if not provided
 
 	args := []string{
-		"--host=" + mda.Host,
-		"--port=" + mda.Port,
-		"--user=" + mda.Username,
+		fmt.Sprintf("--host=%s", mda.Host),
+		fmt.Sprintf("--port=%s", mda.Port),
+		fmt.Sprintf("--user=%s", mda.Username),
 	}
 
 	if mda.Password == "" {
