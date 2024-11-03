@@ -11,15 +11,20 @@ import (
 	"path/filepath"
 )
 
-type GoogleDriveStorage struct {
+type MyGoogleDriveClient struct {
 	folderId string
 	service  *drive.Service
 }
 
-// NewGoogleDriveStorage creates a new GoogleDriveStorage instance
-func NewGoogleDriveStorage(folderId, serviceAccountFile string) (*GoogleDriveStorage, error) {
+type GoogleDriveStorage struct {
+	FolderId           string
+	ServiceAccountFile string
+}
+
+// NewGoogleDriveStorage creates a new MyGoogleDriveClient instance
+func NewGoogleDriveStorage(gds *GoogleDriveStorage) (*MyGoogleDriveClient, error) {
 	ctx := context.Background()
-	b, err := os.ReadFile(serviceAccountFile)
+	b, err := os.ReadFile(gds.ServiceAccountFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read service account file: %w", err)
 	}
@@ -29,35 +34,25 @@ func NewGoogleDriveStorage(folderId, serviceAccountFile string) (*GoogleDriveSto
 		return nil, fmt.Errorf("failed to create Google Drive service: %w", err)
 	}
 
-	// Code to create a new GoogleDriveStorage instance
-	return &GoogleDriveStorage{service: srv, folderId: folderId}, nil
+	// Code to create a new MyGoogleDriveClient instance
+	return &MyGoogleDriveClient{service: srv, folderId: gds.FolderId}, nil
 }
 
 // GetBackupPath returns the backup path for Google Drive
-func (g *GoogleDriveStorage) GetBackupPath(outName string) (string, error) {
+func (g *MyGoogleDriveClient) GetBackupPath(outName string) (string, error) {
 	return g.folderId, nil
 }
 
 // WriteBackup writes the backup data to Google Drive
-func (g *GoogleDriveStorage) WriteBackup(data []byte, resource string) error {
-
+func (g *MyGoogleDriveClient) WriteBackup(data []byte, resource string) error {
 	resource = utils.FormatResourceValue(resource)
-
-	fmt.Printf("writing backup to %s \n", resource)
 
 	if err := utils.WriteData(data, resource); err != nil {
 		return err
 	}
 
-	if err := g.uploadData(resource); err != nil {
-		return err
-	}
-
-	if err := utils.CleanTempDir(); err != nil {
-		return err
-	}
-
-	return nil
+	defer utils.CleanTempDir()
+	return g.uploadData(resource)
 }
 
 // createGoogleDriveFolder creates a new folder in Google Drive with the specified name
@@ -71,7 +66,7 @@ func (g *GoogleDriveStorage) WriteBackup(data []byte, resource string) error {
 // Returns:
 // - string: the ID of the created folder.
 // - error: an error if one occurs during the folder creation process.
-func (g *GoogleDriveStorage) createGoogleDriveFolder(name, parentId string) (string, error) {
+func (g *MyGoogleDriveClient) createGoogleDriveFolder(name, parentId string) (string, error) {
 	folderMetaData := &drive.File{
 		Name:     name,
 		MimeType: "application/vnd.google-apps.folder",
@@ -98,9 +93,8 @@ func (g *GoogleDriveStorage) createGoogleDriveFolder(name, parentId string) (str
 //
 // Returns:
 // - error: an error if the upload fails.
-func (g *GoogleDriveStorage) uploadFile(data []byte, name, parentId string) error {
+func (g *MyGoogleDriveClient) uploadFile(data []byte, name, parentId string) error {
 	name = filepath.Base(name)
-
 	fmt.Printf("uploading file: %s \n", name)
 
 	fileMetadata := &drive.File{
@@ -130,7 +124,7 @@ func (g *GoogleDriveStorage) uploadFile(data []byte, name, parentId string) erro
 //
 // Returns:
 // - error: an error if the upload process fails.
-func (g *GoogleDriveStorage) uploadDirectory(localDir, parentDir string) error {
+func (g *MyGoogleDriveClient) uploadDirectory(localDir, parentDir string) error {
 	dirName := filepath.Base(localDir)
 	folderId, err := g.createGoogleDriveFolder(dirName, parentDir)
 	if err != nil {
@@ -174,7 +168,7 @@ func (g *GoogleDriveStorage) uploadDirectory(localDir, parentDir string) error {
 //
 // Returns:
 // - error: an error if the resource does not exist or if the upload fails.
-func (g *GoogleDriveStorage) uploadData(resource string) error {
+func (g *MyGoogleDriveClient) uploadData(resource string) error {
 	if !utils.PathExists(resource) {
 		return fmt.Errorf("resource %s does not exist", resource)
 	}
