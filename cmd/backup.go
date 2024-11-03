@@ -14,6 +14,7 @@ import (
 var dbType, host, port, user, password, database,
 	pgOutFormat, pgCompressionAlgo, uri,
 	output, storageType, localPath, gDriveSaFile, gDriveFolderId,
+	awsSecretAccessKey, awsAccessKeyID, awsRegion, awsBucket, awsBucketEndpoint,
 	additionalArgs string
 var compress bool
 var pgCompressionLevel int
@@ -46,6 +47,12 @@ var BackupCmd = &cobra.Command{
 		// google drive
 		gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
 		gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
+		//aws s3 storage
+		awsBucket, _ = cmd.Flags().GetString("aws-bucket")
+		awsRegion, _ = cmd.Flags().GetString("aws-region")
+		awsBucketEndpoint, _ = cmd.Flags().GetString("aws-bucket-endpoint")
+		awsAccessKeyID, _ = cmd.Flags().GetString("aws-access-key-id")
+		awsSecretAccessKey, _ = cmd.Flags().GetString("aws-secret")
 
 		params := &storage.Params{
 			StorageType:          storageType,
@@ -53,6 +60,11 @@ var BackupCmd = &cobra.Command{
 			OutName:              output,
 			GoogleServiceAccount: gDriveSaFile,
 			GoogleDriveFolderId:  gDriveFolderId,
+			AWSBucket:            awsBucket,
+			AWSRegion:            awsRegion,
+			AWSBucketEndpoint:    awsBucketEndpoint,
+			AWSAccessKeyID:       awsAccessKeyID,
+			AWSSecretAccessKey:   awsSecretAccessKey,
 		}
 
 		if err = storage.ValidateStorage(params); err != nil {
@@ -166,12 +178,18 @@ func init() {
 	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
 
 	// storage flags
-	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
+	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, google-drive)")
 	BackupCmd.Flags().StringVarP(&localPath, "local-path", "", "", "Local path to store the backup")
 	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
 	//google drive
 	BackupCmd.Flags().StringVarP(&gDriveFolderId, "gdrive-folder-id", "", "", "Google Drive folder ID")
 	BackupCmd.Flags().StringVarP(&gDriveSaFile, "gdrive-sa-file", "", "", "Google Drive service account file")
+	//aws s3 storage
+	BackupCmd.Flags().StringVarP(&awsBucket, "aws-bucket", "", "", "AWS S3 bucket name")
+	BackupCmd.Flags().StringVarP(&awsRegion, "aws-region", "", "us-east-1", "AWS region")
+	BackupCmd.Flags().StringVarP(&awsBucketEndpoint, "aws-bucket-endpoint", "", "", "AWS S3 bucket endpoint")
+	BackupCmd.Flags().StringVarP(&awsAccessKeyID, "aws-access-key-id", "", "", "AWS access key ID")
+	BackupCmd.Flags().StringVarP(&awsSecretAccessKey, "aws-secret", "", "", "AWS secret")
 
 	// required args
 	err := BackupCmd.MarkFlagRequired("type")

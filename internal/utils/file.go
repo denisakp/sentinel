@@ -44,10 +44,10 @@ func CopyFile(source, destination string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer func(destFile *os.File) {
-		err := destFile.Close()
+	defer func(destinationFile *os.File) {
+		err := destinationFile.Close()
 		if err != nil {
-
+			_ = fmt.Errorf("failed to close destination file: %w", err)
 		}
 	}(destinationFile)
 
