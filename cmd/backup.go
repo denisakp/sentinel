@@ -39,29 +39,28 @@ var BackupCmd = &cobra.Command{
 		database, _ = cmd.Flags().GetString("database")   // get the database flag value
 		additionalArgs, _ = cmd.Flags().GetString("args") // get the args flag value
 
-		storageType, _ = cmd.Flags().GetString("storage") // get the storage flag value
-		// validate the storage type
-		if err = storage.ValidateStorageType(storageType); err != nil {
+		// storage
+		storageType, _ = cmd.Flags().GetString("storage")  // get the storage flag value
+		localPath, _ = cmd.Flags().GetString("local-path") // get the local-path flag value
+		output, _ = cmd.Flags().GetString("output")        // get the output flag value
+		// google drive
+		gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
+		gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
+
+		params := &storage.Params{
+			StorageType:          storageType,
+			LocalPath:            localPath,
+			OutName:              output,
+			GoogleServiceAccount: gDriveSaFile,
+			GoogleDriveFolderId:  gDriveFolderId,
+		}
+
+		if err = storage.ValidateStorage(params); err != nil {
 			cmd.PrintErrln(err)
 			return
 		}
-		localPath, _ = cmd.Flags().GetString("local-path") // get the local-path flag value
-		output, _ = cmd.Flags().GetString("output")        // get the output flag value
 
-		// handle gdrive storage
-		if storageType == "google-drive" {
-			gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
-			if gDriveFolderId == "" {
-				cmd.PrintErrln("Google Drive folder ID is required")
-				return
-			}
-
-			gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
-			if gDriveSaFile == "" {
-				cmd.PrintErrln("Google Drive service account file is required")
-				return
-			}
-		}
+		// validate the storage parameters
 
 		if dbType == "postgres" {
 			compress, _ = cmd.Flags().GetBool("compress")                       // get the compress flag value
@@ -69,25 +68,18 @@ var BackupCmd = &cobra.Command{
 			pgCompressionAlgo, _ = cmd.Flags().GetString("pg-compression-algo") // get the pg-compression-algo flag value
 			pgCompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")  // get the pg-compression-level flag value
 
-			if compress && pgOutFormat == "t" {
-				cmd.PrintErrln("tar format does not support compression")
-				os.Exit(1)
-			}
-
 			pda := &pg_dump.PgDumpArgs{
 				Host:                 host,
 				Port:                 port,
 				Username:             user,
 				Password:             password,
 				Database:             database,
-				OutName:              output,
-				OutFormat:            pgOutFormat,
+				PgOutFormat:          pgOutFormat,
 				Compress:             compress,
 				CompressionAlgorithm: pgCompressionAlgo,
 				CompressionLevel:     pgCompressionLevel,
 				AdditionalArgs:       additionalArgs,
-				StorageType:          storageType,
-				StoragePath:          localPath,
+				Storage:              params,
 			}
 
 			err = pg_dump.Backup(pda)
@@ -104,10 +96,8 @@ var BackupCmd = &cobra.Command{
 				Username:       user,
 				Password:       password,
 				Database:       database,
-				OutName:        output,
 				AdditionalArgs: additionalArgs,
-				StorageType:    storageType,
-				StoragePath:    localPath,
+				Storage:        params,
 			}
 
 			err = mysql_dump.Backup(mda)
@@ -124,10 +114,8 @@ var BackupCmd = &cobra.Command{
 				Username:       user,
 				Password:       password,
 				Database:       database,
-				OutName:        output,
 				AdditionalArgs: additionalArgs,
-				StorageType:    storageType,
-				StoragePath:    localPath,
+				Storage:        params,
 			}
 
 			err = mariadb_dump.Backup(mda)
@@ -144,10 +132,8 @@ var BackupCmd = &cobra.Command{
 			da := &mongo_dump.DumpMongoArgs{
 				Compress:       compress,
 				AdditionalArgs: additionalArgs,
-				OutName:        output,
 				Uri:            uri,
-				StorageType:    storageType,
-				StoragePath:    localPath,
+				Storage:        params,
 			}
 
 			err = mongo_dump.Backup(da)

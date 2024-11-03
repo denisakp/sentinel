@@ -109,8 +109,6 @@ func WriteData(data []byte, resource string) error {
 			return fmt.Errorf("directory %s is empty", resource)
 		}
 
-		fmt.Printf("hasContent: %v\n", hasContent)
-
 		return nil
 	}
 
