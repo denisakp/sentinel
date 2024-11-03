@@ -3,19 +3,18 @@ package mysql_dump
 import (
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
 type MySqlDumpArgs struct {
-	Host           string // MySQL host
-	Port           string // MySQL port
-	Username       string // MySQL username
-	Password       string // MySQL password
-	Database       string // MySQL database name
-	AdditionalArgs string // Additional arguments for the mysql_dump command
-	OutName        string // Output name for the backup file
-	StorageType    string // Storage type for the backup file
-	StoragePath    string // Storage path for the backup file
+	Host           string          // MySQL host
+	Port           string          // MySQL port
+	Username       string          // MySQL username
+	Password       string          // MySQL password
+	Database       string          // MySQL database name
+	AdditionalArgs string          // Additional arguments for the mysql_dump command
+	Storage        *storage.Params // Storage parameters
 }
 
 // argsBuilder builds the arguments for the mysql_dump command

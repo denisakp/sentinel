@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"github.com/denisakp/sentinel/internal/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -12,15 +13,18 @@ type Storage interface {
 	WriteBackup(data []byte, outName string) error // WriteBackup writes the backup data to the specified path
 }
 
-// NewStorage returns a new storage based on the storage type
-func NewStorage(storageType string) (Storage, error) {
-	// set the default storage type to local if not provided
-	storageType = utils.DefaultValue(storageType, "local")
+type Params struct {
+	OutName              string
+	StorageType          string
+	LocalPath            string
+	GoogleDriveFolderId  string
+	GoogleServiceAccount string
+}
 
-	// validate the storage type before creating a new storage
-	if err := ValidateStorageType(storageType); err != nil {
-		return nil, err
-	}
+// NewStorage returns a new storage based on the storage type
+func NewStorage(p *Params) (Storage, error) {
+	// set the default storage type to local if not provided
+	storageType := utils.DefaultValue(p.StorageType, "local")
 
 	switch storageType {
 	case "local":
@@ -28,7 +32,11 @@ func NewStorage(storageType string) (Storage, error) {
 	case "s3":
 		return nil, fmt.Errorf("unsupported storage type %s", storageType)
 	case "google-drive":
-		return nil, fmt.Errorf("unsupported storage type %s", storageType)
+		gDriveStorage, err := gdrive.NewGoogleDriveStorage(p.GoogleDriveFolderId, p.GoogleServiceAccount)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing Google Drive storage: %w", err)
+		}
+		return gDriveStorage, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage type %s", storageType)
 	}

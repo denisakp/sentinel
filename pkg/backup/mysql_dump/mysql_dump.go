@@ -41,19 +41,19 @@ func Backup(mda *MySqlDumpArgs) error {
 	}
 
 	// get storage handler
-	storageHandler, err := storage.NewStorage(mda.StorageType)
+	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
 		return err
 	}
 
 	// get backup path
-	backupPath, err := storageHandler.GetBackupPath(mda.StoragePath)
+	backupPath, err := storageHandler.GetBackupPath(mda.Storage.LocalPath)
 
 	// set outName with customizable extension (default is .sql)
-	mda.OutName = utils.FinalOutName(mda.OutName)
+	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
 
 	// get full path
-	fullPath := utils.FullPath(backupPath, mda.OutName)
+	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
 	// write backup to storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {

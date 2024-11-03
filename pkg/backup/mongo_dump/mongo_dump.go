@@ -11,13 +11,13 @@ import (
 // Backup backs up a MongoDB database using mongo_dump
 func Backup(da *DumpMongoArgs) error {
 	// get the storage handler
-	storageHandler, err := storage.NewStorage(da.StorageType)
+	storageHandler, err := storage.NewStorage(da.Storage)
 	if err != nil {
 		return err
 	}
 
 	// get the backup path
-	backupPath, err := storageHandler.GetBackupPath(da.StoragePath)
+	backupPath, err := storageHandler.GetBackupPath(da.Storage.LocalPath)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,8 @@ func Backup(da *DumpMongoArgs) error {
 		return fmt.Errorf("failed to run mongo_dump: %w", err)
 	}
 
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), da.OutName); err != nil {
+	// write backup to storage
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), da.Storage.OutName); err != nil {
 		return fmt.Errorf("failed to write backup to storage: %w", err)
 	}
 

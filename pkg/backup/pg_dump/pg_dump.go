@@ -11,13 +11,13 @@ import (
 // Backup backs up a PostgresSQL database using pg_dump
 func Backup(pda *PgDumpArgs) error {
 	// get the storage handler
-	storageHandler, err := storage.NewStorage(pda.StorageType)
+	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
 		return err
 	}
 
 	// get the backup path
-	backupPath, err := storageHandler.GetBackupPath(pda.StoragePath)
+	backupPath, err := storageHandler.GetBackupPath(pda.Storage.LocalPath)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func Backup(pda *PgDumpArgs) error {
 	}
 
 	// write the backup to the storage
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), pda.OutName); err != nil {
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), pda.Storage.OutName); err != nil {
 		return fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 

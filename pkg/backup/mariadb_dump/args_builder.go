@@ -3,19 +3,18 @@ package mariadb_dump
 import (
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
 type MariaDBDumpArgs struct {
-	Host           string // MariaDB host
-	Port           string // MariaDB port
-	Username       string // MariaDB username
-	Password       string // MariaDB password
-	Database       string // MariaDB database name
-	AdditionalArgs string // Additional arguments for the mariadb_dump command
-	OutName        string // Output name for the backup file
-	StorageType    string // Storage type for the backup file
-	StoragePath    string // Storage path for the backup file
+	Host           string          // MariaDB host
+	Port           string          // MariaDB port
+	Username       string          // MariaDB username
+	Password       string          // MariaDB password
+	Database       string          // MariaDB database name
+	AdditionalArgs string          // Additional arguments for the mariadb_dump command
+	Storage        *storage.Params // Storage parameters
 }
 
 // ArgsBuilder builds the arguments for the mariadb_dump command

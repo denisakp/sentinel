@@ -19,3 +19,21 @@ func ValidateStorageType(storageType string) error {
 
 	return nil
 }
+
+func ValidateStorage(param *Params) error {
+	if err := ValidateStorageType(param.StorageType); err != nil {
+		return err
+	}
+
+	if param.StorageType == "google-drive" {
+		if param.GoogleDriveFolderId == "" {
+			return fmt.Errorf("google Drive folder ID is required")
+		}
+
+		if param.GoogleServiceAccount == "" {
+			return fmt.Errorf("google Drive service account file is required")
+		}
+	}
+
+	return nil
+}

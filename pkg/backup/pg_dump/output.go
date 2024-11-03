@@ -7,26 +7,26 @@ import (
 
 // setOutName Helper function to set output name based on compression and format
 func setOutName(pda *PgDumpArgs) error {
-	pda.OutName = utils.DefaultValue(pda.OutName, utils.DefaultBackupOutName())
+	pda.Storage.OutName = utils.DefaultValue(pda.Storage.OutName, utils.DefaultBackupOutName())
 
-	if pda.Compress && pda.OutFormat == "p" {
+	if pda.Compress && pda.PgOutFormat == "p" {
 		return fmt.Errorf("plain format does not support compression")
 	}
-	if pda.Compress && pda.OutFormat == "t" {
+	if pda.Compress && pda.PgOutFormat == "t" {
 		return fmt.Errorf("tar format does not support compression")
 	}
 
-	switch pda.OutFormat {
+	switch pda.PgOutFormat {
 	case "c":
-		pda.OutName += ".backup"
+		pda.Storage.OutName += ".backup"
 	case "d":
 	// Directory format if empty and compression is enabled
 	case "t":
-		pda.OutName += ".tar"
+		pda.Storage.OutName += ".tar"
 	case "p":
-		pda.OutName += ".sql"
+		pda.Storage.OutName += ".sql"
 	default:
-		return fmt.Errorf("unsupported output format: %s", pda.OutFormat)
+		return fmt.Errorf("unsupported output format: %s", pda.PgOutFormat)
 	}
 
 	return nil
