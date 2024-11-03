@@ -5,26 +5,29 @@ volumes:
   pg-data:
   mysql-data:
   mariadb-data:
+  minio-data:
 
 networks:
   sentinel:
     external: true
 
 services:
-  app:
-    build: docker.io/denisakp/sentinel:v1.0
-    networks:
-      - sentinel
-    volumes:
-      - sentinel:/app/backups
-    environment:
-      BACKUP_DIRECTORY: /app/backups
-    command: backup --type=mysql --host=mysql --user=root --password=root --database=classicmodels
+  #  app:
+  #    build: .
+  #    networks:
+  #      - sentinel
+  #    volumes:
+  #      - sentinel:/app/backups
+  #    environment:
+  #      BACKUP_DIRECTORY: /app/backups
+  #    command: backup --type=mariadb --host=mariadb --port=3306 --password=root --database=nation --output=nation.sql --local-path=/app/backups
 
   mysql:
     image: docker.io/mysql:lts
     networks:
       - sentinel
+    ports:
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     environment:
@@ -38,6 +41,10 @@ services:
     hostname: maria
     networks:
       - sentinel
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: sentinel
@@ -59,8 +66,10 @@ services:
     hostname: pgdb
     networks:
       - sentinel
+    ports:
+      - "5432:5432"
     volumes:
-      - pg-data
+      - pg-data:/var/lib/postgresql/data
     environment:
       PGPASSWORD: sentinel
       POSTGRES_DB: sentinel
@@ -76,4 +85,20 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: user@sentinel.io
       PGADMIN_DEFAULT_PASSWORD: secret1234
+
+  minio:
+    image: minio/minio:latest
+    command: minio server /var/lib/minio/data --console-address ":9001"
+    networks:
+      - sentinel
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: sentinel
+      MINIO_ROOT_PASSWORD: password
+    volumes:
+      - minio-data:/var/lib/minio/data
+
+
 
