@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
@@ -20,77 +19,6 @@ func IsDirectory(path string) bool {
 	}
 
 	return fileInfo.IsDir()
-}
-
-// CopyFile copies a file from the source to the destination.
-// This function is useful to copy backup files for Postgres databases
-// when the output format is a directory. Each file is copied individually
-// to the destination directory.
-//
-// Returns an error if the file cannot be copied.
-func CopyFile(source, destination string) error {
-	srcFile, err := os.Open(source)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer func(srcFile *os.File) {
-		err := srcFile.Close()
-		if err != nil {
-			_ = fmt.Errorf("failed to close source file: %w", err)
-		}
-	}(srcFile)
-
-	destinationFile, err := os.Create(destination)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer func(destinationFile *os.File) {
-		err := destinationFile.Close()
-		if err != nil {
-			_ = fmt.Errorf("failed to close destination file: %w", err)
-		}
-	}(destinationFile)
-
-	_, err = io.Copy(destinationFile, srcFile)
-	if err != nil {
-		return fmt.Errorf("failed to copy file: %w", err)
-	}
-
-	return nil
-}
-
-// CopyDir recursively copies a directory from the source to the destination.
-// This function is useful when performing MongoDump backup of all databases,
-// as Mongo exports each database to a separate directory.
-//
-// Returns an error if the directory cannot be copied.
-func CopyDir(sourceDir, destinationDir string) error {
-	err := os.MkdirAll(destinationDir, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	entries, err := os.ReadDir(sourceDir)
-	if err != nil {
-		return fmt.Errorf("failed to read source directory %s:  %w", sourceDir, err)
-	}
-
-	for _, entry := range entries {
-		sourcePath := filepath.Join(sourceDir, entry.Name())
-		destinationPath := filepath.Join(destinationDir, entry.Name())
-
-		if entry.IsDir() {
-			if err := CopyDir(sourcePath, destinationPath); err != nil {
-				return err
-			}
-		} else {
-			if err := CopyFile(sourcePath, destinationPath); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 // WriteData writes the data to the specified resource.
