@@ -30,26 +30,26 @@ func GetStatusColor(status BackupStatus) StatusColor {
 	switch status {
 	case StatusSuccess:
 		return StatusColor{
-			SlackHex:   "#36a64f",  // Green
-			DiscordInt: 3066993,    // Green
+			SlackHex:   "#36a64f", // Green
+			DiscordInt: 3066993,   // Green
 			Name:       "Success",
 		}
 	case StatusFailure:
 		return StatusColor{
-			SlackHex:   "#ff0000",  // Red
-			DiscordInt: 15158332,   // Red
+			SlackHex:   "#ff0000", // Red
+			DiscordInt: 15158332,  // Red
 			Name:       "Failure",
 		}
 	case StatusWarning:
 		return StatusColor{
-			SlackHex:   "#ffaa00",  // Orange
-			DiscordInt: 15105570,   // Orange
+			SlackHex:   "#ffaa00", // Orange
+			DiscordInt: 15105570,  // Orange
 			Name:       "Warning",
 		}
 	default:
 		return StatusColor{
-			SlackHex:   "#808080",  // Gray (default/unknown)
-			DiscordInt: 9807270,    // Gray
+			SlackHex:   "#808080", // Gray (default/unknown)
+			DiscordInt: 9807270,   // Gray
 			Name:       "Unknown",
 		}
 	}
