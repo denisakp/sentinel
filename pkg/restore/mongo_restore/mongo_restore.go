@@ -1,0 +1,176 @@
+package mongo_restore
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+// RestoreArgs holds arguments for MongoDB restore operations
+type RestoreArgs struct {
+	// Connection parameters
+	URI      string // MongoDB connection URI (connection string)
+	Database string // Database name
+
+	// Backup source
+	BackupPath string // local file path (optional if Storage is provided)
+
+	// Restore options
+	OnConflict     string // ignore, replace, error (default: error)
+	Gzip           bool   // decompress gzip
+	Archive        bool   // backup is a tar archive
+	AdditionalArgs string // extra arguments for mongorestore
+
+	// Cloud storage
+	Storage *struct {
+		Type    string      // "s3", "gdrive", "local"
+		OutName string      // backup name in storage
+		Handler interface{} // storage.Storage interface (injected)
+	}
+}
+
+// Restore restores a MongoDB backup from cloud or local storage
+func Restore(ctx context.Context, ra *RestoreArgs) error {
+	// Validate required arguments
+	if err := ValidateRequiredArgs(ra); err != nil {
+		return fmt.Errorf("invalid restore arguments - %w", err)
+	}
+
+	if err := ValidateOnConflict(ra.OnConflict); err != nil {
+		return fmt.Errorf("invalid conflict strategy - %w", err)
+	}
+
+	var backupData []byte
+	var err error
+
+	// Read backup from cloud storage if storage handler exists
+	if ra.Storage != nil && ra.Storage.Handler != nil {
+		handler, ok := ra.Storage.Handler.(interface {
+			ReadBackup(string) ([]byte, error)
+		})
+		if !ok {
+			return fmt.Errorf("storage handler does not implement ReadBackup method")
+		}
+
+		backupData, err = handler.ReadBackup(ra.Storage.OutName)
+		if err != nil {
+			return fmt.Errorf("failed to read backup from cloud storage - %w", err)
+		}
+	} else if ra.BackupPath != "" {
+		// Fall back to local file
+		backupData, err = os.ReadFile(ra.BackupPath)
+		if err != nil {
+			return fmt.Errorf("failed to read backup file - %w", err)
+		}
+	} else {
+		return fmt.Errorf("backup path or storage handler is required")
+	}
+
+	// Check database connectivity before restore
+	if err := checkConnectivity(ctx, ra); err != nil {
+		return fmt.Errorf("connectivity check failed - %w", err)
+	}
+
+	// Build mongorestore command
+	args := []string{
+		fmt.Sprintf("--uri=%s", ra.URI),
+	}
+
+	// Add database if specified
+	if ra.Database != "" {
+		args = append(args, fmt.Sprintf("--db=%s", ra.Database))
+	}
+
+	// Add gzip decompression flag if needed
+	if ra.Gzip {
+		args = append(args, "--gzip")
+	}
+
+	// Add archive flag if backup is tar archive
+	if ra.Archive {
+		args = append(args, "--archive=/dev/stdin")
+	}
+
+	// Add conflict handling
+	if ra.OnConflict == "ignore" {
+		args = append(args, "--stopOnError=false")
+	} else if ra.OnConflict == "replace" {
+		args = append(args, "--drop")
+	}
+
+	// Parse and add additional arguments
+	if ra.AdditionalArgs != "" {
+		additionalArgs := parseCLIArgs(ra.AdditionalArgs)
+		args = append(args, additionalArgs...)
+	}
+
+	// Execute mongorestore with stdin piping
+	cmd := exec.CommandContext(ctx, "mongorestore", args...)
+
+	// Set up environment (no special password handling for MongoDB URI)
+	cmd.Env = os.Environ()
+
+	// Pipe backup data to stdin
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdin pipe - %w", err)
+	}
+
+	// Start command
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start mongorestore command - %w", err)
+	}
+
+	// Write backup data to stdin
+	if _, err := stdin.Write(backupData); err != nil {
+		stdin.Close()
+		return fmt.Errorf("failed to write backup data to mongorestore stdin - %w", err)
+	}
+	stdin.Close()
+
+	// Wait for command completion
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("mongorestore command failed - %w", err)
+	}
+
+	return nil
+}
+
+// RestoreFromFile is a convenience wrapper that restores from a local file
+func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
+	if ra.BackupPath == "" {
+		return fmt.Errorf("backup path is required")
+	}
+	return Restore(ctx, ra)
+}
+
+// parseCLIArgs parses space-separated CLI arguments
+func parseCLIArgs(args string) []string {
+	if args == "" {
+		return []string{}
+	}
+
+	return strings.Fields(args)
+}
+
+// checkConnectivity verifies database connectivity using mongosh
+func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
+	cmd := exec.CommandContext(ctx, "mongosh",
+		ra.URI,
+		"--eval", "db.version()",
+	)
+
+	cmd.Env = os.Environ()
+
+	// Discard output, we only care about exit code
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot connect to MongoDB at URI %s - %w", ra.URI, err)
+	}
+
+	return nil
+}
