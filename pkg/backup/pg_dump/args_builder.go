@@ -2,6 +2,7 @@ package pg_dump
 
 import (
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -49,22 +50,30 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		fmt.Sprintf("--port=%s", pda.Port),
 		fmt.Sprintf("--username=%s", pda.Username),
 		fmt.Sprintf("--dbname=%s", pda.Database),
-		fmt.Sprintf("--format=%s", pda.PgOutFormat),
 	}
+
+	// Add output file for all formats
+	if pda.Storage.OutName != "" {
+		if pda.PgOutFormat == "d" {
+			// Directory format
+			if pda.Storage.StorageType != "local" {
+				pda.Storage.OutName = utils.FormatResourceValue(pda.Storage.OutName)
+			} else {
+				pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
+			}
+		} else {
+			// File format (c, p, t)
+			pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
+		}
+		args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
+	}
+
+	args = append(args, fmt.Sprintf("--format=%s", pda.PgOutFormat))
 
 	if pda.Compress {
 		if err := addCompression(&args, pda); err != nil {
 			return nil, err
 		}
-	}
-
-	if pda.PgOutFormat == "d" {
-		if pda.Storage.StorageType != "local" {
-			pda.Storage.OutName = utils.FormatResourceValue(pda.Storage.OutName)
-		} else {
-			pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
-		}
-		args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
 	}
 
 	// handle additional arguments

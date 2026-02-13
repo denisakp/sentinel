@@ -2,6 +2,8 @@ package pg_dump
 
 import (
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/storage"
 )
 
 func Test_setOutName(t *testing.T) {
@@ -13,52 +15,58 @@ func Test_setOutName(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "No outName, no compress, no format",
-			args:    &PgDumpArgs{Storage.OutName: "", Compress: false, PgOutFormat: "", Database: "test"},
-			wantOut: "test_backup.backup",
+			name:    "Plain format without compression - adds .sql extension",
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "my_backup"}, Compress: false, PgOutFormat: "p", Database: "test"},
+			wantOut: "my_backup.sql",
 			wantErr: false,
 		},
 		{
-			name:    "Compress, no outFormat, adds custom format",
-			args:    &PgDumpArgs{OutName: "", Compress: true, PgOutFormat: "", Database: "test"},
-			wantOut: "test_backup.backup",
+			name:    "Custom format without compression - adds .backup extension",
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "my_backup"}, Compress: false, PgOutFormat: "c", Database: "test"},
+			wantOut: "my_backup.backup",
 			wantErr: false,
 		},
 		{
 			name:    "Tar format with compression enabled - error expected",
-			args:    &PgDumpArgs{OutName: "test", Compress: true, PgOutFormat: "t", Database: "test"},
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test"}, Compress: true, PgOutFormat: "t", Database: "test"},
 			wantOut: "test.tar",
 			wantErr: true,
 		},
 		{
 			name:    "Plain format with compression enabled - error expected",
-			args:    &PgDumpArgs{OutName: "test", Compress: true, PgOutFormat: "p", Database: "test"},
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test"}, Compress: true, PgOutFormat: "p", Database: "test"},
 			wantOut: "test.sql",
 			wantErr: true,
 		},
 		{
 			name:    "Custom format without compression",
-			args:    &PgDumpArgs{OutName: "test", Compress: false, PgOutFormat: "c", Database: "test"},
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test"}, Compress: false, PgOutFormat: "c", Database: "test"},
 			wantOut: "test.backup",
 			wantErr: false,
 		},
 		{
 			name:    "Tar format without compression",
-			args:    &PgDumpArgs{OutName: "test", Compress: false, PgOutFormat: "t", Database: "test"},
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test"}, Compress: false, PgOutFormat: "t", Database: "test"},
 			wantOut: "test.tar",
 			wantErr: false,
 		},
 		{
 			name:    "Plain format without compression",
-			args:    &PgDumpArgs{OutName: "test", Compress: false, PgOutFormat: "p", Database: "test"},
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test"}, Compress: false, PgOutFormat: "p", Database: "test"},
 			wantOut: "test.sql",
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := setOutName(tt.args); (err != nil) != tt.wantErr {
+			err := setOutName(tt.args)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("setOutName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			// Only check outName if no error was expected
+			if !tt.wantErr && tt.args.Storage.OutName != tt.wantOut {
+				t.Errorf("setOutName() outName = %v, want %v", tt.args.Storage.OutName, tt.wantOut)
 			}
 		})
 	}
