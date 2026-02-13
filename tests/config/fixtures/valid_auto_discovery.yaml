@@ -1,0 +1,18 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  all-mysql:
+    type: mysql
+    host: localhost
+    username: root
+    password_env: MYSQL_PASSWORD
+    database: "*"
+    strategy: single
+    exclude:
+      - mysql
+    storage:
+      type: local
