@@ -1,9 +1,7 @@
-package cmd
+package cli
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 var longDesc = "\"Sentinel is a cloud-native CLI tool designed for secure and reliable database backup and restoration," +
@@ -19,10 +17,15 @@ var RootCmd = &cobra.Command{
 	Long:  longDesc,
 }
 
-func Execute() {
-	err := RootCmd.Execute()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+func init() {
+	RootCmd.AddCommand(BackupCmd)
+	RootCmd.AddCommand(scheduleCmd)
+	RootCmd.AddCommand(retentionCmd)
+	RootCmd.AddCommand(monitorCmd)
+	RootCmd.AddCommand(configCmd)
+	RootCmd.AddCommand(restoreCmd)
+}
+
+func Execute() error {
+	return RootCmd.Execute()
 }
