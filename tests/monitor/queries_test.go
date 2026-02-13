@@ -1,0 +1,94 @@
+package monitor_test
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/denisakp/sentinel/internal/monitor"
+)
+
+func TestListExecutionsWithFilters(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	insertExecution(t, mon, "job-a", "postgres", "success", start, 100)
+	insertExecution(t, mon, "job-a", "postgres", "failure", start.Add(30*time.Minute), 50)
+	insertExecution(t, mon, "job-b", "mysql", "success", start.Add(90*time.Minute), 75)
+
+	filter := &monitor.Filter{BackupName: "job-a"}
+	execs, err := mon.ListExecutions(context.Background(), filter, 10, 0)
+	if err != nil {
+		t.Fatalf("list executions failed: %v", err)
+	}
+	if len(execs) != 2 {
+		t.Fatalf("expected 2 executions, got %d", len(execs))
+	}
+
+	filter = &monitor.Filter{Status: "success"}
+	execs, err = mon.ListExecutions(context.Background(), filter, 10, 0)
+	if err != nil {
+		t.Fatalf("list executions failed: %v", err)
+	}
+	if len(execs) != 2 {
+		t.Fatalf("expected 2 successes, got %d", len(execs))
+	}
+
+	filter = &monitor.Filter{StartDate: start.Add(45 * time.Minute)}
+	execs, err = mon.ListExecutions(context.Background(), filter, 10, 0)
+	if err != nil {
+		t.Fatalf("list executions failed: %v", err)
+	}
+	if len(execs) != 1 {
+		t.Fatalf("expected 1 execution after time filter, got %d", len(execs))
+	}
+}
+
+func TestGetExecution(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	id := insertExecution(t, mon, "job-a", "postgres", "success", time.Now(), 100)
+
+	exec, err := mon.GetExecution(context.Background(), id)
+	if err != nil {
+		t.Fatalf("get execution failed: %v", err)
+	}
+	if exec.ID != id {
+		t.Fatalf("expected id %s, got %s", id, exec.ID)
+	}
+}
+
+func newTestMonitor(t *testing.T) *monitor.Monitor {
+	t.Helper()
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "history.db")
+
+	mon, err := monitor.NewMonitor(path)
+	if err != nil {
+		t.Fatalf("failed to create monitor: %v", err)
+	}
+	return mon
+}
+
+func insertExecution(t *testing.T, mon *monitor.Monitor, jobName, dbType, status string, timestamp time.Time, size int64) string {
+	t.Helper()
+	exec := &monitor.Execution{
+		BackupName:     jobName,
+		DatabaseType:   dbType,
+		Timestamp:      timestamp.UTC(),
+		DurationMs:     1234,
+		Status:         status,
+		StorageBackend: "local",
+		FilePath:       filepath.Join(os.TempDir(), "backup.sql"),
+		FileSizeBytes:  size,
+	}
+
+	if err := mon.RecordExecution(context.Background(), exec); err != nil {
+		t.Fatalf("record execution failed: %v", err)
+	}
+	return exec.ID
+}

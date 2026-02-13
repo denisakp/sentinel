@@ -1,0 +1,15 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  bad-env:
+    type: postgres
+    host_env: bad-env
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app_db
+    storage:
+      type: local

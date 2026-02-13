@@ -1,0 +1,17 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  bad-options:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app_db
+    database_options:
+      pg_out_format: x
+    storage:
+      type: local

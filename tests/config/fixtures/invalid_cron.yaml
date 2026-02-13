@@ -1,0 +1,16 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  bad-cron:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app_db
+    schedule: invalid
+    storage:
+      type: local
