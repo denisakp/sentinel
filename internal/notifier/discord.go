@@ -115,15 +115,10 @@ func (d *DiscordNotifier) IsEnabled() bool {
 }
 
 // buildPayload builds a Discord webhook payload (embeds format)
-func (d *DiscordNotifier) buildPayload(msg *FormattedMessage) map[string]interface{} {
-	color := 3066993 // green for success
-	if msg.Status == StatusFailure {
-		color = 15158332 // red for failure
-	} else if msg.Status == StatusWarning {
-		color = 15105570 // orange for warning
-	}
+func (d *DiscordNotifier) buildPayload(msg *FormattedMessage) map[string]any {
+	color := GetStatusColor(msg.Status)
 
-	fields := []map[string]interface{}{
+	fields := []map[string]any{
 		{
 			"name":   "Database",
 			"value":  msg.Details["Database"],
@@ -152,22 +147,22 @@ func (d *DiscordNotifier) buildPayload(msg *FormattedMessage) map[string]interfa
 	}
 
 	if msg.Details["Error"] != "" {
-		fields = append(fields, map[string]interface{}{
+		fields = append(fields, map[string]any{
 			"name":   "Error",
 			"value":  msg.Details["Error"],
 			"inline": false,
 		})
 	}
 
-	embed := map[string]interface{}{
+	embed := map[string]any{
 		"title":       msg.Title,
 		"description": msg.MessageText,
 		"fields":      fields,
-		"color":       color,
+		"color":       color.DiscordInt,
 		"timestamp":   msg.Timestamp.Format(time.RFC3339),
 	}
 
-	return map[string]interface{}{
-		"embeds": []map[string]interface{}{embed},
+	return map[string]any{
+		"embeds": []map[string]any{embed},
 	}
 }

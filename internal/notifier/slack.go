@@ -115,15 +115,10 @@ func (s *SlackNotifier) IsEnabled() bool {
 }
 
 // buildPayload builds a Slack webhook payload
-func (s *SlackNotifier) buildPayload(msg *FormattedMessage) map[string]interface{} {
-	color := "#36a64f" // green for success
-	if msg.Status == StatusFailure {
-		color = "#ff0000" // red for failure
-	} else if msg.Status == StatusWarning {
-		color = "#ffaa00" // orange for warning
-	}
+func (s *SlackNotifier) buildPayload(msg *FormattedMessage) map[string]any {
+	color := GetStatusColor(msg.Status)
 
-	fields := []map[string]interface{}{
+	fields := []map[string]any{
 		{
 			"title": "Database",
 			"value": msg.Details["Database"],
@@ -147,16 +142,16 @@ func (s *SlackNotifier) buildPayload(msg *FormattedMessage) map[string]interface
 	}
 
 	if msg.Details["Error"] != "" {
-		fields = append(fields, map[string]interface{}{
+		fields = append(fields, map[string]any{
 			"title": "Error",
 			"value": msg.Details["Error"],
 			"short": false,
 		})
 	}
 
-	attachment := map[string]interface{}{
+	attachment := map[string]any{
 		"fallback":  msg.Title,
-		"color":     color,
+		"color":     color.SlackHex,
 		"title":     msg.Title,
 		"text":      SanitizeForSlack(msg.MessageText),
 		"fields":    fields,
@@ -164,7 +159,7 @@ func (s *SlackNotifier) buildPayload(msg *FormattedMessage) map[string]interface
 		"image_url": "",
 	}
 
-	return map[string]interface{}{
-		"attachments": []map[string]interface{}{attachment},
+	return map[string]any{
+		"attachments": []map[string]any{attachment},
 	}
 }
