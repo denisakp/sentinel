@@ -241,22 +241,26 @@ The `restore` command provides comprehensive restore management:
 
 ## Roadmap
 
-### Advanced Restore Options
-
+### v1.1.0 - MySQL/MariaDB Compression
+- **MySQL Compression**: Gzip compression support
+- **MariaDB Compression**: Gzip and Zstandard support (v10.4+)
+- **Compression-Level Control**: Configurable compression for performance tuning
+- 
+### v1.2.0 - Advanced Restore Options
 - **Point-in-Time Recovery (PITR)**: Restore PostgreSQL databases to a specific timestamp
 - **Incremental Restores**: Restore only changed data since last restore (all databases)
 
-### Security & Reliability
-
+### v1.3.0 - Security & Reliability
 - **Hash Verification**: Verify backup integrity with SHA-256
 - **Encryption Support**: Encrypt backups at rest (AES-256)
 - **Job Concurrency Control**: Prevent overlapping jobs from crashing server
 
-### Performance & Scale
-
+### v2.0.0 - Performance & Scale
 - Advanced job scheduling and queue management
 - Bandwidth throttling for cloud uploads
+- Parallel restore operations
 - Compression format optimization
+
 
 ## Contributions
 

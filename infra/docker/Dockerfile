@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -10,12 +10,17 @@ RUN go mod download
 # Copy the rest of the source code
 COPY . .
 
-# Build the executable with caching enabled for go build
+# Build the executable with optimizations: stripped symbols and minimal size
 ENV GOCACHE=/root/.cache/go-build
-RUN --mount=type=cache,target="/root/.cache/go-build" CGO_ENABLED=0 GOOS=linux go build -o sentinel
+RUN --mount=type=cache,target="/root/.cache/go-build" \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -tags=prod \
+    -ldflags="-s -w" \
+    -trimpath \
+    -o sentinel
 
 # Stage 2: Final
-FROM alpine:3.20 AS final
+FROM alpine:3.23 AS final
 
 LABEL version="1.0" \
       org.opencontainers.image.authors="Denis AKPAGNONITE <akpagnonited@gmail.com>"
