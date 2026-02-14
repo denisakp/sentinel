@@ -21,7 +21,6 @@ administrators and developers with a flexible, reliable solution for database co
 - **Backup & Restore History** with SQLite-backed execution records and exports.
 - **Restore Management** with dry-run testing, post-restore verification, and automated scheduling.
 - **Retention Policies** for automatic cleanup of old backups and restore execution records.
-- **Enhanced Security** with backup file encryption (AES 256) and integrity verification using hash checks (upcoming).
 - **Cross-Platform Compatibility**: Built with Golang, Sentinel works seamlessly in Docker, Kubernetes, and other
   cloud-native environments.
 
@@ -40,23 +39,20 @@ administrators and developers with a flexible, reliable solution for database co
 - [x] Restore management CLI (`sentinel restore`) with dry-run, enable/disable, and status.
 - [x] Post-restore verification with automated testing workflows.
 
-**Upcoming Features**:
-
-- [ ] Security Enhancements: Hash verification and AES-256 encryption.
-- [ ] Advanced restore options: Point-in-time recovery and incremental restores.
-
 ## Installation
 
 At this stage, Sentinel has not yet reached an initial release, so the only way to use it is by cloning the repository
 and building the project locally. A Go development environment (v1.18+) is required for building Sentinel.
 
 1. **Clone the Repository**:
+
    ```bash
    git clone https://github.com/denisakp/sentinel.git
    cd sentinel
    ```
 
 2. **Build the Project**:
+
    ```bash
    go mod download 
    go build -o sentinel
@@ -65,10 +61,12 @@ and building the project locally. A Go development environment (v1.18+) is requi
 3. **Run Sentinel**:
    Sentinel supports both backup and restore operations. To create a backup of your PostgreSQL database, for
    example, run:
+
    ```bash
    ./sentinel backup --type postgres --host mydb.host.tld --port 5432 --user my-user --password 1234 --database sample
    ```
-   Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`, and `retention`.
+
+  Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`, and `retention`.
 
 > **Note**: When the initial release (v1.0) is available, this README will be updated with more user-friendly
 > installation options and instructions.
@@ -206,6 +204,7 @@ For additional options, run:
 The `restore` command provides comprehensive restore management:
 
 **Available Commands:**
+
 - `list` - View all configured restore jobs
 - `status <job>` - Check specific restore job status and configuration
 - `enable <job>` - Enable a restore job for scheduled execution
@@ -232,12 +231,32 @@ The `restore` command provides comprehensive restore management:
 ```
 
 **Key Features:**
+
 - **Safety First**: All restore jobs are disabled by default
 - **Post-Restore Verification**: Automatic data validation after restore
 - **Flexible Scheduling**: Cron-based automated disaster recovery testing
 - **Conflict Management**: Configure behavior when data exists (ignore/replace/error)
 - **Multi-Source Support**: Restore from local, S3, Google Drive, or other storage backends
 - **Execution Tracking**: Full history of restore operations with success/failure status
+
+## Roadmap
+
+### Advanced Restore Options
+
+- **Point-in-Time Recovery (PITR)**: Restore PostgreSQL databases to a specific timestamp
+- **Incremental Restores**: Restore only changed data since last restore (all databases)
+
+### Security & Reliability
+
+- **Hash Verification**: Verify backup integrity with SHA-256
+- **Encryption Support**: Encrypt backups at rest (AES-256)
+- **Job Concurrency Control**: Prevent overlapping jobs from crashing server
+
+### Performance & Scale
+
+- Advanced job scheduling and queue management
+- Bandwidth throttling for cloud uploads
+- Compression format optimization
 
 ## Contributions
 
@@ -248,8 +267,8 @@ following resources:
   our pull request process.
 - [SECURITY.md](SECURITY.md): Important information on reporting security vulnerabilities responsibly.
 - **Issue Templates**:
-    - [Feature Request](.github/ISSUE_TEMPLATE/2-feature-request.md): To suggest new features.
-    - [Bug Report](.github/ISSUE_TEMPLATE/1-bug.md): To report bugs or issues.
+  - [Feature Request](.github/ISSUE_TEMPLATE/2-feature-request.md): To suggest new features.
+  - [Bug Report](.github/ISSUE_TEMPLATE/1-bug.md): To report bugs or issues.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): Community standards for respectful and inclusive collaboration.
 
 Thank you for helping improve Sentinel!
@@ -257,4 +276,3 @@ Thank you for helping improve Sentinel!
 Stay tuned for more updates, and thank you for your interest in making Sentinel a reliable tool for database continuity!
 
 ---
-
