@@ -62,6 +62,68 @@ func TestGetExecution(t *testing.T) {
 	}
 }
 
+// TestMigrationReconciliation verifies that monitor queries work correctly after schema migrations.
+// This is a regression test for US2 (Schema Migration Visibility).
+func TestMigrationReconciliation(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	// Verify migration status query works
+	status, err := mon.GetMigrationStatus(context.Background())
+	if err != nil {
+		t.Fatalf("get migration status failed: %v", err)
+	}
+
+	if !status.IsUpToDate {
+		t.Fatalf("expected migrations to be up-to-date, but current=%d latest=%d",
+			status.CurrentVersion, status.LatestAvailableVersion)
+	}
+
+	if len(status.AppliedMigrations) == 0 {
+		t.Fatal("expected at least one migration to be applied")
+	}
+
+	// Verify new status values (pending, running, interrupted) are supported
+	now := time.Now()
+	testCases := []struct {
+		name   string
+		status string
+	}{
+		{"pending execution", "pending"},
+		{"running execution", "running"},
+		{"completed execution", "completed"},
+		{"failed execution", "failed"},
+		{"interrupted execution", "interrupted"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			id := insertExecution(t, mon, "job-reconcile", "postgres", tc.status, now, 100)
+
+			exec, err := mon.GetExecution(context.Background(), id)
+			if err != nil {
+				t.Fatalf("get execution failed for status %s: %v", tc.status, err)
+			}
+
+			if exec.Status != tc.status {
+				t.Fatalf("expected status %s, got %s", tc.status, exec.Status)
+			}
+		})
+	}
+
+	// Verify cleanup columns are accessible
+	id := insertExecution(t, mon, "job-cleanup", "postgres", "failed", now, 100)
+	exec, err := mon.GetExecution(context.Background(), id)
+	if err != nil {
+		t.Fatalf("get execution with cleanup fields failed: %v", err)
+	}
+
+	// Cleanup fields should be zero-valued (not set yet)
+	if exec.FinishedAt != nil {
+		t.Fatalf("expected FinishedAt to be nil for new execution")
+	}
+}
+
 func newTestMonitor(t *testing.T) *monitor.Monitor {
 	t.Helper()
 	tmpDir := t.TempDir()

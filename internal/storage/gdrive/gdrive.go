@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/denisakp/sentinel/internal/utils"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
-	"os"
-	"path/filepath"
 )
 
 type MyGoogleDriveClient struct {
@@ -183,4 +184,36 @@ func (g *MyGoogleDriveClient) uploadData(resource string) error {
 	}
 
 	return g.uploadFile(data, resource, g.folderId)
+}
+
+// DeleteBackup removes a backup artifact from Google Drive.
+// This is used for cleanup after failed backup operations to avoid leaving partial files.
+func (g *MyGoogleDriveClient) DeleteBackup(ctx context.Context, path string) error {
+	if path == "" {
+		return fmt.Errorf("backup path is required for deletion")
+	}
+
+	// Extract file name from path
+	fileName := filepath.Base(path)
+
+	// Search for the file in the target folder
+	query := fmt.Sprintf("'%s' in parents and name='%s' and trashed=false", g.folderId, fileName)
+	fileList, err := g.service.Files.List().Q(query).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to search for file %s in Google Drive: %w", fileName, err)
+	}
+
+	if len(fileList.Files) == 0 {
+		// File not found - already deleted or never uploaded
+		return nil
+	}
+
+	// Delete all matching files (should typically be just one)
+	for _, file := range fileList.Files {
+		if err := g.service.Files.Delete(file.Id).Context(ctx).Do(); err != nil {
+			return fmt.Errorf("failed to delete file %s (ID: %s) from Google Drive: %w", fileName, file.Id, err)
+		}
+	}
+
+	return nil
 }

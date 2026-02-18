@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"context"
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
@@ -10,8 +12,9 @@ import (
 
 // Storage interface defines the methods that a storage type must implement
 type Storage interface {
-	GetBackupPath(outName string) (string, error)  // GetBackupPath returns the path to store the backup
-	WriteBackup(data []byte, outName string) error // WriteBackup writes the backup data to the specified path
+	GetBackupPath(outName string) (string, error)        // GetBackupPath returns the path to store the backup
+	WriteBackup(data []byte, outName string) error       // WriteBackup writes the backup data to the specified path
+	DeleteBackup(ctx context.Context, path string) error // DeleteBackup removes a backup artifact (for cleanup on failure)
 }
 
 type Params struct {

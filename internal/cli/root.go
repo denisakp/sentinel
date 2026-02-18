@@ -24,6 +24,7 @@ func init() {
 	RootCmd.AddCommand(monitorCmd)
 	RootCmd.AddCommand(configCmd)
 	RootCmd.AddCommand(restoreCmd)
+	RootCmd.AddCommand(dbCmd)
 }
 
 func Execute() error {

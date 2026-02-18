@@ -2,6 +2,37 @@ package monitor
 
 import "time"
 
+// Execution status constants for backup/restore lifecycle.
+const (
+	StatusPending     = "pending"
+	StatusRunning     = "running"
+	StatusCompleted   = "completed"
+	StatusFailed      = "failed"
+	StatusInterrupted = "interrupted"
+)
+
+// Legacy status aliases for backward compatibility with existing data.
+const (
+	LegacyStatusSuccess    = "success"
+	LegacyStatusFailure    = "failure"
+	LegacyStatusInProgress = "in-progress"
+)
+
+// NormalizeStatus converts legacy status values to canonical form.
+// This preserves compatibility with historical records while standardizing new writes.
+func NormalizeStatus(status string) string {
+	switch status {
+	case LegacyStatusSuccess:
+		return StatusCompleted
+	case LegacyStatusFailure:
+		return StatusFailed
+	case LegacyStatusInProgress:
+		return StatusRunning
+	default:
+		return status // Already normalized or unknown
+	}
+}
+
 // Execution represents a single backup execution record.
 type Execution struct {
 	ID             string
@@ -16,6 +47,12 @@ type Execution struct {
 	FileSizeBytes  int64
 	Checksum       string
 	CreatedAt      time.Time
+	// V1 Consolidation: Cleanup and interruption fields
+	FinishedAt       *time.Time
+	CleanupAttempted bool
+	CleanupSucceeded *bool
+	CleanupError     string
+	UpdatedAt        time.Time
 }
 
 // RestoreExecution represents a single restore execution record.
@@ -32,6 +69,12 @@ type RestoreExecution struct {
 	BytesRestored      int64
 	VerificationPassed bool
 	CreatedAt          time.Time
+	// V1 Consolidation: Cleanup and interruption fields
+	FinishedAt       *time.Time
+	CleanupAttempted bool
+	CleanupSucceeded *bool
+	CleanupError     string
+	UpdatedAt        time.Time
 }
 
 // Filter specifies query filters for listing executions.
@@ -59,4 +102,21 @@ type Statistics struct {
 	MaxDurationMs     int64
 	LastExecution     *Execution
 	Trend             string
+}
+
+// Migration represents a single applied schema migration record.
+type Migration struct {
+	Version   int
+	Name      string
+	Checksum  string
+	AppliedAt time.Time
+}
+
+// MigrationStatus represents the current migration state for the database.
+type MigrationStatus struct {
+	CurrentVersion         int
+	LatestAvailableVersion int
+	PendingVersions        []int
+	AppliedMigrations      []Migration
+	IsUpToDate             bool
 }

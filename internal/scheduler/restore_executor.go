@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/storage"
 )
 
 // RestoreExecutionConfig defines parameters for a scheduled restore operation
@@ -155,4 +158,76 @@ type PostRestoreVerifier interface {
 	// Verify checks the integrity and completeness of a restored database
 	// Returns true if verification passes, false if it fails
 	Verify(ctx context.Context, databaseType string, host string, port int, username string, password string, database string) (bool, error)
+}
+
+// RestoreExecutionResult captures the outcome of a restore operation with cleanup tracking.
+type RestoreExecutionResult struct {
+	Success       bool
+	ExecutionID   string
+	BackupPath    string
+	Error         error
+	CleanupNeeded bool
+}
+
+// ExecuteRestoreWithCleanup wraps restore execution with automatic cleanup on failure.
+// This ensures partial artifacts or temporary files are deleted if the restore fails.
+func ExecuteRestoreWithCleanup(
+	ctx context.Context,
+	executionID string,
+	backupPath string,
+	store storage.Storage,
+	mon *monitor.Monitor,
+	restoreFn func(context.Context) error,
+) *RestoreExecutionResult {
+	result := &RestoreExecutionResult{
+		ExecutionID: executionID,
+		BackupPath:  backupPath,
+	}
+
+	// Track whether cleanup should be attempted
+	var cleanupAttempted bool
+	var cleanupSucceeded *bool
+	var cleanupError string
+
+	// Defer cleanup handler - executes regardless of success/failure
+	defer func() {
+		if result.Error != nil && backupPath != "" {
+			// Restore failed - attempt cleanup of partial restore artifacts
+			cleanupAttempted = true
+			if cleanupErr := store.DeleteBackup(ctx, backupPath); cleanupErr != nil {
+				// Cleanup failed (backup file might be on remote storage, cleanup may not apply)
+				succeeded := false
+				cleanupSucceeded = &succeeded
+				cleanupError = cleanupErr.Error()
+			} else {
+				// Cleanup succeeded or not needed
+				succeeded := true
+				cleanupSucceeded = &succeeded
+			}
+
+			// Record failure with cleanup outcome
+			if mon != nil && executionID != "" {
+				errorMsg := result.Error.Error()
+				if recordErr := mon.RecordFailure(ctx, executionID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
+					// Log but don't override original error
+					fmt.Printf("Warning: failed to record restore failure: %v\n", recordErr)
+				}
+			}
+		} else if result.Success && mon != nil && executionID != "" {
+			// Restore succeeded - record success
+			if recordErr := mon.RecordSuccess(ctx, executionID); recordErr != nil {
+				fmt.Printf("Warning: failed to record restore success: %v\n", recordErr)
+			}
+		}
+	}()
+
+	// Execute the restore
+	if err := restoreFn(ctx); err != nil {
+		result.Error = err
+		result.CleanupNeeded = true
+		return result
+	}
+
+	result.Success = true
+	return result
 }

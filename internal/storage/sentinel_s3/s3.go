@@ -5,16 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	transport "github.com/aws/smithy-go/endpoints"
 	"github.com/denisakp/sentinel/internal/utils"
-	"net/url"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 type MyS3Client struct {
@@ -176,4 +177,37 @@ func (clt *MyS3Client) putObject(resourcePath string, object []byte) error {
 	}
 
 	return clt.uploadObject(context.Background(), clt.Bucket, objectKey, object)
+}
+
+// DeleteBackup removes a backup artifact from S3.
+// This is used for cleanup after failed backup operations to avoid leaving partial objects.
+func (clt *MyS3Client) DeleteBackup(ctx context.Context, path string) error {
+	if path == "" {
+		return fmt.Errorf("backup path is required for deletion")
+	}
+
+	// Extract object key from path (last component)
+	objectKey := filepath.Base(path)
+
+	// Attempt to delete the object
+	_, err := clt.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(clt.Bucket),
+		Key:    aws.String(objectKey),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to delete S3 object %s from bucket %s: %w", objectKey, clt.Bucket, err)
+	}
+
+	// Wait to confirm deletion
+	waiter := s3.NewObjectNotExistsWaiter(clt.Client)
+	if err := waiter.Wait(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(clt.Bucket),
+		Key:    aws.String(objectKey),
+	}, 30*time.Second); err != nil {
+		// Deletion request succeeded but confirmation timed out - log but don't fail
+		fmt.Printf("Warning: S3 object deletion confirmation timed out for %s\n", objectKey)
+	}
+
+	return nil
 }

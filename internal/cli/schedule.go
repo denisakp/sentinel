@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +36,27 @@ var scheduleStartCmd = &cobra.Command{
 		}
 		if err := config.ValidateConfig(cfg); err != nil {
 			return err
+		}
+
+		// Initialize monitor for execution tracking and reconciliation
+		mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+		if err != nil {
+			return fmt.Errorf("failed to initialize monitor: %w", err)
+		}
+		defer func() {
+			if closeErr := mon.Close(); closeErr != nil {
+				cmd.PrintErrf("warning: failed to close monitor: %v\n", closeErr)
+			}
+		}()
+
+		// Reconcile stale executions before starting scheduler
+		ctx := context.Background()
+		reconciledCount, err := mon.ReconcileStaleExecutions(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to reconcile stale executions: %w", err)
+		}
+		if reconciledCount > 0 {
+			cmd.Printf("Reconciled %d stale execution(s) from previous shutdown\n", reconciledCount)
 		}
 
 		s := scheduler.NewScheduler(cfg.MaxConcurrentBackups)

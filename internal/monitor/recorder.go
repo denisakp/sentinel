@@ -105,3 +105,22 @@ func newUUID() string {
 
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
+
+// RecordFailure finalizes an execution as failed with error message and optional cleanup outcome.
+// This enforces terminal state transition semantics for backup/restore failures.
+func (m *Monitor) RecordFailure(ctx context.Context, id string, errorMsg string, cleanupAttempted bool, cleanupSucceeded *bool, cleanupError string) error {
+	return m.FinalizeExecution(ctx, id, StatusFailed, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError)
+}
+
+// RecordInterrupted marks a stale running execution as interrupted during startup reconciliation.
+// This is only called by startup logic for executions that were running when the process stopped.
+func (m *Monitor) RecordInterrupted(ctx context.Context, id string, cleanupAttempted bool, cleanupSucceeded *bool, cleanupError string) error {
+	errorMsg := "execution interrupted by process restart"
+	return m.FinalizeExecution(ctx, id, StatusInterrupted, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError)
+}
+
+// RecordSuccess finalizes an execution as completed successfully.
+// This marks the happy path terminal state with no error or cleanup required.
+func (m *Monitor) RecordSuccess(ctx context.Context, id string) error {
+	return m.FinalizeExecution(ctx, id, StatusCompleted, "", false, nil, "")
+}
