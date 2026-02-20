@@ -53,6 +53,14 @@ type Execution struct {
 	CleanupSucceeded *bool
 	CleanupError     string
 	UpdatedAt        time.Time
+	// V1.1.0: Security and integrity fields (migration 004)
+	HashAlgorithm      string
+	HashValue          string
+	PlaintextHashValue string
+	Encrypted          bool
+	EncryptionKeyHint  string
+	ManifestPath       string
+	RetryCount         int
 }
 
 // RestoreExecution represents a single restore execution record.

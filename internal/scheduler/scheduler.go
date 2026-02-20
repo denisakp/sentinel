@@ -8,6 +8,9 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// defaultStaleLockThreshold is the age after which locks with dead PIDs are cleaned up.
+const defaultStaleLockThreshold = 60 * time.Minute
+
 type jobState struct {
 	id             cron.EntryID
 	name           string
@@ -27,6 +30,7 @@ type Scheduler struct {
 	parser   cron.Parser
 	executor *Executor
 	clock    Clock
+	lockDir  string // directory for job lock files; empty disables stale-lock scan
 
 	mu      sync.Mutex
 	running bool
@@ -45,12 +49,22 @@ func NewScheduler(maxConcurrent int) *Scheduler {
 	}
 }
 
+// SetLockDir configures the directory used for job lock files.
+// When set, stale locks are cleaned at scheduler startup.
+func (s *Scheduler) SetLockDir(dir string) {
+	s.lockDir = dir
+}
+
 // Start begins the scheduler loop.
+// T046: on startup, scan and clean any stale lock files left by a previous crash.
 func (s *Scheduler) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.running {
 		return fmt.Errorf("scheduler already running")
+	}
+	if s.lockDir != "" {
+		ScanAndCleanStaleLocks(s.lockDir, defaultStaleLockThreshold)
 	}
 	s.cron.Start()
 	s.running = true
