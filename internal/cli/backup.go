@@ -2,7 +2,10 @@ package cli
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +15,8 @@ import (
 	backupMongo "github.com/denisakp/sentinel/internal/backup/mongo"
 	backupSQL "github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
 	"github.com/denisakp/sentinel/internal/storage"
@@ -318,7 +323,11 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 	}
 
 	end := time.Now()
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr); notifyErr != nil {
+	var security *backupSecurityResult
+	if backupErr == nil {
+		security, _ = applyBackupSecurity(cfg, job, storageParams)
+	}
+	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
 	}
 
@@ -440,15 +449,19 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 	}
 
 	end := time.Now()
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr); notifyErr != nil {
+	var security *backupSecurityResult
+	if backupErr == nil {
+		security, _ = applyBackupSecurity(cfg, job, storageParams)
+	}
+	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
 	}
 
 	return backupErr
 }
 
-func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error) error {
-	if err := recordBackupExecution(cfg, job, storageParams, start, end, backupErr); err != nil {
+func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult) error {
+	if err := recordBackupExecution(cfg, job, storageParams, start, end, backupErr, security); err != nil {
 		cmd.PrintErrln("monitor error:", err)
 	}
 
@@ -459,7 +472,7 @@ func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job confi
 	status := notifier.StatusSuccess
 	errorMessage := ""
 	if backupErr != nil {
-		if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr); notifyErr != nil {
+		if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, nil); notifyErr != nil {
 			cmd.PrintErrln("notification error:", notifyErr)
 		}
 		errorMessage = backupErr.Error()
@@ -486,7 +499,7 @@ func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job confi
 	return dispatcher.Notify(ctx)
 }
 
-func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error) error {
+func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult) error {
 	if cfg == nil || cfg.HistoryDBPath == "" {
 		return nil
 	}
@@ -522,7 +535,18 @@ func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, stor
 		FileSizeBytes:  fileSize,
 	}
 
-	return mon.RecordExecution(context.Background(), exec)
+	ctx := context.Background()
+	if err := mon.RecordExecution(ctx, exec); err != nil {
+		return err
+	}
+
+	if security != nil && exec.ID != "" {
+		if secErr := mon.RecordSecurityInfo(ctx, exec.ID, security.hashAlgo, security.hashValue, "", security.manifestPath, security.encrypted, security.keyHint); secErr != nil {
+			fmt.Printf("Warning: failed to record security info for '%s': %v\n", job.Name, secErr)
+		}
+	}
+
+	return nil
 }
 
 func resolveBackupPath(storageParams *storage.Params) (string, int64) {
@@ -724,4 +748,163 @@ func ensureDatabaseOptions(job *config.BackupJob) {
 	if job.DatabaseOptions == nil {
 		job.DatabaseOptions = make(map[string]interface{})
 	}
+}
+
+// backupSecurityResult holds hash and encryption metadata produced by applyBackupSecurity.
+type backupSecurityResult struct {
+	hashAlgo     string
+	hashValue    string
+	manifestPath string
+	encrypted    bool
+	keyHint      string
+}
+
+// applyBackupSecurity computes a SHA-256 hash of the local backup file and optionally
+// encrypts it in-place using AES-256-GCM (T023, T033). A BackupManifest is written
+// alongside the file. Returns nil silently for non-local or missing files.
+func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params) (*backupSecurityResult, error) {
+	filePath, fileSize := localBackupInfo(storageParams)
+	if filePath == "" {
+		return nil, nil
+	}
+	if _, err := os.Stat(filePath); err != nil {
+		return nil, nil
+	}
+
+	hashValue, err := computeFileHash(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute backup hash: %w", err)
+	}
+	plaintextHash := hashValue
+
+	result := &backupSecurityResult{
+		hashAlgo:  "sha256",
+		hashValue: hashValue,
+	}
+
+	// T033: encrypt if a master key is configured
+	var encInfo *manifest.EncryptionInfo
+	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
+		encrypted, encMeta, encHash, encErr := encryptBackupFile(cfg, filePath, job.Name)
+		if encErr != nil {
+			fmt.Printf("Warning: backup encryption failed for '%s': %v\n", job.Name, encErr)
+		} else if encrypted {
+			result.encrypted = true
+			result.hashValue = encHash
+			result.keyHint = cfg.EncryptionKeyEnv
+			encInfo = encMeta
+		}
+	}
+
+	// Write manifest alongside the backup file
+	manifestPath := filePath + ".manifest.json"
+	m := &manifest.BackupManifest{
+		BackupID:     job.Name,
+		Database:     job.Database,
+		DatabaseType: job.Type,
+		CreatedAt:    time.Now().UTC(),
+		SizeBytes:    fileSize,
+		Hash: manifest.HashInfo{
+			Algorithm:      "sha256",
+			Value:          result.hashValue,
+			PlaintextValue: plaintextHash,
+		},
+		Encryption: encInfo,
+	}
+	if writeErr := manifest.WriteManifest(manifestPath, m); writeErr != nil {
+		fmt.Printf("Warning: failed to write manifest for '%s': %v\n", job.Name, writeErr)
+	} else {
+		result.manifestPath = manifestPath
+	}
+
+	return result, nil
+}
+
+// computeFileHash returns the hex-encoded SHA-256 digest of the file at path.
+func computeFileHash(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file for hashing: %w", err)
+	}
+	defer f.Close()
+	hw := crypto.NewHashingWriter(io.Discard)
+	if _, err := io.Copy(hw, f); err != nil {
+		return "", fmt.Errorf("failed to read file for hashing: %w", err)
+	}
+	return hw.Sum(), nil
+}
+
+// encryptBackupFile encrypts filePath in-place using AES-256-GCM via ChunkEncryptWriter.
+// Returns (encrypted, encInfo, hashOfEncryptedFile, err).
+func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *manifest.EncryptionInfo, string, error) {
+	kp := &crypto.FileKeyProvider{
+		EnvVar:   cfg.EncryptionKeyEnv,
+		FilePath: cfg.EncryptionKeyFile,
+	}
+	masterKey, err := kp.GetKey()
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to get encryption key: %w", err)
+	}
+
+	salt, err := crypto.GenerateSalt()
+	if err != nil {
+		return false, nil, "", err
+	}
+	derivedKey := crypto.DeriveKey(masterKey, salt)
+
+	in, err := os.Open(filePath)
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to open file for encryption: %w", err)
+	}
+
+	encPath := filePath + ".enc"
+	out, err := os.Create(encPath)
+	if err != nil {
+		in.Close()
+		return false, nil, "", fmt.Errorf("failed to create encrypted output: %w", err)
+	}
+
+	hw := crypto.NewHashingWriter(out)
+	enc, err := crypto.NewChunkEncryptWriter(hw, derivedKey, backupID)
+	if err != nil {
+		in.Close()
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", err
+	}
+
+	_, copyErr := io.Copy(enc, in)
+	in.Close()
+	if copyErr != nil {
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed during encryption: %w", copyErr)
+	}
+
+	if flushErr := enc.Flush(); flushErr != nil {
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed to flush encrypted data: %w", flushErr)
+	}
+
+	encHash := hw.Sum()
+	nonce := enc.BaseNonce()
+	authTag := enc.LastAuthTag()
+	out.Close()
+
+	if renameErr := os.Rename(encPath, filePath); renameErr != nil {
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed to replace file with encrypted version: %w", renameErr)
+	}
+
+	encInfo := &manifest.EncryptionInfo{
+		Algorithm:     "AES-256-GCM",
+		KeyDerivation: "PBKDF2-HMAC-SHA256",
+		Iterations:    100_000,
+		Salt:          base64.StdEncoding.EncodeToString(salt),
+		IV:            hex.EncodeToString(nonce),
+		AuthTag:       hex.EncodeToString(authTag),
+	}
+
+	return true, encInfo, encHash, nil
 }

@@ -15,7 +15,7 @@ administrators and developers with a flexible, reliable solution for database co
 ## Key Features
 
 - **Backup and Restoration** for SQL and NoSQL databases (PostgreSQL, MySQL, MariaDB, MongoDB).
-- **Storage Support** for multiple environments, including local, S3-compatible, and Google Drive storage.
+- **Storage Support** for multiple environments, including local, S3-compatible, Google Drive, Azure Blob, Google Cloud Storage .
 - **Notification System** for real-time backup and restore alerts (Slack, Discord, webhook, SMTP).
 - **Scheduling and Automation** through cron-based schedules for both backups and restores.
 - **Backup & Restore History** with SQLite-backed execution records and exports.
@@ -30,7 +30,7 @@ administrators and developers with a flexible, reliable solution for database co
 
 - [x] Backup functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
 - [x] Restore functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
-- [x] Local, S3-compatible, and Google Drive storage backends.
+- [x] Local, S3-compatible, Google Drive, Azure Blob, Google Cloud storage backends.
 - [x] YAML configuration for multi-job backups and restores with defaults.
 - [x] Cron-based scheduling for backups and restores (`sentinel schedule`).
 - [x] Retention policies for backups and restore history (`sentinel retention`).
@@ -261,6 +261,62 @@ The `restore` command provides comprehensive restore management:
 - Parallel restore operations
 - Compression format optimization
 
+---
+
+## Database Migration & Reliability
+
+Sentinel uses an embedded schema migration system to manage its SQLite history database. Migrations ensure backward compatibility and safe schema evolution.
+
+### Automatic Migration on Startup
+
+All commands that interact with the history database (`schedule`, `monitor`, `retention`) automatically apply pending migrations on startup. If a migration fails, the process exits immediately (fail-fast behavior) to prevent operating with an inconsistent schema.
+
+### Checking Migration Status
+
+Use the `db migrate status` command to inspect the current migration state:
+
+```bash
+./sentinel db migrate status
+```
+
+**Output includes:**
+- Current applied migration version
+- Latest available migration version
+- Whether the database is up-to-date
+- Full list of applied migrations with timestamps
+
+**Example Output:**
+```
+Migration Status:
+
+Current Version: 3
+Latest Version:  3
+Status: ✓ Up-to-date
+
+Applied Migrations:
+  Version 1: baseline_schema (applied at 2024-01-15 10:30:00)
+  Version 2: add_cleanup_columns (applied at 2024-01-15 10:30:01)
+  Version 3: add_consolidated_status_values (applied at 2024-01-15 10:30:02)
+```
+
+### Migration Reliability Guarantees
+
+1. **Atomic Application**: Each migration runs in a transaction; failures roll back completely.
+2. **Idempotency**: Migrations that have already been applied are skipped (tracked via `schema_migrations` table).
+3. **Fail-Fast**: If any migration fails, the application exits before executing any operations.
+4. **Version Checksums**: Each migration file has a checksum to detect tampering or corruption.
+
+### Troubleshooting Migrations
+
+If a migration fails:
+1. Check the error message for specific SQL syntax or constraint violations.
+2. Inspect the `schema_migrations` table in the SQLite database to see which migrations succeeded.
+3. If the database is corrupted, delete it and restart (Sentinel will rebuild from scratch).
+4. For production environments, always back up the history database before upgrading Sentinel.
+
+**Note:** The history database (`history.db`) only stores execution metadata (backup/restore records), not actual backup artifacts. It is safe to delete and rebuild if needed.
+
+---
 
 ## Contributions
 

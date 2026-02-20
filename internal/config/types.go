@@ -4,6 +4,75 @@ import (
 	"time"
 )
 
+// TLSConfig holds TLS/SSL settings for a database connection.
+type TLSConfig struct {
+	// Enabled controls whether TLS is used (default: true when tls: section present)
+	Enabled bool `yaml:"enabled"`
+
+	// Mode is one of: require, verify-ca, verify-full, prefer (default: prefer)
+	Mode string `yaml:"mode"`
+
+	// CACertPath is the path to the CA certificate file
+	CACertPath string `yaml:"ca_cert,omitempty"`
+
+	// ClientCert is the path to the client certificate file (mutual TLS)
+	ClientCert string `yaml:"client_cert,omitempty"`
+
+	// ClientKey is the path to the client private key file (mutual TLS)
+	ClientKey string `yaml:"client_key,omitempty"`
+}
+
+// SchedulerConfig holds global scheduler and concurrency settings.
+type SchedulerConfig struct {
+	// MaxConcurrentBackups is the global concurrency limit for backup jobs (default: 3)
+	MaxConcurrentBackups int `yaml:"max_concurrent_backups"`
+
+	// MaxConcurrentRestores is the global concurrency limit for restore jobs (default: 1)
+	MaxConcurrentRestores int `yaml:"max_concurrent_restores"`
+
+	// JobTimeoutMinutes is the per-job timeout in minutes (default: 180)
+	JobTimeoutMinutes int `yaml:"job_timeout_minutes"`
+
+	// StaleLockThreshold is the age in minutes after which a lock with a dead PID is considered stale (default: 60)
+	StaleLockThreshold int `yaml:"stale_lock_threshold"`
+
+	// LockDir is the directory for job lock files (default: /var/run/sentinel)
+	LockDir string `yaml:"lock_dir"`
+}
+
+// AzureAuthConfig specifies authentication method for Azure Blob Storage.
+type AzureAuthConfig struct {
+	// Type is one of: managed_identity, connection_string, sas_token
+	Type string `yaml:"type"`
+
+	// ConnectionString is the Azure Storage connection string (connection_string auth)
+	ConnectionString string `yaml:"connection_string,omitempty"`
+
+	// ConnectionStringEnv is the env var name for the connection string
+	ConnectionStringEnv string `yaml:"connection_string_env,omitempty"`
+
+	// SASToken is the SAS token query string (sas_token auth)
+	SASToken string `yaml:"sas_token,omitempty"`
+
+	// SASTokenEnv is the env var name for the SAS token
+	SASTokenEnv string `yaml:"sas_token_env,omitempty"`
+}
+
+// AzureConfig holds Azure Blob Storage backend settings.
+type AzureConfig struct {
+	// AccountName is the Azure storage account name
+	AccountName string `yaml:"account_name"`
+
+	// Container is the blob container name
+	Container string `yaml:"container"`
+
+	// Tier is the storage access tier: Hot, Cool, Archive (default: Hot)
+	Tier string `yaml:"tier,omitempty"`
+
+	// Auth holds authentication configuration
+	Auth AzureAuthConfig `yaml:"auth"`
+}
+
 // Configuration represents the top-level YAML configuration file
 type Configuration struct {
 	// Version of the configuration schema (e.g., "1.0")
@@ -18,14 +87,26 @@ type Configuration struct {
 	// Restore job definitions keyed by job name
 	Restores map[string]RestoreJob `yaml:"restores,omitempty"`
 
-	// Global concurrency limit (default: 3)
+	// Named storage configurations (reusable references)
+	Storages map[string]StorageConfig `yaml:"storages,omitempty"`
+
+	// Global concurrency limit (default: 3) — kept for backward compatibility
 	MaxConcurrentBackups int `yaml:"max_concurrent_backups"`
+
+	// Scheduler holds advanced concurrency and timeout settings
+	Scheduler SchedulerConfig `yaml:"scheduler,omitempty"`
 
 	// Log format: "json" or "text" (default: "json")
 	LogFormat string `yaml:"log_format"`
 
 	// Path to SQLite backup history database (default: ~/.sentinel/history.db)
 	HistoryDBPath string `yaml:"history_db_path"`
+
+	// EncryptionKeyEnv is the env var name for the master encryption key (SENTINEL_MASTER_KEY)
+	EncryptionKeyEnv string `yaml:"encryption_key_env,omitempty"`
+
+	// EncryptionKeyFile is the path to a file containing the base64-encoded master key
+	EncryptionKeyFile string `yaml:"encryption_key_file,omitempty"`
 }
 
 // GlobalDefaults contains default values applied to all backup jobs
@@ -97,6 +178,9 @@ type BackupJob struct {
 
 	// Notification channels for this backup
 	Notifications []NotificationChannel `yaml:"notifications,omitempty"`
+
+	// TLS holds TLS/SSL settings for the database connection
+	TLS *TLSConfig `yaml:"tls,omitempty"`
 }
 
 // StorageConfig defines a storage backend for backups

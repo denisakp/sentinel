@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -14,6 +16,7 @@ type DumpMongoArgs struct {
 	Compress       bool            // Compress the backup file
 	AdditionalArgs string          // Additional arguments for the mongo_dump command
 	Storage        *storage.Params // Storage parameters
+	TLS            *internaltls.Config
 }
 
 func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
@@ -43,7 +46,9 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 		args = append(args, additionalArgs...)
 	}
 
+	args = append(args, internaltls.BuildTLSArgs("mongodb", da.TLS)...)
+
 	args = backup.RemoveArgsDuplicate(args) // remove duplicate arguments
 
-	return args, nil
+	return sanitize.RedactArgs(args), nil
 }

@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -20,6 +22,7 @@ type PgDumpArgs struct {
 	CompressionLevel     int             // Compression level
 	AdditionalArgs       string          // Additional arguments for the pg_dump command
 	Storage              *storage.Params // Storage parameters
+	TLS                  *internaltls.Config
 }
 
 // argsBuilder builds the arguments for the pg_dump command
@@ -82,10 +85,12 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		args = append(args, additionalArgs...)
 	}
 
+	args = append(args, internaltls.BuildTLSArgs("postgres", pda.TLS)...)
+
 	// remove duplicated arguments
 	args = backup.RemoveArgsDuplicate(args) // remove duplicated arguments
 
-	return args, nil
+	return sanitize.RedactArgs(args), nil
 }
 
 func addCompression(args *[]string, pda *PgDumpArgs) error {

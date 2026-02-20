@@ -2,13 +2,17 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
+	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
 	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
@@ -144,6 +148,38 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 		// Record failure
 		rsm.recordRestoreExecution(ctx, config, startTime, false, 0, false, "Failed to read backup: "+err.Error())
 		return fmt.Errorf("failed to read backup: %w", err)
+	}
+
+	// T025: Pre-restore integrity verification and optional decryption.
+	manifestPath := config.BackupPath + ".manifest.json"
+	m, manifestErr := manifest.ReadManifest(manifestPath)
+	if manifestErr == nil {
+		// Manifest found: verify hash and handle decryption.
+		var keyProvider crypto.KeyProvider
+		if rsm.cfg != nil && (rsm.cfg.EncryptionKeyEnv != "" || rsm.cfg.EncryptionKeyFile != "") {
+			keyProvider = &crypto.FileKeyProvider{EnvVar: rsm.cfg.EncryptionKeyEnv, FilePath: rsm.cfg.EncryptionKeyFile}
+		}
+		if _, verifyErr := internalrestore.PreRestoreVerifyAndDecrypt(ctx, m, config.BackupPath, keyProvider); verifyErr != nil {
+			if errors.Is(verifyErr, internalrestore.ErrHashMismatch) {
+				rsm.logger.Error("Pre-restore integrity check failed: hash mismatch",
+					slog.String("job", config.Name),
+					slog.String("backup_path", config.BackupPath),
+					slog.String("error", verifyErr.Error()),
+				)
+				rsm.notifyRestoreFailure(ctx, config, startTime, verifyErr.Error())
+				rsm.recordRestoreExecution(ctx, config, startTime, false, 0, false, verifyErr.Error())
+				return verifyErr
+			}
+			rsm.logger.Warn("Pre-restore integrity check error (proceeding)",
+				slog.String("job", config.Name),
+				slog.String("error", verifyErr.Error()),
+			)
+		}
+	} else if !errors.Is(manifestErr, manifest.ErrNoManifest) {
+		rsm.logger.Warn("Could not read backup manifest; skipping integrity check (pre-v1.1 backup)",
+			slog.String("job", config.Name),
+			slog.String("backup_path", config.BackupPath),
+		)
 	}
 
 	// Perform restore based on database type

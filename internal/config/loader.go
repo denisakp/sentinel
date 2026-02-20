@@ -8,10 +8,16 @@ import (
 )
 
 const (
-	defaultLogFormat         = "json"
-	defaultMaxConcurrentJobs = 3
-	defaultHistoryDBPath     = "~/.sentinel/history.db"
-	defaultAutoDiscoveryMode = "individual"
+	defaultLogFormat              = "json"
+	defaultMaxConcurrentJobs      = 3
+	defaultHistoryDBPath          = "~/.sentinel/history.db"
+	defaultAutoDiscoveryMode      = "individual"
+	defaultTLSMode                = "prefer"
+	defaultJobTimeoutMinutes      = 180
+	defaultStaleLockThreshold     = 60
+	defaultMaxConcurrentRestores  = 1
+	defaultLockDir                = "/var/run/sentinel"
+	defaultEncryptionKeyEnv       = "SENTINEL_MASTER_KEY"
 )
 
 // LoadConfig reads, parses, and normalizes a YAML configuration file.
@@ -52,6 +58,28 @@ func applyDefaults(cfg *Configuration) {
 		cfg.HistoryDBPath = defaultHistoryDBPath
 	}
 
+	// Apply scheduler defaults
+	if cfg.Scheduler.MaxConcurrentBackups == 0 {
+		cfg.Scheduler.MaxConcurrentBackups = cfg.MaxConcurrentBackups
+	}
+	if cfg.Scheduler.MaxConcurrentRestores == 0 {
+		cfg.Scheduler.MaxConcurrentRestores = defaultMaxConcurrentRestores
+	}
+	if cfg.Scheduler.JobTimeoutMinutes == 0 {
+		cfg.Scheduler.JobTimeoutMinutes = defaultJobTimeoutMinutes
+	}
+	if cfg.Scheduler.StaleLockThreshold == 0 {
+		cfg.Scheduler.StaleLockThreshold = defaultStaleLockThreshold
+	}
+	if cfg.Scheduler.LockDir == "" {
+		cfg.Scheduler.LockDir = defaultLockDir
+	}
+
+	// Apply encryption key env default
+	if cfg.EncryptionKeyEnv == "" && cfg.EncryptionKeyFile == "" {
+		cfg.EncryptionKeyEnv = defaultEncryptionKeyEnv
+	}
+
 	for name, job := range cfg.Databases {
 		job.Name = name
 		if job.Enabled == nil {
@@ -69,11 +97,22 @@ func applyDefaults(cfg *Configuration) {
 		if job.Database == "*" && job.Strategy == "" {
 			job.Strategy = defaultAutoDiscoveryMode
 		}
+		applyTLSDefaults(job.TLS)
 		applyNotificationDefaults(job.Notifications)
 		cfg.Databases[name] = job
 	}
 
 	applyNotificationDefaults(cfg.Defaults.Notifications)
+}
+
+// applyTLSDefaults sets the default TLS mode when a tls: section is present.
+func applyTLSDefaults(tls *TLSConfig) {
+	if tls == nil {
+		return
+	}
+	if tls.Mode == "" {
+		tls.Mode = defaultTLSMode
+	}
 }
 
 func applyNotificationDefaults(channels []NotificationChannel) {

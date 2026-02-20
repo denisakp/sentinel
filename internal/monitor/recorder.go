@@ -124,3 +124,88 @@ func (m *Monitor) RecordInterrupted(ctx context.Context, id string, cleanupAttem
 func (m *Monitor) RecordSuccess(ctx context.Context, id string) error {
 	return m.FinalizeExecution(ctx, id, StatusCompleted, "", false, nil, "")
 }
+
+// RecordRunning persists an initial backup execution record in "running" status.
+// Call this at the START of each backup job to enable progress tracking. (T048)
+func (m *Monitor) RecordRunning(ctx context.Context, exec *Execution) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("monitor database is not initialized")
+	}
+	if exec == nil {
+		return fmt.Errorf("execution record is required")
+	}
+	if exec.ID == "" {
+		exec.ID = newUUID()
+	}
+	if exec.Timestamp.IsZero() {
+		exec.Timestamp = time.Now().UTC()
+	}
+	if exec.CreatedAt.IsZero() {
+		exec.CreatedAt = time.Now().UTC()
+	}
+	exec.Status = StatusRunning
+
+	query := `INSERT INTO backup_executions
+		(id, backup_name, database_type, timestamp, duration_ms, status, error_message, storage_backend, file_path, file_size_bytes, checksum, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := m.db.ExecContext(ctx, query,
+		exec.ID,
+		exec.BackupName,
+		exec.DatabaseType,
+		exec.Timestamp,
+		0,
+		exec.Status,
+		"",
+		exec.StorageBackend,
+		exec.FilePath,
+		exec.FileSizeBytes,
+		exec.Checksum,
+		exec.CreatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to record running execution: %w", err)
+	}
+	return nil
+}
+
+// RecordSecurityInfo updates the security metadata columns for a completed execution.
+// Called after backup completes to record hash, encryption, and manifest info. (T026/T035)
+func (m *Monitor) RecordSecurityInfo(ctx context.Context, id, hashAlgo, hashValue, plaintextHash, manifestPath string, encrypted bool, keyHint string) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("monitor database is not initialized")
+	}
+
+	encryptedInt := 0
+	if encrypted {
+		encryptedInt = 1
+	}
+
+	_, err := m.db.ExecContext(ctx,
+		`UPDATE backup_executions SET
+			hash_algorithm = ?, hash_value = ?, plaintext_hash_value = ?,
+			manifest_path = ?, encrypted = ?, encryption_key_hint = ?
+			WHERE id = ?`,
+		hashAlgo, hashValue, plaintextHash,
+		manifestPath, encryptedInt, keyHint,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to record security info: %w", err)
+	}
+	return nil
+}
+
+// RecordRetryCount updates the retry_count column for an execution. (T053)
+func (m *Monitor) RecordRetryCount(ctx context.Context, id string, retryCount int) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("monitor database is not initialized")
+	}
+	_, err := m.db.ExecContext(ctx,
+		`UPDATE backup_executions SET retry_count = ? WHERE id = ?`,
+		retryCount, id)
+	if err != nil {
+		return fmt.Errorf("failed to record retry count: %w", err)
+	}
+	return nil
+}

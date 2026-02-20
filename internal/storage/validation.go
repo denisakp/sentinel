@@ -11,6 +11,7 @@ func ValidateStorageType(storageType string) error {
 		"local":        true,
 		"s3":           true,
 		"google-drive": true,
+		"azure":        true,
 	}
 
 	if _, ok := validStorage[storageType]; !ok {

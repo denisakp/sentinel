@@ -3,7 +3,9 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/storage"
@@ -113,4 +115,37 @@ func ExecuteBackupWithCleanup(
 
 	result.Success = true
 	return result
+}
+
+// withRetry executes fn up to maxAttempts times with the given backoffs between attempts.
+// Non-retriable errors (config errors, cert errors) cause immediate failure without retry.
+func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error {
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		lastErr = fn()
+		if lastErr == nil {
+			return nil
+		}
+		// Non-retriable errors skip remaining attempts
+		if isNonRetriable(lastErr) {
+			return lastErr
+		}
+		if attempt < len(backoffs) {
+			time.Sleep(backoffs[attempt])
+		}
+	}
+	return lastErr
+}
+
+// isNonRetriable returns true for errors that should not be retried:
+// configuration errors, certificate errors, and authentication errors.
+func isNonRetriable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "certificate") ||
+		strings.Contains(msg, "tls") ||
+		strings.Contains(msg, "auth") ||
+		strings.Contains(msg, "config")
 }

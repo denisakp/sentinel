@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 
 	"github.com/robfig/cron/v3"
 
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 )
 
 var allowedPostgresOptions = map[string]bool{
@@ -83,9 +85,50 @@ func ValidateConfig(cfg *Configuration) error {
 		if err := validateNotifications(job); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
+
+		// T017: validate TLS configuration when present; warn when absent.
+		if job.TLS != nil {
+			tlsCfg := &internaltls.Config{
+				Enabled:    job.TLS.Enabled,
+				Mode:       job.TLS.Mode,
+				CACertPath: job.TLS.CACertPath,
+				ClientCert: job.TLS.ClientCert,
+				ClientKey:  job.TLS.ClientKey,
+			}
+			if err := tlsCfg.Validate(); err != nil {
+				return fmt.Errorf("backup '%s': tls: %w", name, err)
+			}
+		} else {
+			slog.Warn("TLS not configured for database",
+				"event", "tls_not_configured",
+				"database", name)
+		}
+
+		// T041: warn about plaintext credentials in storage configuration.
+		warnPlaintextCredentials(name, job)
 	}
 
 	return nil
+}
+
+// warnPlaintextCredentials emits structured log warnings for any storage
+// credential fields that contain inline values instead of env-var references.
+func warnPlaintextCredentials(name string, job BackupJob) {
+	if job.Storage.S3AccessKeyID != "" {
+		slog.Warn("plaintext credential detected",
+			"event", "plaintext_password_detected",
+			"field", fmt.Sprintf("databases.%s.storage.s3_access_key_id", name))
+	}
+	if job.Storage.S3SecretAccessKey != "" {
+		slog.Warn("plaintext credential detected",
+			"event", "plaintext_password_detected",
+			"field", fmt.Sprintf("databases.%s.storage.s3_secret_access_key", name))
+	}
+	if job.Storage.AzureStorageKey != "" {
+		slog.Warn("plaintext credential detected",
+			"event", "plaintext_password_detected",
+			"field", fmt.Sprintf("databases.%s.storage.azure_storage_key", name))
+	}
 }
 
 func validateConnection(job BackupJob) error {
