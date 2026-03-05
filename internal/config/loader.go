@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	defaultLogFormat              = "json"
-	defaultMaxConcurrentJobs      = 3
-	defaultHistoryDBPath          = "~/.sentinel/history.db"
-	defaultAutoDiscoveryMode      = "individual"
-	defaultTLSMode                = "prefer"
-	defaultJobTimeoutMinutes      = 180
-	defaultStaleLockThreshold     = 60
-	defaultMaxConcurrentRestores  = 1
-	defaultLockDir                = "/var/run/sentinel"
-	defaultEncryptionKeyEnv       = "SENTINEL_MASTER_KEY"
+	defaultLogFormat             = "json"
+	defaultMaxConcurrentJobs     = 3
+	defaultHistoryDBPath         = "~/.sentinel/history.db"
+	defaultAutoDiscoveryMode     = "individual"
+	defaultTLSMode               = "prefer"
+	defaultJobTimeoutMinutes     = 180
+	defaultStaleLockThreshold    = 60
+	defaultMaxConcurrentRestores = 1
+	defaultLockDir               = "/var/run/sentinel"
+	defaultEncryptionKeyEnv      = "SENTINEL_MASTER_KEY"
 )
 
 // LoadConfig reads, parses, and normalizes a YAML configuration file.
@@ -37,6 +37,9 @@ func LoadConfig(path string) (*Configuration, error) {
 	}
 
 	applyDefaults(&cfg)
+	if err := resolveNamedStorages(&cfg); err != nil {
+		return nil, err
+	}
 	if err := applyEnvOverrides(&cfg); err != nil {
 		return nil, err
 	}
@@ -138,6 +141,22 @@ func boolPtr(v bool) *bool {
 }
 
 func applyEnvOverrides(cfg *Configuration) error {
+	for name, st := range cfg.Storages {
+		if err := resolveEnvOverride(&st.S3AccessKeyID, st.S3AccessKeyIDEnv); err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&st.S3SecretAccessKey, st.S3SecretAccessKeyEnv); err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&st.AzureStorageAccount, st.AzureStorageAccountEnv); err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&st.AzureStorageKey, st.AzureStorageKeyEnv); err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		cfg.Storages[name] = st
+	}
+
 	for name, job := range cfg.Databases {
 		if err := resolveEnvOverride(&job.Host, job.HostEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
@@ -202,6 +221,75 @@ func interpolateConfig(cfg *Configuration) error {
 			return err
 		}
 		cfg.HistoryDBPath = value
+	}
+
+	if cfg.EncryptionKeyFile != "" {
+		value, err := interpolateEnvVars(cfg.EncryptionKeyFile)
+		if err != nil {
+			return err
+		}
+		cfg.EncryptionKeyFile = value
+	}
+
+	for name, st := range cfg.Storages {
+		var err error
+		st.LocalPath, err = interpolateEnvVars(st.LocalPath)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.S3Bucket, err = interpolateEnvVars(st.S3Bucket)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.S3BucketEndpoint, err = interpolateEnvVars(st.S3BucketEndpoint)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.S3Region, err = interpolateEnvVars(st.S3Region)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.S3AccessKeyID, err = interpolateEnvVars(st.S3AccessKeyID)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.S3SecretAccessKey, err = interpolateEnvVars(st.S3SecretAccessKey)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.GCSBucket, err = interpolateEnvVars(st.GCSBucket)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.GCSProjectID, err = interpolateEnvVars(st.GCSProjectID)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.GCSCredentialsFile, err = interpolateEnvVars(st.GCSCredentialsFile)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.GDriveFolderID, err = interpolateEnvVars(st.GDriveFolderID)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.GDriveSAFile, err = interpolateEnvVars(st.GDriveSAFile)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.AzureStorageAccount, err = interpolateEnvVars(st.AzureStorageAccount)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.AzureStorageKey, err = interpolateEnvVars(st.AzureStorageKey)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		st.AzureContainer, err = interpolateEnvVars(st.AzureContainer)
+		if err != nil {
+			return fmt.Errorf("storage '%s': %w", name, err)
+		}
+		cfg.Storages[name] = st
 	}
 
 	for name, job := range cfg.Databases {
@@ -303,4 +391,87 @@ func interpolateConfig(cfg *Configuration) error {
 	}
 
 	return nil
+}
+
+func resolveNamedStorages(cfg *Configuration) error {
+	for name, job := range cfg.Databases {
+		if job.Storage.Name == "" {
+			continue
+		}
+
+		named, ok := cfg.Storages[job.Storage.Name]
+		if !ok {
+			return fmt.Errorf("backup '%s': unknown storage reference '%s'", name, job.Storage.Name)
+		}
+
+		resolved := named
+		overlayStorage(&resolved, job.Storage)
+		job.Storage = resolved
+		cfg.Databases[name] = job
+	}
+
+	return nil
+}
+
+func overlayStorage(base *StorageConfig, override StorageConfig) {
+	if override.Type != "" {
+		base.Type = override.Type
+	}
+	if override.Name != "" {
+		base.Name = override.Name
+	}
+	if override.LocalPath != "" {
+		base.LocalPath = override.LocalPath
+	}
+	if override.S3Bucket != "" {
+		base.S3Bucket = override.S3Bucket
+	}
+	if override.S3BucketEndpoint != "" {
+		base.S3BucketEndpoint = override.S3BucketEndpoint
+	}
+	if override.S3Region != "" {
+		base.S3Region = override.S3Region
+	}
+	if override.S3AccessKeyID != "" {
+		base.S3AccessKeyID = override.S3AccessKeyID
+	}
+	if override.S3AccessKeyIDEnv != "" {
+		base.S3AccessKeyIDEnv = override.S3AccessKeyIDEnv
+	}
+	if override.S3SecretAccessKey != "" {
+		base.S3SecretAccessKey = override.S3SecretAccessKey
+	}
+	if override.S3SecretAccessKeyEnv != "" {
+		base.S3SecretAccessKeyEnv = override.S3SecretAccessKeyEnv
+	}
+	if override.GCSBucket != "" {
+		base.GCSBucket = override.GCSBucket
+	}
+	if override.GCSProjectID != "" {
+		base.GCSProjectID = override.GCSProjectID
+	}
+	if override.GCSCredentialsFile != "" {
+		base.GCSCredentialsFile = override.GCSCredentialsFile
+	}
+	if override.GDriveFolderID != "" {
+		base.GDriveFolderID = override.GDriveFolderID
+	}
+	if override.GDriveSAFile != "" {
+		base.GDriveSAFile = override.GDriveSAFile
+	}
+	if override.AzureStorageAccount != "" {
+		base.AzureStorageAccount = override.AzureStorageAccount
+	}
+	if override.AzureStorageAccountEnv != "" {
+		base.AzureStorageAccountEnv = override.AzureStorageAccountEnv
+	}
+	if override.AzureStorageKey != "" {
+		base.AzureStorageKey = override.AzureStorageKey
+	}
+	if override.AzureStorageKeyEnv != "" {
+		base.AzureStorageKeyEnv = override.AzureStorageKeyEnv
+	}
+	if override.AzureContainer != "" {
+		base.AzureContainer = override.AzureContainer
+	}
 }

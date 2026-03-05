@@ -23,6 +23,10 @@ type AzureBlobBackend struct {
 
 // NewAzureBlobBackend creates an AzureBlobBackend from the given config.
 func NewAzureBlobBackend(cfg config.AzureConfig) (*AzureBlobBackend, error) {
+	if err := internalstorage.ValidateAzureConfig(cfg.AccountName, cfg.Container, cfg.Tier, cfg.Auth.Type); err != nil {
+		return nil, err
+	}
+
 	client, err := NewAzureClient(cfg)
 	if err != nil {
 		return nil, err

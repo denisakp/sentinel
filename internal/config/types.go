@@ -189,6 +189,9 @@ type StorageConfig struct {
 	// Storage type: "local", "s3", "gcs", "google-drive", "azure"
 	Type string `yaml:"type"`
 
+	// Optional named storage reference from top-level storages map
+	Name string `yaml:"name,omitempty"`
+
 	// Local filesystem storage
 	LocalPath string `yaml:"local_path,omitempty"`
 

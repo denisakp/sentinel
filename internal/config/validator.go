@@ -207,6 +207,13 @@ func validateStorage(job BackupJob) error {
 			return fmt.Errorf("gdrive_sa_file is required for google-drive storage")
 		}
 	}
+	if job.Storage.Type == "azure" {
+		accountName := job.Storage.AzureStorageAccount
+		container := job.Storage.AzureContainer
+		if err := storage.ValidateAzureConfig(accountName, container, "", ""); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
