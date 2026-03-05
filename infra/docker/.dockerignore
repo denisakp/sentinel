@@ -11,3 +11,6 @@ release-notes.md
 sentinel
 Makefile
 docker-compose.yml
+.env*
+*.log*
+coverage/

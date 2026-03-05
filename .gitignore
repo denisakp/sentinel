@@ -2,6 +2,7 @@
 .vscode/
 .DS_Store
 .env
+.env*
 sentinel
 service-account.json
 .github/
@@ -15,6 +16,7 @@ coverage/
 Thumbs.db
 *.tmp
 *.swp
+*.log
 docs/roadmap/
 .claude/
 prds/
