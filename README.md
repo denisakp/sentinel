@@ -1,27 +1,25 @@
 # Sentinel
 
-**Status: Project in Development 🚧**
+**Status: v1.0.0 released**
 
-Sentinel is an open-source, cloud-native database backup and restoration tool designed for seamless management of SQL
-and NoSQL databases in Docker, Kubernetes, and local environments. Currently, Sentinel is under development, so certain
-features are incomplete, and documentation will be continuously updated.
+Sentinel is an open-source, cloud-native database backup and restore tool for SQL and NoSQL databases.
+It supports local and cloud storage, scheduled operations, monitoring, retention, and notifications.
 
 ## Project Purpose
 
-Sentinel simplify the backup, restoration, and managemet of databases with sipport for local storage,
-scheduled backups and restores, secure encryption, and multiple notification channels. It's designed to provide database
-administrators and developers with a flexible, reliable solution for database continuity and disaster recovery testing.
+Sentinel simplifies database backup, restore, and operational automation for teams running in local, Docker,
+and Kubernetes environments.
 
 ## Key Features
 
 - **Backup and Restoration** for SQL and NoSQL databases (PostgreSQL, MySQL, MariaDB, MongoDB).
-- **Storage Support** for multiple environments, including local, S3-compatible, Google Drive, Azure Blob, Google Cloud Storage .
+- **Storage Support** for local, S3-compatible, Google Drive, and Azure Blob.
 - **Notification System** for real-time backup and restore alerts (Slack, Discord, webhook, SMTP).
 - **Scheduling and Automation** through cron-based schedules for both backups and restores.
 - **Backup & Restore History** with SQLite-backed execution records and exports.
 - **Restore Management** with dry-run testing, post-restore verification, and automated scheduling.
 - **Retention Policies** for automatic cleanup of old backups and restore execution records.
-- **Cross-Platform Compatibility**: Built with Golang, Sentinel works seamlessly in Docker, Kubernetes, and other
+- **Cross-Platform Compatibility**: Built with Go, Sentinel works seamlessly in Docker, Kubernetes, and other
   cloud-native environments.
 
 ## Features Overview
@@ -30,7 +28,7 @@ administrators and developers with a flexible, reliable solution for database co
 
 - [x] Backup functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
 - [x] Restore functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
-- [x] Local, S3-compatible, Google Drive, Azure Blob, Google Cloud storage backends.
+- [x] Local, S3-compatible, Google Drive, and Azure Blob storage backends.
 - [x] YAML configuration for multi-job backups and restores with defaults.
 - [x] Cron-based scheduling for backups and restores (`sentinel schedule`).
 - [x] Retention policies for backups and restore history (`sentinel retention`).
@@ -41,8 +39,8 @@ administrators and developers with a flexible, reliable solution for database co
 
 ## Installation
 
-At this stage, Sentinel has not yet reached an initial release, so the only way to use it is by cloning the repository
-and building the project locally. A Go development environment (v1.18+) is required for building Sentinel.
+Sentinel v1.0.0 is available from source. Clone the repository and build locally.
+A Go development environment (v1.18+) is required.
 
 1. **Clone the Repository**:
 
@@ -66,10 +64,9 @@ and building the project locally. A Go development environment (v1.18+) is requi
    ./sentinel backup --type postgres --host mydb.host.tld --port 5432 --user my-user --password 1234 --database sample
    ```
 
-  Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`, and `retention`.
+  Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`, `retention`, `config`, and `db`.
 
-> **Note**: When the initial release (v1.0) is available, this README will be updated with more user-friendly
-> installation options and instructions.
+> **Note**: Prebuilt release distribution guidance may be expanded in future versions.
 
 ## Usage
 
@@ -241,25 +238,16 @@ The `restore` command provides comprehensive restore management:
 
 ## Roadmap
 
-### v1.1.0 - MySQL/MariaDB Compression
-- **MySQL Compression**: Gzip compression support
-- **MariaDB Compression**: Gzip and Zstandard support (v10.4+)
-- **Compression-Level Control**: Configurable compression for performance tuning
-- 
-### v1.2.0 - Advanced Restore Options
-- **Point-in-Time Recovery (PITR)**: Restore PostgreSQL databases to a specific timestamp
-- **Incremental Restores**: Restore only changed data since last restore (all databases)
+Current roadmap is maintained in:
 
-### v1.3.0 - Security & Reliability
-- **Hash Verification**: Verify backup integrity with SHA-256
-- **Encryption Support**: Encrypt backups at rest (AES-256)
-- **Job Concurrency Control**: Prevent overlapping jobs from crashing server
+- `docs/roadmap/ROADMAP.md`
 
-### v2.0.0 - Performance & Scale
-- Advanced job scheduling and queue management
-- Bandwidth throttling for cloud uploads
-- Parallel restore operations
-- Compression format optimization
+Planned themes:
+
+- v1.1: MySQL/MariaDB compression
+- v1.2: Advanced restore options
+- v1.3: Security and reliability hardening
+- v2.0: Enterprise performance and scale
 
 ---
 
@@ -280,13 +268,15 @@ Use the `db migrate status` command to inspect the current migration state:
 ```
 
 **Output includes:**
+
 - Current applied migration version
 - Latest available migration version
 - Whether the database is up-to-date
 - Full list of applied migrations with timestamps
 
 **Example Output:**
-```
+
+```txt
 Migration Status:
 
 Current Version: 3
@@ -309,6 +299,7 @@ Applied Migrations:
 ### Troubleshooting Migrations
 
 If a migration fails:
+
 1. Check the error message for specific SQL syntax or constraint violations.
 2. Inspect the `schema_migrations` table in the SQLite database to see which migrations succeeded.
 3. If the database is corrupted, delete it and restart (Sentinel will rebuild from scratch).
@@ -331,8 +322,6 @@ following resources:
   - [Bug Report](.github/ISSUE_TEMPLATE/1-bug.md): To report bugs or issues.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): Community standards for respectful and inclusive collaboration.
 
-Thank you for helping improve Sentinel!
-
-Stay tuned for more updates, and thank you for your interest in making Sentinel a reliable tool for database continuity!
+Thank you for helping improve Sentinel.
 
 ---

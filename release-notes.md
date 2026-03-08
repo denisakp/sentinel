@@ -4,44 +4,23 @@
 
 ### Added
 
-- Complete backup and restore system for PostgreSQL, MySQL, MariaDB, and MongoDB
-- YAML-driven configuration with global defaults and environment variable support
-- Cron-based scheduling for automated backups and restores
-- Execution history and monitoring with SQLite backend
-- Retention policies for automatic cleanup
-- Multi-storage support: Local, AWS S3, Google Drive
-- Notification system: Slack, Discord, webhooks, SMTP email
-- Restore management: dry-run, verification, scheduled execution
-- CLI commands: `backup`, `restore`, `schedule`, `monitor`, `retention`, `config`
-- Production-optimized binary (27MB, 28% smaller than debug build)
-- Comprehensive build system with multiple variants and Docker support
+- Backup and restore for PostgreSQL, MySQL, MariaDB, and MongoDB
+- YAML configuration with defaults and environment variable support
+- Cron scheduling for backups and restores
+- Monitoring and execution history with SQLite
+- Retention policies for automated cleanup
+- Storage backends: Local, S3-compatible, Google Drive, Azure Blob
+- Notifications: Slack, Discord, webhook, SMTP email
+- Restore management (list, enable/disable, dry-run, history, status)
+- Core CLI commands: `backup`, `restore`, `schedule`, `monitor`, `retention`, `config`, `db`
 
 ### V1 Consolidation (Internal)
 
-**Schema Migration Visibility**:
-- Embedded SQL migration system for history database schema management
-- `sentinel db migrate status` command to inspect migration state
-- Automatic migration application on startup with fail-fast behavior
-- Schema versioning with checksums for tamper detection
-- Migrations tracked in `schema_migrations` table
-
-**Atomic Execution State Management**:
-- Extended execution status values: `pending`, `running`, `completed`, `failed`, `interrupted`
-- Atomic cleanup tracking with `finished_at`, `cleanup_attempted`, `cleanup_succeeded`, `cleanup_error` columns
-- Interrupted execution reconciliation on scheduler restart (marks stale `running` records as `interrupted`)
-- Cleanup result recording for all failure scenarios
-- Atomic status transitions to prevent partial state corruption
-
-**End-to-End Integration Testing**:
-- Docker-backed integration tests using testcontainers-go
-- Per-engine test coverage: PostgreSQL, MySQL, MariaDB, MongoDB
-- Required scenarios per engine: backup, restore, failure injection, dry-run
-- Build tag isolation (`//go:build integration`) to separate unit and integration tests
-- CI workflow for automated integration testing via `make test-integration`
-- Migration failure integration test to verify fail-fast behavior
-
-**Behavior Changes**:
-- `sentinel schedule start` now applies pending migrations automatically before starting scheduler
-- Scheduler startup fails immediately if migrations cannot be applied (no degraded mode)
-- All `running` executions from crashed scheduler processes are marked as `interrupted` on restart
-- Export commands (JSON, CSV) now include new status values and cleanup columns
+- Embedded database migration system for monitor/history schema
+- `sentinel db migrate status` for migration visibility
+- Pending migrations applied automatically on scheduler/monitor/retention startup
+- Fail-fast startup if migration fails
+- Consolidated execution statuses: `pending`, `running`, `completed`, `failed`, `interrupted`
+- Cleanup lifecycle fields in history records: `finished_at`, `cleanup_attempted`, `cleanup_succeeded`, `cleanup_error`
+- Startup reconciliation marks stale `running` executions as `interrupted`
+- Integration test coverage for backup/restore flows and migration behavior

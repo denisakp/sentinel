@@ -3,7 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 )
 
@@ -41,9 +41,10 @@ func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int
 
 	var durations []int64
 	for _, exec := range executions {
-		if exec.Status == "success" {
+		switch exec.Status {
+		case "success":
 			stats.SuccessCount++
-		} else if exec.Status == "failure" {
+		case "failure":
 			stats.FailureCount++
 		}
 		stats.TotalBackupSize += exec.FileSizeBytes
@@ -84,7 +85,7 @@ func median(values []int64) int64 {
 		return 0
 	}
 	sorted := append([]int64(nil), values...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	slices.Sort(sorted)
 
 	mid := len(sorted) / 2
 	if len(sorted)%2 == 1 {

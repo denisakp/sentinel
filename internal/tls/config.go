@@ -4,6 +4,7 @@ package tls
 
 import (
 	"fmt"
+	"slices"
 )
 
 // ValidModes lists the supported TLS connection modes.
@@ -171,10 +172,5 @@ func mysqlSSLMode(mode string) string {
 }
 
 func isValidMode(mode string) bool {
-	for _, v := range ValidModes {
-		if v == mode {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ValidModes, mode)
 }
