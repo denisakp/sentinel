@@ -27,7 +27,7 @@ func StartPostgres(t *testing.T, ctx context.Context) *PostgresContainer {
 	t.Helper()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:18-alpine",
+		Image:        "postgres:16-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "testuser",
