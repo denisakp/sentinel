@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
 )
 
@@ -23,7 +24,7 @@ func TestMySQLBackup(t *testing.T) {
 	// Start MySQL container
 	db := StartMySQL(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mysql container: %v", err)
 		}
 	}()
@@ -32,13 +33,17 @@ func TestMySQLBackup(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_test.sql")
 
-	args := &mysql_dump.MySQLDumpArgs{
-		Username:    db.Username,
-		Password:    db.Password,
-		Host:        db.Host,
-		Port:        db.Port,
-		Database:    db.Database,
-		OutFileName: backupPath,
+	args := &mysql_dump.MySqlDumpArgs{
+		Username: db.Username,
+		Password: db.Password,
+		Host:     db.Host,
+		Port:     db.Port,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mysql_test.sql",
+		},
 	}
 
 	// Execute backup
@@ -75,7 +80,7 @@ func TestMySQLRestore(t *testing.T) {
 	// Start MySQL container
 	db := StartMySQL(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mysql container: %v", err)
 		}
 	}()
@@ -84,13 +89,17 @@ func TestMySQLRestore(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_test.sql")
 
-	backupArgs := &mysql_dump.MySQLDumpArgs{
-		Username:    db.Username,
-		Password:    db.Password,
-		Host:        db.Host,
-		Port:        db.Port,
-		Database:    db.Database,
-		OutFileName: backupPath,
+	backupArgs := &mysql_dump.MySqlDumpArgs{
+		Username: db.Username,
+		Password: db.Password,
+		Host:     db.Host,
+		Port:     db.Port,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mysql_test.sql",
+		},
 	}
 
 	if err := mysql_dump.Backup(backupArgs); err != nil {
@@ -111,8 +120,6 @@ func TestMySQLBackupCleanupOnFailure(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-
 	// Create monitor for tracking
 	monitorDB := filepath.Join(t.TempDir(), "monitor.db")
 	mon, err := monitor.NewMonitor(monitorDB)
@@ -125,13 +132,17 @@ func TestMySQLBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_fail.sql")
 
-	args := &mysql_dump.MySQLDumpArgs{
-		Username:    "invalid_user",
-		Password:    "invalid_password",
-		Host:        "invalid_host",
-		Port:        "3306",
-		Database:    "invalid_db",
-		OutFileName: backupPath,
+	args := &mysql_dump.MySqlDumpArgs{
+		Username: "invalid_user",
+		Password: "invalid_password",
+		Host:     "invalid_host",
+		Port:     "3306",
+		Database: "invalid_db",
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mysql_fail.sql",
+		},
 	}
 
 	// Execute backup (should fail)
@@ -157,13 +168,12 @@ func TestMySQLDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &mysql_dump.MySQLDumpArgs{
-		Username:    "test_user",
-		Password:    "test_pass",
-		Host:        "localhost",
-		Port:        "3306",
-		Database:    "test_db",
-		OutFileName: "/tmp/test.sql",
+	args := &mysql_dump.MySqlDumpArgs{
+		Username: "test_user",
+		Password: "test_pass",
+		Host:     "localhost",
+		Port:     "3306",
+		Database: "test_db",
 	}
 
 	// Validate arguments (simplified dry-run check)

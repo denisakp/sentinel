@@ -4,6 +4,8 @@ package engines
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -204,12 +206,9 @@ func TestTLS_FallbackWarning(t *testing.T) {
 	// Start a plain (non-TLS) PostgreSQL container.
 	db := StartPostgres(t, ctx)
 
-	port := 0
-	if _, err := strings.CutPrefix(db.Port, ""); err {
-	}
 	// Convert port string to int
 	var portInt int
-	if n, err := formatPort(db.Port); err == nil {
+	if n, err := strconv.Atoi(db.Port); err == nil {
 		portInt = n
 	} else {
 		t.Fatalf("invalid port %q: %v", db.Port, err)
@@ -265,9 +264,9 @@ func TestTLS_ExpiredCert_Aborts(t *testing.T) {
 
 	// Use the tls.cert package to verify the expired cert is correctly detected.
 	// This matches the production path where PreflightTLSCheck calls LoadAndValidateCert.
-	certData, err := readCertFile(expiredCA.CertFile)
+	certData, err := os.ReadFile(expiredCA.CertFile)
 	if err != nil {
-		t.Fatalf("readCertFile: %v", err)
+		t.Fatalf("ReadFile: %v", err)
 	}
 
 	// The cert data should be non-empty (cert was generated successfully)
@@ -276,8 +275,7 @@ func TestTLS_ExpiredCert_Aborts(t *testing.T) {
 	}
 
 	// Verify the cert is actually expired by checking NotAfter
-	if !expiredCA.cert.NotAfter.IsZero() {
-		import_time := expiredCA.cert.NotAfter
-		_ = import_time
+	if expiredCA.cert != nil && !expiredCA.cert.NotAfter.IsZero() {
+		t.Logf("Expired cert NotAfter: %v", expiredCA.cert.NotAfter)
 	}
 }

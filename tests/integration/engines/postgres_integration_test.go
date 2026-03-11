@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
 )
 
@@ -38,8 +39,12 @@ func TestPostgresBackup(t *testing.T) {
 		Host:        db.Host,
 		Port:        db.Port,
 		Database:    db.Database,
-		Format:      "c", // custom format
-		OutFileName: backupPath,
+		PgOutFormat: "p", // plain format writes to stdout
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "postgres_test.backup",
+		},
 	}
 
 	// Execute backup
@@ -91,8 +96,12 @@ func TestPostgresRestore(t *testing.T) {
 		Host:        db.Host,
 		Port:        db.Port,
 		Database:    db.Database,
-		Format:      "c",
-		OutFileName: backupPath,
+		PgOutFormat: "p",
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "postgres_test.backup",
+		},
 	}
 
 	if err := pg_dump.Backup(backupArgs); err != nil {
@@ -113,8 +122,6 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-
 	// Create monitor for tracking
 	monitorDB := filepath.Join(t.TempDir(), "monitor.db")
 	mon, err := monitor.NewMonitor(monitorDB)
@@ -133,8 +140,12 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 		Host:        "invalid_host",
 		Port:        "5432",
 		Database:    "invalid_db",
-		Format:      "c",
-		OutFileName: backupPath,
+		PgOutFormat: "p",
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "postgres_fail.backup",
+		},
 	}
 
 	// Execute backup (should fail)
@@ -166,8 +177,7 @@ func TestPostgresDryRun(t *testing.T) {
 		Host:        "localhost",
 		Port:        "5432",
 		Database:    "test_db",
-		Format:      "c",
-		OutFileName: "/tmp/test.backup",
+		PgOutFormat: "p",
 	}
 
 	// Validate arguments (this is a simplified dry-run check)
