@@ -10,8 +10,7 @@ import (
 
 func TestPgDumpArgsBuilder(t *testing.T) {
 	backupPath := filepath.Join("tmp", "backups")
-	outSQL := filepath.Join(backupPath, "test.sql")
-	outBackup := filepath.Join(backupPath, "test.backup")
+	outDir := filepath.Join(backupPath, "test_dir")
 
 	tests := []struct {
 		name    string
@@ -20,9 +19,11 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			// File formats (c, p, t) write to stdout — no --file= in args.
+			// pg_dump.Backup() captures stdout and passes it to WriteBackup.
 			name:    "Valid args without compression",
 			args:    &PgDumpArgs{Host: "192.168.1.26", Port: "5423", Username: "test", Database: "test", Storage: &storage.Params{OutName: "test.sql"}, PgOutFormat: "p", Compress: false},
-			want:    []string{"--host=192.168.1.26", "--port=5423", "--username=test", "--dbname=test", "--file=" + outSQL, "--format=p"},
+			want:    []string{"--host=192.168.1.26", "--port=5423", "--username=test", "--dbname=test", "--format=p"},
 			wantErr: false,
 		},
 		{
@@ -40,7 +41,7 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		{
 			name:    "Default host and port with compression",
 			args:    &PgDumpArgs{Username: "test", Database: "test", Storage: &storage.Params{OutName: "test.backup"}, PgOutFormat: "c", Compress: true, CompressionAlgorithm: "gzip", CompressionLevel: 4},
-			want:    []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--file=" + outBackup, "--format=c", "--compress=gzip:4"},
+			want:    []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--format=c", "--compress=gzip:4"},
 			wantErr: false,
 		},
 		{
@@ -58,7 +59,14 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		{
 			name: "Additional args with no duplicates",
 			args: &PgDumpArgs{Username: "test", Database: "test", Storage: &storage.Params{OutName: "test.backup"}, PgOutFormat: "c", Compress: false, AdditionalArgs: "--attribute-inserts --no-privileges"},
-			want: []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--file=" + outBackup, "--format=c", "--attribute-inserts", "--no-privileges"},
+			want: []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--format=c", "--attribute-inserts", "--no-privileges"},
+		},
+		{
+			// Directory format must use --file= since pg_dump creates a directory.
+			name:    "Directory format uses --file=",
+			args:    &PgDumpArgs{Username: "test", Database: "test", Storage: &storage.Params{StorageType: "local", OutName: "test_dir"}, PgOutFormat: "d", Compress: false},
+			want:    []string{"--host=127.0.0.1", "--port=5432", "--username=test", "--dbname=test", "--file=" + outDir, "--format=d"},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
