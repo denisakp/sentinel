@@ -1,45 +1,85 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: Feature request
+about: Propose a new capability or enhancement aligned with Sentinel roadmap
+title: "feat: "
 labels: 'enhancement'
 assignees: denisakp
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
+## Problem Statement
 
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+Describe the operator/user problem this feature solves.
 
-**Describe the solution you'd like**
+## Proposed Solution
 
 A clear and concise description of what you want to happen.
 
-**Use Case and Benefits**
+## Use Cases
 
-- Use Case: Describe a specific scenario or example where this feature would be used.
-- Benefits: Explain the benefits of implementing this feature, such as efficiency improvements, or alignment with best
-  practices.
+- Primary use case:
+- Secondary use case (optional):
 
-**Potential Challenges**
+## Benefits
+
+Explain expected outcomes (reliability, recovery time, cost reduction, operator UX, etc.).
+
+## Roadmap Alignment
+
+Reference `docs/roadmap/ROADMAP.md` and indicate where this fits:
+
+- [ ] v1.1.0 MySQL/MariaDB compression
+- [ ] v1.2.0 Advanced restore (PITR/incremental)
+- [ ] v1.3.0 Security/reliability hardening
+- [ ] v2.0.0 Enterprise scale/performance
+- [ ] Not on roadmap yet (explain why it should be added)
+
+## Proposed UX / CLI / Config
+
+Provide a concrete proposal where possible.
+
+- CLI example:
+
+```bash
+sentinel ...
+```
+
+- YAML example:
+
+```yaml
+databases:
+  my-job:
+    type: mysql
+    # proposed fields
+```
+
+## Acceptance Criteria
+
+List verifiable outcomes.
+
+1. 
+2. 
+3. 
+
+## Potential Challenges
 
 Identify any possible challenges or complications in implementing this feature, such as technical limitations, conflicts
 with existing functionalities, or resource constraints
 
-**Suggested Implementation**
+## Suggested Implementation (Optional)
 
 If applicable, propose a way this feature could be implemented within the existing project structure. Include any
-technical details, code snippets, or references to similar features.
+technical details and target packages.
 
-**Impact on Existing Features**
+## Impact on Existing Features
 
 Discuss whether this feature might affect existing functionalities and how any conflicts or integrations might be
 managed.
 
-**Describe alternatives you've considered**
+## Alternatives Considered
 
 A clear and concise description of any alternative solutions or features you've considered.
 
-**Additional context**
+## Additional Context
 
 Add any other context or screenshots about the feature request here.

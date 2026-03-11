@@ -5,8 +5,14 @@
 .env*
 sentinel
 service-account.json
-.github/
 .specify/
+# Ignore everything under .github by default, then allow only selected paths.
+.github/*
+!.github/ISSUE_TEMPLATE/
+!.github/ISSUE_TEMPLATE/**
+!.github/workflows/
+!.github/workflows/**
+!.github/copilot-instructions.md
 specs/
 *.exe
 *.test
