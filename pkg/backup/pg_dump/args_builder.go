@@ -2,8 +2,11 @@ package pg_dump
 
 import (
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -19,6 +22,7 @@ type PgDumpArgs struct {
 	CompressionLevel     int             // Compression level
 	AdditionalArgs       string          // Additional arguments for the pg_dump command
 	Storage              *storage.Params // Storage parameters
+	TLS                  *internaltls.Config
 }
 
 // argsBuilder builds the arguments for the pg_dump command
@@ -49,22 +53,30 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		fmt.Sprintf("--port=%s", pda.Port),
 		fmt.Sprintf("--username=%s", pda.Username),
 		fmt.Sprintf("--dbname=%s", pda.Database),
-		fmt.Sprintf("--format=%s", pda.PgOutFormat),
 	}
+
+	// Add output file for all formats
+	if pda.Storage.OutName != "" {
+		if pda.PgOutFormat == "d" {
+			// Directory format
+			if pda.Storage.StorageType != "local" {
+				pda.Storage.OutName = utils.FormatResourceValue(pda.Storage.OutName)
+			} else {
+				pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
+			}
+		} else {
+			// File format (c, p, t)
+			pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
+		}
+		args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
+	}
+
+	args = append(args, fmt.Sprintf("--format=%s", pda.PgOutFormat))
 
 	if pda.Compress {
 		if err := addCompression(&args, pda); err != nil {
 			return nil, err
 		}
-	}
-
-	if pda.PgOutFormat == "d" {
-		if pda.Storage.StorageType != "local" {
-			pda.Storage.OutName = utils.FormatResourceValue(pda.Storage.OutName)
-		} else {
-			pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
-		}
-		args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
 	}
 
 	// handle additional arguments
@@ -73,10 +85,12 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		args = append(args, additionalArgs...)
 	}
 
+	args = append(args, internaltls.BuildTLSArgs("postgres", pda.TLS)...)
+
 	// remove duplicated arguments
 	args = backup.RemoveArgsDuplicate(args) // remove duplicated arguments
 
-	return args, nil
+	return sanitize.RedactArgs(args), nil
 }
 
 func addCompression(args *[]string, pda *PgDumpArgs) error {

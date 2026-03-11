@@ -1,0 +1,15 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  prod-postgres:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app_db
+    storage:
+      type: local

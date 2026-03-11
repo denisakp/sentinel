@@ -1,0 +1,24 @@
+// Package types defines shared value types for storage backends.
+// It is a leaf package with no dependencies on other internal packages,
+// allowing sub-packages (local, s3, gdrive, azure) and the parent storage
+// package to share these types without import cycles.
+package types
+
+import "time"
+
+// StorageObject represents a single object returned by a StorageBackend List call.
+type StorageObject struct {
+	Path         string
+	SizeBytes    int64
+	LastModified time.Time
+	ETag         string
+}
+
+// RepoStatus summarises the current state of a storage repository.
+type RepoStatus struct {
+	Reachable      bool
+	BackupCount    int
+	TotalSizeBytes int64
+	LastBackup     *time.Time // nil if no backups exist
+	Error          string
+}

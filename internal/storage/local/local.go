@@ -1,7 +1,10 @@
 package local
 
 import (
+	"context"
 	"fmt"
+	"os"
+
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -46,6 +49,37 @@ func (ls *LocalStorage) WriteBackup(data []byte, resource string) error {
 	}
 
 	fmt.Printf("Backup successfully written to %s\n", resource)
+
+	return nil
+}
+
+// DeleteBackup removes a backup artifact from local storage.
+// This is used for cleanup after failed backup operations to avoid leaving partial files.
+func (ls *LocalStorage) DeleteBackup(ctx context.Context, path string) error {
+	if path == "" {
+		return fmt.Errorf("backup path is required for deletion")
+	}
+
+	// Check if path exists
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist - no cleanup needed
+			return nil
+		}
+		return fmt.Errorf("failed to stat backup path %s: %w", path, err)
+	}
+
+	// Remove file or directory
+	if info.IsDir() {
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("failed to remove backup directory %s: %w", path, err)
+		}
+	} else {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("failed to remove backup file %s: %w", path, err)
+		}
+	}
 
 	return nil
 }

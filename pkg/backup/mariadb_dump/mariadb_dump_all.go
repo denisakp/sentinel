@@ -1,0 +1,72 @@
+package mariadb_dump
+
+import (
+	"bytes"
+	"fmt"
+	"os/exec"
+
+	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/utils"
+)
+
+// MariaDBDumpAllArgs defines arguments for mariadb-dump --all-databases.
+type MariaDBDumpAllArgs struct {
+	Host           string          // MariaDB host
+	Port           string          // MariaDB port
+	Username       string          // MariaDB username
+	Password       string          // MariaDB password
+	AdditionalArgs string          // Additional arguments for mariadb-dump
+	Storage        *storage.Params // Storage parameters
+}
+
+// BackupAll backs up all MariaDB databases using mariadb-dump --all-databases.
+func BackupAll(mda *MariaDBDumpAllArgs) error {
+	args := []string{
+		fmt.Sprintf("--host=%s", utils.DefaultValue(mda.Host, "127.0.0.1")),
+		fmt.Sprintf("--port=%s", utils.DefaultValue(mda.Port, "3306")),
+		fmt.Sprintf("--user=%s", mda.Username),
+		"--all-databases",
+	}
+
+	if mda.Password != "" {
+		args = append(args, fmt.Sprintf("--password=%s", mda.Password))
+	}
+
+	if mda.AdditionalArgs != "" {
+		additionalArgs := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		args = append(args, additionalArgs...)
+	}
+
+	args = backup.RemoveArgsDuplicate(args)
+
+	cmd := exec.Command("mariadb-dump", args...)
+
+	var stdErr bytes.Buffer
+	cmd.Stderr = &stdErr
+	var stdOut bytes.Buffer
+	cmd.Stdout = &stdOut
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to execute mariadb-dump command - %w, %s", err, stdErr.String())
+	}
+
+	storageHandler, err := storage.NewStorage(mda.Storage)
+	if err != nil {
+		return err
+	}
+	backupPath, err := storageHandler.GetBackupPath(mda.Storage.LocalPath)
+	if err != nil {
+		return err
+	}
+
+	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
+	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
+
+	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
+		return fmt.Errorf("failed to write backup to storage - %w", err)
+	}
+
+	fmt.Printf("Backup complete !\n")
+	return nil
+}

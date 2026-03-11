@@ -1,44 +1,87 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: BUG
+about: Report a defect in backup, restore, scheduling, storage, or monitoring behavior
+title: "bug: "
 labels: 'bug'
 assignees: denisakp
 
 ---
 
-**Describe the bug**
+## Summary
 
-A clear and concise description of what the bug is.
+Describe the bug clearly and include impact (data loss risk, restore failure, scheduler blocked, etc.).
 
-**To Reproduce**
+## Reproduction Steps
 
 Steps to reproduce the behavior:
 
 1. Go to '...'
-2. Click on '…'
-3. Scroll down to '…'
+2. Click on '...'
+3. Scroll down to '...'
 4. See error
 
-**Expected behavior**
+## Expected Behavior
 
 A clear and concise description of what you expected to happen.
 
-**Actual behavior**
+## Actual Behavior
 
 A clear and concise description of what actually happens
 
-**Screenshots**
+## Scope
+
+- Affected command(s): `backup` / `restore` / `schedule` / `retention` / `monitor` / other
+- Affected database type(s): postgres / mysql / mariadb / mongodb
+- Affected storage backend(s): local / s3 / google-drive / azure
+- Frequency: always / intermittent / once
+
+## Logs and Errors
+
+Paste relevant error output and logs.
+
+```text
+# sentinel command output
+```
+
+## Minimal Config (Sanitized)
+
+If applicable, share a minimal `sentinel.yaml` snippet.
+Do not include secrets. Keep `_env` references only.
+
+```yaml
+version: "1.0"
+databases:
+  sample:
+    type: postgres
+    host_env: DB_HOST
+    username_env: DB_USER
+    password_env: DB_PASSWORD
+    database: app
+    storage:
+      type: local
+      local_path: ./backups
+```
+
+## Screenshots / Artifacts
 
 If applicable, add screenshots to help explain your problem.
 
-**Environment (please complete the following information):**
+## Environment
 
-- OS: [e.g. Linux, Mac, Windows]
-- Database Type [e.g. PostgresSQL, MySQL, MariaDB, MongoDB]
-- Database Version [e.g. xx]
-- Docker version [e.g. 27.1.1 ]
+- Sentinel version or commit SHA:
+- Install method: source build / container / other
+- OS: Linux / macOS / Windows
+- Database type and version:
+- Storage backend:
+- Go version (if built from source):
+- Docker/Compose/Kubernetes version (if relevant):
 
-**Additional context**
+## Regression Check
+
+- [ ] This worked in an earlier Sentinel version
+- [ ] I can reproduce with latest `main`
+- [ ] I reviewed `docs/roadmap/ROADMAP.md` and this is a defect, not an unreleased feature
+
+## Additional Context
 
 Add any other context about the problem here.

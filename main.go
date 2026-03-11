@@ -1,7 +1,13 @@
 package main
 
-import "github.com/denisakp/sentinel/cmd"
+import (
+	"os"
+
+	"github.com/denisakp/sentinel/internal/cli"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cli.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

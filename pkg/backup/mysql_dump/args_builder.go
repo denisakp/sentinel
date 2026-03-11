@@ -2,8 +2,11 @@ package mysql_dump
 
 import (
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -15,6 +18,7 @@ type MySqlDumpArgs struct {
 	Database       string          // MySQL database name
 	AdditionalArgs string          // Additional arguments for the mysql_dump command
 	Storage        *storage.Params // Storage parameters
+	TLS            *internaltls.Config
 }
 
 // argsBuilder builds the arguments for the mysql_dump command
@@ -41,8 +45,10 @@ func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 		args = append(args, additionalArgs...)
 	} // handle additional arguments
 
+	args = append(args, internaltls.BuildTLSArgs("mysql", mda.TLS)...)
+
 	args = backup.RemoveArgsDuplicate(args) // remove duplicate arguments
 	args = append(args, mda.Database)       // add database name
 
-	return args, nil
+	return sanitize.RedactArgs(args), nil
 }

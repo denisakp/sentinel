@@ -2,6 +2,7 @@ package pg_dump
 
 import (
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -18,16 +19,24 @@ func setOutName(pda *PgDumpArgs) error {
 
 	switch pda.PgOutFormat {
 	case "c":
-		pda.Storage.OutName += ".backup"
+		if !hasExtension(pda.Storage.OutName, ".backup") {
+			pda.Storage.OutName += ".backup"
+		}
 	case "d":
-	// Directory format if empty and compression is enabled
+		// Directory format - no extension
 	case "t":
-		pda.Storage.OutName += ".tar"
+		if !hasExtension(pda.Storage.OutName, ".tar") {
+			pda.Storage.OutName += ".tar"
+		}
 	case "p":
-		pda.Storage.OutName += ".sql"
-	default:
-		return fmt.Errorf("unsupported output format: %s", pda.PgOutFormat)
+		if !hasExtension(pda.Storage.OutName, ".sql") {
+			pda.Storage.OutName += ".sql"
+		}
 	}
 
 	return nil
+}
+
+func hasExtension(filename, ext string) bool {
+	return len(filename) > len(ext) && filename[len(filename)-len(ext):] == ext
 }

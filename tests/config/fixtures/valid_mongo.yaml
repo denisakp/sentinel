@@ -1,0 +1,13 @@
+version: "1.0"
+
+defaults:
+  storage:
+    type: local
+
+databases:
+  prod-mongo:
+    type: mongodb
+    uri_env: MONGO_URI
+    database: appdb
+    storage:
+      type: local

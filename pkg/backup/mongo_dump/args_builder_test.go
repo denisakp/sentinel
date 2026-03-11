@@ -1,11 +1,17 @@
 package mongo_dump
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/storage"
 )
 
 func Test_argsBuilder(t *testing.T) {
+
+	backupPath := filepath.Join("tmp", "backups")
+	outPath := filepath.Join(backupPath, "test.archive")
 
 	tests := []struct {
 		name    string
@@ -15,37 +21,37 @@ func Test_argsBuilder(t *testing.T) {
 	}{
 		{
 			name:    "Args with default URI",
-			args:    &DumpMongoArgs{Compress: false, OutName: "test.archive"},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=test.archive", "--quiet"},
+			args:    &DumpMongoArgs{Compress: false, Storage: &storage.Params{OutName: "test.archive"}},
+			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet"},
 			wantErr: false,
 		},
 		{
 			name: "Args with custom URI",
-			args: &DumpMongoArgs{Uri: "mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", Compress: false, OutName: "test.archive"},
-			want: []string{"--uri=mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", "--out=test.archive", "--quiet"},
+			args: &DumpMongoArgs{Uri: "mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", Compress: false, Storage: &storage.Params{OutName: "test.archive"}},
+			want: []string{"--uri=mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", "--out=" + outPath, "--quiet"},
 		},
 		{
 			name:    "Args with compression enabled",
-			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: true, OutName: "test.archive"},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=test.archive", "--quiet", "--gzip"},
+			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: true, Storage: &storage.Params{OutName: "test.archive"}},
+			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--gzip"},
 			wantErr: false,
 		},
 		{
 			name:    "Args with additional arguments",
-			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin", OutName: "test.archive"},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=test.archive", "--quiet", "--authenticationDatabase=admin"},
+			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin", Storage: &storage.Params{OutName: "test.archive"}},
+			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--authenticationDatabase=admin"},
 			wantErr: false,
 		},
 		{
 			name:    "Remove duplicate arguments",
-			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin --authenticationDatabase=admin", OutName: "test.archive"},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=test.archive", "--quiet", "--authenticationDatabase=admin"},
+			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin --authenticationDatabase=admin", Storage: &storage.Params{OutName: "test.archive"}},
+			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--authenticationDatabase=admin"},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := argsBuilder(tt.args)
+			got, err := argsBuilder(tt.args, backupPath)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("argsBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return

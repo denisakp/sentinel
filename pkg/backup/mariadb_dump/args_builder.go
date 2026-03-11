@@ -2,8 +2,11 @@ package mariadb_dump
 
 import (
 	"fmt"
+
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -15,6 +18,7 @@ type MariaDBDumpArgs struct {
 	Database       string          // MariaDB database name
 	AdditionalArgs string          // Additional arguments for the mariadb_dump command
 	Storage        *storage.Params // Storage parameters
+	TLS            *internaltls.Config
 }
 
 // ArgsBuilder builds the arguments for the mariadb_dump command
@@ -43,8 +47,10 @@ func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 		args = append(args, additionalArgs...)
 	} // add additional arguments if provided
 
+	args = append(args, internaltls.BuildTLSArgs("mariadb", mda.TLS)...)
+
 	args = backup.RemoveArgsDuplicate(args) // remove duplicated arguments
 	args = append(args, mda.Database)       // add the database name to the arguments
 
-	return args, nil
+	return sanitize.RedactArgs(args), nil
 }
