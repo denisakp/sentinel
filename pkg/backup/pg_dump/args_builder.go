@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/backup"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -90,7 +89,7 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 	// remove duplicated arguments
 	args = backup.RemoveArgsDuplicate(args) // remove duplicated arguments
 
-	return sanitize.RedactArgs(args), nil
+	return args, nil
 }
 
 func addCompression(args *[]string, pda *PgDumpArgs) error {

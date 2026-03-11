@@ -55,14 +55,14 @@ func TestMongoDBBackup(t *testing.T) {
 		t.Fatalf("Backup failed: %v", err)
 	}
 
-	// Verify backup directory was created
+	// Verify backup artifact was created
 	info, err := os.Stat(backupPath)
 	if err != nil {
-		t.Fatalf("Backup directory not created: %v", err)
+		t.Fatalf("Backup artifact not created: %v", err)
 	}
 
-	if !info.IsDir() {
-		t.Fatalf("Backup output should be a directory")
+	if info.Size() == 0 {
+		t.Fatalf("Backup artifact is empty")
 	}
 
 	t.Logf("MongoDB backup completed in %v", duration)

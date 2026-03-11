@@ -33,13 +33,13 @@ func TestArgsBuilder(t *testing.T) {
 		{
 			name:    "Default Host and Port",
 			args:    &MariaDBDumpArgs{Username: "root", Password: "root", Database: "test"},
-			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--password=*****", "test"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--password=root", "test"},
 			wantErr: false,
 		},
 		{
 			name:    "Provided host and port",
 			args:    &MariaDBDumpArgs{Username: "root", Password: "root", Database: "test", Host: "us-west1.mysql.domain.com", Port: "3319"},
-			want:    []string{"--host=us-west1.mysql.domain.com", "--port=3319", "--user=root", "--password=*****", "test"},
+			want:    []string{"--host=us-west1.mysql.domain.com", "--port=3319", "--user=root", "--password=root", "test"},
 			wantErr: false,
 		},
 		{

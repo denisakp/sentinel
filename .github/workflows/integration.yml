@@ -35,6 +35,7 @@ jobs:
         run: |
           pg_dump --version
           mysqldump --version
+          mariadb-dump --version
           mongodump --version
           
       - name: Checkout code
