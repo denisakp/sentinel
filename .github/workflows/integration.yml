@@ -1,0 +1,46 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - develop
+      - 1.x
+  pull_request:
+    branches:
+      - develop
+      - 1.x
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+      - name: Cache Go modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Install dependencies
+        run: go mod download
+      - name: Run integration tests
+        run: make test-integration
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: false
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: integration-test-results
+          path: |
+            coverage/
+            *.log
