@@ -27,7 +27,7 @@ func StartPostgres(t *testing.T, ctx context.Context) *PostgresContainer {
 	t.Helper()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:17-alpine",
+		Image:        "postgres:18-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "testuser",
@@ -103,6 +103,9 @@ func StartMySQL(t *testing.T, ctx context.Context) *MySQLContainer {
 	if err != nil {
 		t.Fatalf("Failed to get mysql host: %v", err)
 	}
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
 
 	mappedPort, err := container.MappedPort(ctx, "3306")
 	if err != nil {
@@ -157,6 +160,9 @@ func StartMariaDB(t *testing.T, ctx context.Context) *MariaDBContainer {
 	if err != nil {
 		t.Fatalf("Failed to get mariadb host: %v", err)
 	}
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
 
 	mappedPort, err := container.MappedPort(ctx, "3306")
 	if err != nil {
@@ -188,7 +194,7 @@ func StartMongoDB(t *testing.T, ctx context.Context) *MongoDBContainer {
 	t.Helper()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "mongo:7",
+		Image:        "mongo:8.2",
 		ExposedPorts: []string{"27017/tcp"},
 		Env: map[string]string{
 			"MONGO_INITDB_ROOT_USERNAME": "testuser",
