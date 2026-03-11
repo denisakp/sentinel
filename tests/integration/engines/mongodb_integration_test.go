@@ -61,7 +61,15 @@ func TestMongoDBBackup(t *testing.T) {
 		t.Fatalf("Backup artifact not created: %v", err)
 	}
 
-	if info.Size() == 0 {
+	if info.IsDir() {
+		entries, err := os.ReadDir(backupPath)
+		if err != nil {
+			t.Fatalf("Failed to read backup directory: %v", err)
+		}
+		if len(entries) == 0 {
+			t.Fatalf("Backup directory is empty")
+		}
+	} else if info.Size() == 0 {
 		t.Fatalf("Backup artifact is empty")
 	}
 
