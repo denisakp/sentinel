@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/backup"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -50,5 +49,5 @@ func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 	args = backup.RemoveArgsDuplicate(args) // remove duplicate arguments
 	args = append(args, mda.Database)       // add database name
 
-	return sanitize.RedactArgs(args), nil
+	return args, nil
 }

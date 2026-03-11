@@ -15,6 +15,29 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     steps:
+      - name: install database client tools
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client mysql-client
+            
+            # handle mariadb
+            MARIADB_VERSION="11.8.6"
+            wget -q "https://downloads.mariadb.org/rest-api/mariadb/${MARIADB_VERSION}/mariadb-${MARIADB_VERSION}-linux-systemd-x86_64.tar.gz" \
+                     -O mariadb.tar.gz
+            tar -xzf mariadb.tar.gz "mariadb-${MARIADB_VERSION}-linux-systemd-x86_64/bin/mariadb-dump" --strip-components=2
+            sudo mv mariadb-dump /usr/local/bin/
+            sudo chmod +x /usr/local/bin/mariadb-dump
+            rm mariadb.tar.gz
+            
+            wget -qO- https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.14.1.deb -O mongodb-database-tools.deb
+            sudo dpkg -i mongodb-database-tools.deb
+      - name: check client tools
+        run: |
+          pg_dump --version
+          mysqldump --version
+          mariadb-dump --version
+          mongodump --version
+          
       - name: Checkout code
         uses: actions/checkout@v6
       - name: Set up Go
