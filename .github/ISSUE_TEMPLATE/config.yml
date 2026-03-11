@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a Security Vulnerability (Private)
+    url: https://github.com/denisakp/sentinel/blob/main/SECURITY.md
+    about: Do not post vulnerabilities publicly. Report privately per SECURITY.md.
+  - name: Sentinel Usage Questions
+    url: https://github.com/denisakp/sentinel/discussions
+    about: Ask setup, usage, and troubleshooting questions in Discussions.
+  - name: Sentinel Roadmap
+    url: https://github.com/denisakp/sentinel/blob/main/docs/roadmap/ROADMAP.md
+    about: Check planned vs implemented features before opening a request.
