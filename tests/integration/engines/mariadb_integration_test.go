@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 )
 
@@ -23,7 +24,7 @@ func TestMariaDBBackup(t *testing.T) {
 	// Start MariaDB container
 	db := StartMariaDB(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mariadb container: %v", err)
 		}
 	}()
@@ -33,12 +34,16 @@ func TestMariaDBBackup(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mariadb_test.sql")
 
 	args := &mariadb_dump.MariaDBDumpArgs{
-		Username:    db.Username,
-		Password:    db.Password,
-		Host:        db.Host,
-		Port:        db.Port,
-		Database:    db.Database,
-		OutFileName: backupPath,
+		Username: db.Username,
+		Password: db.Password,
+		Host:     db.Host,
+		Port:     db.Port,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mariadb_test.sql",
+		},
 	}
 
 	// Execute backup
@@ -75,7 +80,7 @@ func TestMariaDBRestore(t *testing.T) {
 	// Start MariaDB container
 	db := StartMariaDB(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mariadb container: %v", err)
 		}
 	}()
@@ -85,12 +90,16 @@ func TestMariaDBRestore(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mariadb_test.sql")
 
 	backupArgs := &mariadb_dump.MariaDBDumpArgs{
-		Username:    db.Username,
-		Password:    db.Password,
-		Host:        db.Host,
-		Port:        db.Port,
-		Database:    db.Database,
-		OutFileName: backupPath,
+		Username: db.Username,
+		Password: db.Password,
+		Host:     db.Host,
+		Port:     db.Port,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mariadb_test.sql",
+		},
 	}
 
 	if err := mariadb_dump.Backup(backupArgs); err != nil {
@@ -111,8 +120,6 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-
 	// Create monitor for tracking
 	monitorDB := filepath.Join(t.TempDir(), "monitor.db")
 	mon, err := monitor.NewMonitor(monitorDB)
@@ -126,12 +133,16 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mariadb_fail.sql")
 
 	args := &mariadb_dump.MariaDBDumpArgs{
-		Username:    "invalid_user",
-		Password:    "invalid_password",
-		Host:        "invalid_host",
-		Port:        "3306",
-		Database:    "invalid_db",
-		OutFileName: backupPath,
+		Username: "invalid_user",
+		Password: "invalid_password",
+		Host:     "invalid_host",
+		Port:     "3306",
+		Database: "invalid_db",
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mariadb_fail.sql",
+		},
 	}
 
 	// Execute backup (should fail)
@@ -158,12 +169,11 @@ func TestMariaDBDryRun(t *testing.T) {
 
 	// Test validation without container (dry-run scenario)
 	args := &mariadb_dump.MariaDBDumpArgs{
-		Username:    "test_user",
-		Password:    "test_pass",
-		Host:        "localhost",
-		Port:        "3306",
-		Database:    "test_db",
-		OutFileName: "/tmp/test.sql",
+		Username: "test_user",
+		Password: "test_pass",
+		Host:     "localhost",
+		Port:     "3306",
+		Database: "test_db",
 	}
 
 	// Validate arguments (simplified dry-run check)

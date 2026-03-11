@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 )
 
@@ -23,7 +24,7 @@ func TestMongoDBBackup(t *testing.T) {
 	// Start MongoDB container
 	db := StartMongoDB(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mongodb container: %v", err)
 		}
 	}()
@@ -33,10 +34,14 @@ func TestMongoDBBackup(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mongodb_test")
 
 	uri := db.ConnectionString()
-	args := &mongo_dump.MongoDumpArgs{
-		URI:         uri,
-		Database:    db.Database,
-		OutFileName: backupPath,
+	args := &mongo_dump.DumpMongoArgs{
+		Uri:      uri,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mongodb_test",
+		},
 	}
 
 	// Execute backup
@@ -73,7 +78,7 @@ func TestMongoDBRestore(t *testing.T) {
 	// Start MongoDB container
 	db := StartMongoDB(t, ctx)
 	defer func() {
-		if err := db.Terminate(ctx); err != nil {
+		if err := db.Container.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate mongodb container: %v", err)
 		}
 	}()
@@ -83,10 +88,14 @@ func TestMongoDBRestore(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mongodb_test")
 
 	uri := db.ConnectionString()
-	backupArgs := &mongo_dump.MongoDumpArgs{
-		URI:         uri,
-		Database:    db.Database,
-		OutFileName: backupPath,
+	backupArgs := &mongo_dump.DumpMongoArgs{
+		Uri:      uri,
+		Database: db.Database,
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mongodb_test",
+		},
 	}
 
 	if err := mongo_dump.Backup(backupArgs); err != nil {
@@ -107,8 +116,6 @@ func TestMongoDBBackupCleanupOnFailure(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	ctx := context.Background()
-
 	// Create monitor for tracking
 	monitorDB := filepath.Join(t.TempDir(), "monitor.db")
 	mon, err := monitor.NewMonitor(monitorDB)
@@ -121,10 +128,14 @@ func TestMongoDBBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mongodb_fail")
 
-	args := &mongo_dump.MongoDumpArgs{
-		URI:         "mongodb://invalid_user:invalid_password@invalid_host:27017/invalid_db",
-		Database:    "invalid_db",
-		OutFileName: backupPath,
+	args := &mongo_dump.DumpMongoArgs{
+		Uri:      "mongodb://invalid_user:invalid_password@invalid_host:27017/invalid_db",
+		Database: "invalid_db",
+		Storage: &storage.Params{
+			StorageType: "local",
+			LocalPath:   backupDir,
+			OutName:     "mongodb_fail",
+		},
 	}
 
 	// Execute backup (should fail)
@@ -150,14 +161,13 @@ func TestMongoDBDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &mongo_dump.MongoDumpArgs{
-		URI:         "mongodb://test_user:test_pass@localhost:27017/test_db",
-		Database:    "test_db",
-		OutFileName: "/tmp/test",
+	args := &mongo_dump.DumpMongoArgs{
+		Uri:      "mongodb://test_user:test_pass@localhost:27017/test_db",
+		Database: "test_db",
 	}
 
 	// Validate arguments (simplified dry-run check)
-	if args.URI == "" || args.Database == "" {
+	if args.Uri == "" || args.Database == "" {
 		t.Fatalf("Dry-run validation failed: missing required fields")
 	}
 
