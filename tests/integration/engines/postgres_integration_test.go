@@ -31,7 +31,7 @@ func TestPostgresBackup(t *testing.T) {
 
 	// Create backup arguments
 	backupDir := t.TempDir()
-	backupPath := filepath.Join(backupDir, "postgres_test.backup")
+	backupPath := filepath.Join(backupDir, "postgres_test.backup.sql")
 
 	args := &pg_dump.PgDumpArgs{
 		Username:    db.Username,
@@ -88,7 +88,7 @@ func TestPostgresRestore(t *testing.T) {
 
 	// First, create a backup
 	backupDir := t.TempDir()
-	backupPath := filepath.Join(backupDir, "postgres_test.backup")
+	backupPath := filepath.Join(backupDir, "postgres_test.backup.sql")
 
 	backupArgs := &pg_dump.PgDumpArgs{
 		Username:    db.Username,
@@ -132,7 +132,7 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 
 	// Test backup to invalid host (should fail)
 	backupDir := t.TempDir()
-	backupPath := filepath.Join(backupDir, "postgres_fail.backup")
+	backupPath := filepath.Join(backupDir, "postgres_fail.backup.sql")
 
 	args := &pg_dump.PgDumpArgs{
 		Username:    "invalid_user",
