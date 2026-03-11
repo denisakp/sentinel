@@ -54,20 +54,24 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 		fmt.Sprintf("--dbname=%s", pda.Database),
 	}
 
-	// Add output file for all formats
+	// Add output file for directory format only.
+	// For file formats (c, p, t), pg_dump writes to stdout which is captured by
+	// the Backup() function and passed to WriteBackup. Adding --file= for these
+	// formats would cause pg_dump to write to the file directly, leaving stdout
+	// empty and resulting in WriteBackup overwriting the real output with zero bytes.
 	if pda.Storage.OutName != "" {
 		if pda.PgOutFormat == "d" {
-			// Directory format
+			// Directory format must use --file= to specify the output directory
 			if pda.Storage.StorageType != "local" {
 				pda.Storage.OutName = utils.FormatResourceValue(pda.Storage.OutName)
 			} else {
 				pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
 			}
+			args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
 		} else {
-			// File format (c, p, t)
+			// File formats (c, p, t): pg_dump writes to stdout; set OutName for WriteBackup
 			pda.Storage.OutName = utils.FullPath(backupPath, pda.Storage.OutName)
 		}
-		args = append(args, fmt.Sprintf("--file=%s", pda.Storage.OutName))
 	}
 
 	args = append(args, fmt.Sprintf("--format=%s", pda.PgOutFormat))
