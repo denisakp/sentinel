@@ -17,8 +17,10 @@ import (
 var monitorCmd = &cobra.Command{
 	Use:   "monitor",
 	Short: "Monitor backup history and statistics",
-	Long:  "Query backup execution history, statistics, and export records for compliance.\n\nExamples:\n  sentinel monitor list --config sentinel.yaml --last 7d\n  sentinel monitor stats --config sentinel.yaml --job prod-postgres",
+	Long:  "Query backup execution history, statistics, and export records for compliance.\n\nExamples:\n  sentinel monitor list --config sentinel.yaml --last 7d\n  sentinel monitor stats --config sentinel.yaml\n  sentinel monitor stats --config sentinel.yaml --job prod-postgres",
 }
+
+const noMatchingRecordsMessage = "no matching records"
 
 var monitorListCmd = &cobra.Command{
 	Use:   "list",
@@ -87,9 +89,13 @@ var monitorStatsCmd = &cobra.Command{
 		}
 		defer mon.Close()
 
-		stats, err := mon.GetStatistics(context.Background(), job, days)
+		stats, err := loadStatistics(context.Background(), mon, job, days)
 		if err != nil {
 			return err
+		}
+		if stats.TotalExecutions == 0 {
+			printNoMatchingRecords(cmd)
+			return nil
 		}
 
 		printStats(cmd, stats)
@@ -191,7 +197,7 @@ func init() {
 	monitorListCmd.Flags().Int("limit", 50, "Max results to return")
 	monitorListCmd.Flags().Int("offset", 0, "Pagination offset")
 
-	monitorStatsCmd.Flags().String("job", "", "Backup job name")
+	monitorStatsCmd.Flags().String("job", "", "Backup job name (optional; omit for all jobs)")
 	monitorStatsCmd.Flags().StringP("last", "l", "30d", "Time range (e.g., '7d', '30d', '12h')")
 
 	monitorShowCmd.Flags().String("id", "", "Backup execution ID")
@@ -322,19 +328,38 @@ func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *monitor.Filter) 
 }
 
 func printTable(cmd *cobra.Command, executions []monitor.Execution) error {
-	cmd.Printf("TIMESTAMP\tJOB\tSTATUS\tDURATION\tSIZE\tSTORAGE\n")
+	if len(executions) == 0 {
+		printNoMatchingRecords(cmd)
+		return nil
+	}
+
+	headers := []string{"ID", "JOB", "STATUS", "TIMESTAMP", "DURATION", "ERROR"}
+	rows := make([][]string, 0, len(executions))
 	for _, exec := range executions {
 		duration := utils.FmtDuration(time.Duration(exec.DurationMs) * time.Millisecond)
-		cmd.Printf("%s\t%s\t%s\t%s\t%d\t%s\n",
-			utils.FmtTimestamp(exec.Timestamp),
+		rows = append(rows, []string{
+			exec.ID,
 			exec.BackupName,
 			exec.Status,
+			utils.FmtTimestamp(exec.Timestamp),
 			duration,
-			exec.FileSizeBytes,
-			exec.StorageBackend,
-		)
+			truncatePreview(exec.ErrorMessage, defaultErrorPreviewLen),
+		})
 	}
+
+	cmd.Print(formatAlignedTable(headers, rows))
 	return nil
+}
+
+func loadStatistics(ctx context.Context, mon *monitor.Monitor, job string, days int) (*monitor.Statistics, error) {
+	if strings.TrimSpace(job) == "" {
+		return mon.GetAggregateStatistics(ctx, days)
+	}
+	return mon.GetStatistics(ctx, job, days)
+}
+
+func printNoMatchingRecords(cmd *cobra.Command) {
+	cmd.Println(noMatchingRecordsMessage)
 }
 
 func printStats(cmd *cobra.Command, stats *monitor.Statistics) {

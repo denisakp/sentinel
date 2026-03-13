@@ -62,6 +62,52 @@ func TestGetExecution(t *testing.T) {
 	}
 }
 
+func TestGetAggregateStatisticsAllJobs(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	insertExecution(t, mon, "job-a", "postgres", "success", now.Add(-2*time.Hour), 100)
+	insertExecution(t, mon, "job-b", "mysql", "failed", now.Add(-time.Hour), 200)
+	insertExecution(t, mon, "job-c", "postgres", "completed", now, 300)
+
+	stats, err := mon.GetAggregateStatistics(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("get aggregate statistics failed: %v", err)
+	}
+
+	if stats.BackupName != "all jobs" {
+		t.Fatalf("expected aggregate backup name label, got %q", stats.BackupName)
+	}
+	if stats.TotalExecutions != 3 {
+		t.Fatalf("expected 3 executions, got %d", stats.TotalExecutions)
+	}
+	if stats.SuccessCount != 2 {
+		t.Fatalf("expected 2 successes, got %d", stats.SuccessCount)
+	}
+	if stats.FailureCount != 1 {
+		t.Fatalf("expected 1 failure, got %d", stats.FailureCount)
+	}
+}
+
+func TestGetAggregateStatisticsRespectsTimeWindow(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	insertExecution(t, mon, "job-old", "postgres", "success", now.Add(-72*time.Hour), 100)
+	insertExecution(t, mon, "job-recent", "postgres", "success", now.Add(-2*time.Hour), 200)
+
+	stats, err := mon.GetAggregateStatistics(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("get aggregate statistics with day filter failed: %v", err)
+	}
+
+	if stats.TotalExecutions != 1 {
+		t.Fatalf("expected 1 recent execution in 1-day window, got %d", stats.TotalExecutions)
+	}
+}
+
 // TestMigrationReconciliation verifies that monitor queries work correctly after schema migrations.
 // This is a regression test for US2 (Schema Migration Visibility).
 func TestMigrationReconciliation(t *testing.T) {

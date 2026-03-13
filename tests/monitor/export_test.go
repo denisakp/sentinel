@@ -121,3 +121,40 @@ func TestExportCleanupFields(t *testing.T) {
 		t.Fatal("expected csv to contain backup_name header")
 	}
 }
+
+func TestExportPreservesFullErrorMessage(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	fullErr := "dial tcp 10.0.0.5:5432: connect: connection refused after multiple retries and timeout"
+	exec := &monitor.Execution{
+		BackupName:     "job-errors",
+		DatabaseType:   "postgres",
+		Timestamp:      time.Now().UTC(),
+		DurationMs:     1500,
+		Status:         "failed",
+		ErrorMessage:   fullErr,
+		StorageBackend: "local",
+		FilePath:       "/tmp/backup.sql",
+		FileSizeBytes:  123,
+	}
+	if err := mon.RecordExecution(context.Background(), exec); err != nil {
+		t.Fatalf("record execution failed: %v", err)
+	}
+
+	jsonData, err := mon.ExportHistory(context.Background(), "json", &monitor.Filter{BackupName: "job-errors"})
+	if err != nil {
+		t.Fatalf("export json failed: %v", err)
+	}
+	if !strings.Contains(string(jsonData), fullErr) {
+		t.Fatalf("expected json export to include full error message")
+	}
+
+	csvData, err := mon.ExportHistory(context.Background(), "csv", &monitor.Filter{BackupName: "job-errors"})
+	if err != nil {
+		t.Fatalf("export csv failed: %v", err)
+	}
+	if !strings.Contains(string(csvData), fullErr) {
+		t.Fatalf("expected csv export to include full error message")
+	}
+}
