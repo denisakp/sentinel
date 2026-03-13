@@ -325,7 +325,10 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 	end := time.Now()
 	var security *backupSecurityResult
 	if backupErr == nil {
-		security, _ = applyBackupSecurity(cfg, job, storageParams)
+		security, err = applyBackupSecurity(cfg, job, storageParams)
+		if err != nil {
+			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
+		}
 	}
 	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
@@ -451,7 +454,10 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 	end := time.Now()
 	var security *backupSecurityResult
 	if backupErr == nil {
-		security, _ = applyBackupSecurity(cfg, job, storageParams)
+		security, err = applyBackupSecurity(cfg, job, storageParams)
+		if err != nil {
+			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
+		}
 	}
 	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
@@ -472,9 +478,7 @@ func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job confi
 	status := notifier.StatusSuccess
 	errorMessage := ""
 	if backupErr != nil {
-		if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, nil); notifyErr != nil {
-			cmd.PrintErrln("notification error:", notifyErr)
-		}
+		status = notifier.StatusFailure
 		errorMessage = backupErr.Error()
 	}
 
@@ -782,12 +786,12 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 		hashValue: hashValue,
 	}
 
-	// T033: encrypt if a master key is configured
+	// Encryption is opt-in: only attempt encryption when an explicit key source is configured.
 	var encInfo *manifest.EncryptionInfo
 	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
 		encrypted, encMeta, encHash, encErr := encryptBackupFile(cfg, filePath, job.Name)
 		if encErr != nil {
-			fmt.Printf("Warning: backup encryption failed for '%s': %v\n", job.Name, encErr)
+			return nil, fmt.Errorf("failed to encrypt backup: %w", encErr)
 		} else if encrypted {
 			result.encrypted = true
 			result.hashValue = encHash

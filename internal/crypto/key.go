@@ -41,7 +41,10 @@ func (p *FileKeyProvider) GetKey() ([]byte, error) {
 	}
 
 	if raw == "" {
-		return nil, fmt.Errorf("crypto: no master key found (set %s or configure encryption_key_file)", p.EnvVar)
+		if p.EnvVar != "" {
+			return nil, fmt.Errorf("crypto: no master key found (set %s or configure encryption_key_file)", p.EnvVar)
+		}
+		return nil, fmt.Errorf("crypto: no master key found (configure encryption_key_env or encryption_key_file)")
 	}
 
 	keyBytes, err := base64.StdEncoding.DecodeString(raw)

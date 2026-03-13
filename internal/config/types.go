@@ -102,10 +102,12 @@ type Configuration struct {
 	// Path to SQLite backup history database (default: ~/.sentinel/history.db)
 	HistoryDBPath string `yaml:"history_db_path"`
 
-	// EncryptionKeyEnv is the env var name for the master encryption key (SENTINEL_MASTER_KEY)
+	// EncryptionKeyEnv is an optional env var name for the master encryption key.
+	// Encryption is enabled only when this or EncryptionKeyFile is explicitly configured.
 	EncryptionKeyEnv string `yaml:"encryption_key_env,omitempty"`
 
-	// EncryptionKeyFile is the path to a file containing the base64-encoded master key
+	// EncryptionKeyFile is an optional path to a file containing the base64-encoded master key.
+	// Encryption is enabled only when this or EncryptionKeyEnv is explicitly configured.
 	EncryptionKeyFile string `yaml:"encryption_key_file,omitempty"`
 }
 
