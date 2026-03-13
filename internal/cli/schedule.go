@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -124,7 +126,7 @@ var scheduleStopCmd = &cobra.Command{
 var scheduleListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all scheduled backups and restores",
-	Long:  "List all scheduled backups and restores with their next execution time.",
+	Long:  "List all scheduled backups and restores with their next execution time in table or JSON format.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
 		if path == "" {
@@ -170,18 +172,55 @@ var scheduleListCmd = &cobra.Command{
 		}()
 
 		infos := s.ListJobs()
-		cmd.Printf("TYPE\tNAME\tSCHEDULE\tNEXT EXECUTION\tLAST STATUS\n")
-		for _, info := range infos {
-			// Determine type by checking if it exists in backups or restores
-			jobType := "backup"
-			if _, ok := cfg.Restores[info.Name]; ok {
-				jobType = "restore"
+		rows := buildScheduleListRows(infos, cfg.Restores)
+		format, _ := cmd.Flags().GetString("format")
+		switch strings.ToLower(format) {
+		case "json":
+			data, err := json.MarshalIndent(rows, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal schedule list json: %w", err)
 			}
-			cmd.Printf("%s\t%s\t%s\t%s\t%s\n", jobType, info.Name, info.ScheduleExpr,
-				info.NextExecution.Format(time.RFC3339), info.LastStatus)
+			cmd.Println(string(data))
+		default:
+			cmd.Print(renderScheduleListTable(rows))
 		}
 		return nil
 	},
+}
+
+type scheduleListRow struct {
+	Type          string `json:"type"`
+	Name          string `json:"name"`
+	Schedule      string `json:"schedule"`
+	NextExecution string `json:"next_execution"`
+	LastStatus    string `json:"last_status"`
+}
+
+func buildScheduleListRows(infos []scheduler.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
+	rows := make([]scheduleListRow, 0, len(infos))
+	for _, info := range infos {
+		jobType := "backup"
+		if _, ok := restoreJobs[info.Name]; ok {
+			jobType = "restore"
+		}
+		rows = append(rows, scheduleListRow{
+			Type:          jobType,
+			Name:          info.Name,
+			Schedule:      info.ScheduleExpr,
+			NextExecution: info.NextExecution.Format(time.RFC3339),
+			LastStatus:    info.LastStatus,
+		})
+	}
+	return rows
+}
+
+func renderScheduleListTable(rows []scheduleListRow) string {
+	headers := []string{"TYPE", "NAME", "SCHEDULE", "NEXT EXECUTION"}
+	data := make([][]string, 0, len(rows))
+	for _, row := range rows {
+		data = append(data, []string{row.Type, row.Name, row.Schedule, row.NextExecution})
+	}
+	return formatAlignedTable(headers, data)
 }
 
 var scheduleStatusCmd = &cobra.Command{
@@ -248,6 +287,7 @@ func init() {
 	// Add --config flag to schedule commands
 	scheduleStartCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 	scheduleListCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
+	scheduleListCmd.Flags().String("format", "table", "Output format (table/json)")
 	scheduleStatusCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 }
 

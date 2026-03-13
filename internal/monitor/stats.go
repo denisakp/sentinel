@@ -26,6 +26,29 @@ func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int
 		return nil, err
 	}
 
+	return buildStatistics(executions, backupName, days), nil
+}
+
+// GetAggregateStatistics computes aggregate stats across all backup jobs.
+func (m *Monitor) GetAggregateStatistics(ctx context.Context, days int) (*Statistics, error) {
+	if m == nil || m.db == nil {
+		return nil, fmt.Errorf("monitor database is not initialized")
+	}
+
+	filter := &Filter{}
+	if days > 0 {
+		filter.StartDate = time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
+	}
+
+	executions, err := m.ListExecutions(ctx, filter, 10000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildStatistics(executions, "all jobs", days), nil
+}
+
+func buildStatistics(executions []Execution, backupName string, days int) *Statistics {
 	stats := &Statistics{
 		BackupName: backupName,
 		JobsPeriod: periodLabel(days),
@@ -33,7 +56,7 @@ func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int
 	}
 
 	if len(executions) == 0 {
-		return stats, nil
+		return stats
 	}
 
 	stats.TotalExecutions = len(executions)
@@ -41,25 +64,22 @@ func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int
 
 	var durations []int64
 	for _, exec := range executions {
-		switch exec.Status {
-		case "success":
+		switch NormalizeStatus(exec.Status) {
+		case StatusCompleted:
 			stats.SuccessCount++
-		case "failure":
+		case StatusFailed:
 			stats.FailureCount++
 		}
 		stats.TotalBackupSize += exec.FileSizeBytes
 		durations = append(durations, exec.DurationMs)
 	}
 
-	if stats.TotalExecutions > 0 {
-		stats.SuccessRate = float32(stats.SuccessCount) / float32(stats.TotalExecutions)
-	}
-
+	stats.SuccessRate = float32(stats.SuccessCount) / float32(stats.TotalExecutions)
 	stats.AverageDurationMs = average(durations)
 	stats.MedianDurationMs = median(durations)
 	stats.MinDurationMs, stats.MaxDurationMs = minMax(durations)
 
-	return stats, nil
+	return stats
 }
 
 func periodLabel(days int) string {
