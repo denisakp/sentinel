@@ -1,5 +1,22 @@
 # Sentinel Release Notes
 
+## [v1.0.1] - March 13, 2026
+
+### Changed
+
+- Backup encryption is now explicit opt-in for config-driven backups.
+- Sentinel no longer implicitly sets `encryption_key_env` when encryption fields are absent in YAML.
+- Ambient `SENTINEL_MASTER_KEY` alone no longer changes backup encryption mode.
+
+### Security
+
+- When explicit encryption is configured and key material is missing/invalid, backup now fails with actionable error output.
+- Key source precedence remains deterministic: `encryption_key_env` first, `encryption_key_file` fallback when env value is empty.
+
+### Tests
+
+- Added regression coverage for plaintext-by-default behavior, explicit encryption success/failure paths, and restore compatibility for encrypted artifacts.
+
 ## [v1.0.0] - February 14, 2026
 
 ### Added

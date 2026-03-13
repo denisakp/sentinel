@@ -17,7 +17,6 @@ const (
 	defaultStaleLockThreshold    = 60
 	defaultMaxConcurrentRestores = 1
 	defaultLockDir               = "/var/run/sentinel"
-	defaultEncryptionKeyEnv      = "SENTINEL_MASTER_KEY"
 )
 
 // LoadConfig reads, parses, and normalizes a YAML configuration file.
@@ -76,11 +75,6 @@ func applyDefaults(cfg *Configuration) {
 	}
 	if cfg.Scheduler.LockDir == "" {
 		cfg.Scheduler.LockDir = defaultLockDir
-	}
-
-	// Apply encryption key env default
-	if cfg.EncryptionKeyEnv == "" && cfg.EncryptionKeyFile == "" {
-		cfg.EncryptionKeyEnv = defaultEncryptionKeyEnv
 	}
 
 	for name, job := range cfg.Databases {

@@ -92,6 +92,70 @@ func TestFileKeyProvider_WrongKeyLength(t *testing.T) {
 	}
 }
 
+func TestFileKeyProvider_EnvPreferredOverFile(t *testing.T) {
+	fromEnv := make([]byte, 32)
+	for i := range fromEnv {
+		fromEnv[i] = byte(i + 1)
+	}
+	fromFile := make([]byte, 32)
+	for i := range fromFile {
+		fromFile[i] = byte(i + 2)
+	}
+
+	t.Setenv("TEST_SENTINEL_ENV_FIRST", base64.StdEncoding.EncodeToString(fromEnv))
+
+	f, err := os.CreateTemp("", "sentinel-key-*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	if _, err := f.WriteString(base64.StdEncoding.EncodeToString(fromFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	p := &crypto.FileKeyProvider{EnvVar: "TEST_SENTINEL_ENV_FIRST", FilePath: f.Name()}
+	got, err := p.GetKey()
+	if err != nil {
+		t.Fatalf("GetKey() error = %v", err)
+	}
+	if got[0] != fromEnv[0] {
+		t.Fatalf("expected env key to be used, got key starting with %d", got[0])
+	}
+}
+
+func TestFileKeyProvider_FallsBackToFileWhenEnvEmpty(t *testing.T) {
+	fromFile := make([]byte, 32)
+	for i := range fromFile {
+		fromFile[i] = byte(i + 11)
+	}
+
+	t.Setenv("TEST_SENTINEL_EMPTY_ENV", "")
+
+	f, err := os.CreateTemp("", "sentinel-key-*.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	if _, err := f.WriteString(base64.StdEncoding.EncodeToString(fromFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	p := &crypto.FileKeyProvider{EnvVar: "TEST_SENTINEL_EMPTY_ENV", FilePath: f.Name()}
+	got, err := p.GetKey()
+	if err != nil {
+		t.Fatalf("GetKey() error = %v", err)
+	}
+	if got[0] != fromFile[0] {
+		t.Fatalf("expected file fallback key to be used, got key starting with %d", got[0])
+	}
+}
+
 func TestDeriveKey_Deterministic(t *testing.T) {
 	master := make([]byte, 32)
 	salt := make([]byte, 32)

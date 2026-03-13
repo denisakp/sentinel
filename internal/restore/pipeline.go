@@ -4,6 +4,7 @@ package restore
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -69,14 +70,14 @@ func PreRestoreVerifyAndDecrypt(
 		return nil, fmt.Errorf("restore: failed to load master key: %w", err)
 	}
 
-	// Decode the salt and IV from the manifest
-	salt, err := hex.DecodeString(m.Encryption.Salt)
+	// Decode salt/IV from manifest with compatibility for older and newer encodings.
+	salt, err := decodeManifestBytes(m.Encryption.Salt)
 	if err != nil {
 		f.Close()
 		return nil, fmt.Errorf("restore: invalid encryption salt in manifest: %w", err)
 	}
 
-	iv, err := hex.DecodeString(m.Encryption.IV)
+	iv, err := decodeManifestBytes(m.Encryption.IV)
 	if err != nil {
 		f.Close()
 		return nil, fmt.Errorf("restore: invalid encryption IV in manifest: %w", err)
@@ -112,4 +113,21 @@ func computeHash(path string) (string, error) {
 		return "", err
 	}
 	return hw.Sum(), nil
+}
+
+func decodeManifestBytes(v string) ([]byte, error) {
+	if v == "" {
+		return nil, fmt.Errorf("value is empty")
+	}
+	if b, err := hex.DecodeString(v); err == nil {
+		return b, nil
+	}
+	if b, err := base64.StdEncoding.DecodeString(v); err == nil {
+		return b, nil
+	}
+	b, err := base64.URLEncoding.DecodeString(v)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported encoding")
+	}
+	return b, nil
 }

@@ -185,6 +185,10 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 	// Perform restore based on database type
 	result, err := rsm.performDatabaseRestore(ctx, config, backupData)
 	if err != nil {
+		bytesRestored := int64(0)
+		if result != nil {
+			bytesRestored = result.BytesRestored
+		}
 		rsm.logger.Error("Restore operation failed",
 			slog.String("job", config.Name),
 			slog.String("database_type", config.RestoreConfig.DatabaseType),
@@ -193,7 +197,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 		// Send failure notification
 		rsm.notifyRestoreFailure(ctx, config, startTime, err.Error())
 		// Record failure
-		rsm.recordRestoreExecution(ctx, config, startTime, false, result.BytesRestored, false, err.Error())
+		rsm.recordRestoreExecution(ctx, config, startTime, false, bytesRestored, false, err.Error())
 		return err
 	}
 

@@ -1,0 +1,18 @@
+version: "1.0"
+log_format: text
+history_db_path: ./tmp/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: ./tmp/backups
+
+databases:
+  pg-minimal:
+    type: postgres
+    host: localhost
+    port: 5432
+    username: sentinel
+    password_env: TEST_PG_PASSWORD
+    database: sentinel
+    output: pg-minimal.sql
