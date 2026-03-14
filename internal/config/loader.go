@@ -82,6 +82,9 @@ func applyDefaults(cfg *Configuration) {
 		if job.Enabled == nil {
 			job.Enabled = boolPtr(true)
 		}
+		if job.Schedule == "" && cfg.Defaults.Schedule != "" {
+			job.Schedule = cfg.Defaults.Schedule
+		}
 		if job.Storage.Type == "" && cfg.Defaults.Storage.Type != "" {
 			job.Storage = cfg.Defaults.Storage
 		}

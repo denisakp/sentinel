@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 
 	"github.com/robfig/cron/v3"
 
@@ -62,6 +63,9 @@ func ValidateConfig(cfg *Configuration) error {
 		}
 
 		if job.Schedule != "" {
+			if strings.TrimSpace(job.Schedule) == "" {
+				return fmt.Errorf("backup '%s': invalid cron expression '%s': schedule cannot be whitespace-only", name, job.Schedule)
+			}
 			if _, err := parser.Parse(job.Schedule); err != nil {
 				return fmt.Errorf("backup '%s': invalid cron expression '%s': %w", name, job.Schedule, err)
 			}

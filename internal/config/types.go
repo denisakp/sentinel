@@ -113,6 +113,9 @@ type Configuration struct {
 
 // GlobalDefaults contains default values applied to all backup jobs
 type GlobalDefaults struct {
+	// Default cron schedule for backup jobs without an explicit schedule
+	Schedule string `yaml:"schedule,omitempty"`
+
 	// Default storage configuration
 	Storage StorageConfig `yaml:"storage"`
 
