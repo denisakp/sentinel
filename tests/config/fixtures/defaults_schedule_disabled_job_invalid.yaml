@@ -1,0 +1,15 @@
+version: "1.0"
+defaults:
+  schedule: "invalid cron"
+  storage:
+    type: local
+    local_path: ./backups
+
+databases:
+  disabled-invalid-job:
+    type: postgres
+    enabled: false
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app

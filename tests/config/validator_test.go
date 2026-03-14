@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
@@ -13,6 +14,7 @@ func TestValidateConfigFixtures(t *testing.T) {
 		file    string
 		env     map[string]string
 		wantErr bool
+		errHas  []string
 	}{
 		{
 			name: "valid postgres",
@@ -62,6 +64,33 @@ func TestValidateConfigFixtures(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid inherited defaults.schedule",
+			file: "defaults_schedule_invalid_inherited.yaml",
+			env: map[string]string{
+				"PG_PASSWORD": "secret",
+			},
+			wantErr: true,
+			errHas:  []string{"backup 'inherited-job'", "invalid cron expression"},
+		},
+		{
+			name: "whitespace defaults.schedule is invalid",
+			file: "defaults_schedule_whitespace.yaml",
+			env: map[string]string{
+				"PG_PASSWORD": "secret",
+			},
+			wantErr: true,
+			errHas:  []string{"backup 'whitespace-job'", "whitespace-only"},
+		},
+		{
+			name: "disabled jobs are still validated for inherited schedule",
+			file: "defaults_schedule_disabled_job_invalid.yaml",
+			env: map[string]string{
+				"PG_PASSWORD": "secret",
+			},
+			wantErr: true,
+			errHas:  []string{"backup 'disabled-invalid-job'", "invalid cron expression"},
+		},
 	}
 
 	for _, tt := range fixtures {
@@ -85,6 +114,11 @@ func TestValidateConfigFixtures(t *testing.T) {
 			}
 			if !tt.wantErr && err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			for _, want := range tt.errHas {
+				if err == nil || !strings.Contains(err.Error(), want) {
+					t.Fatalf("expected error to contain %q, got: %v", want, err)
+				}
 			}
 		})
 	}
