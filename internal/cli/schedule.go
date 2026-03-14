@@ -211,14 +211,15 @@ func renderScheduleListTable(rows []scheduleListRow) string {
 }
 
 var scheduleStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status <job-name>",
 	Short: "Show scheduler status",
-	Long:  "Show the status and recent execution history for a scheduled backup job.",
+	Long: "Show the status and recent execution history for a scheduled backup job.\n\n" +
+		"Examples:\n" +
+		"  sentinel schedule status postgres-sample --config sentinel.yaml",
+	Example: "  sentinel schedule status postgres-sample --config sentinel.yaml",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if len(args) == 0 {
-			return fmt.Errorf("job name is required")
-		}
 		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
 			return err

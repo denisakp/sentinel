@@ -67,6 +67,20 @@ func runSentinelCmd(t *testing.T, bin string, env []string, args ...string) (str
 	return out.String(), -1
 }
 
+func runScheduleStatusHelp(t *testing.T, bin, configPath string) (string, int) {
+	t.Helper()
+	return runSentinelCmd(t, bin, []string{"PG_PASSWORD=secret"}, "schedule", "status", "--help", "--config", configPath)
+}
+
+func assertOutputContainsAll(t *testing.T, output string, expected ...string) {
+	t.Helper()
+	for _, token := range expected {
+		if !strings.Contains(output, token) {
+			t.Fatalf("expected output to contain %q, got: %s", token, output)
+		}
+	}
+}
+
 func writeConfigFile(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -75,6 +89,16 @@ func writeConfigFile(t *testing.T, content string) string {
 		t.Fatalf("write config: %v", err)
 	}
 	return path
+}
+
+func writeConfigFromFixture(t *testing.T, fixtureName string) string {
+	t.Helper()
+	fixturePath := filepath.Join(repoRoot(t), "tests", "scheduler", "fixtures", fixtureName)
+	content, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", fixturePath, err)
+	}
+	return writeConfigFile(t, string(content))
 }
 
 func parseJSONRowsFromCommandOutput(t *testing.T, output string) []map[string]any {
@@ -215,6 +239,61 @@ databases:
 			t.Fatalf("status output missing %q: %s", expected, out)
 		}
 	}
+}
+
+func TestScheduleStatusHelpShowsRequiredJobNameInUsage(t *testing.T) {
+	bin := buildSentinelBinary(t)
+	configPath := writeConfigFromFixture(t, "schedule_status_contract.yaml")
+
+	out, code := runScheduleStatusHelp(t, bin, configPath)
+	if code != 0 {
+		t.Fatalf("schedule status help exited %d: %s", code, out)
+	}
+	assertOutputContainsAll(t, out, "Usage:", "status <job-name>")
+}
+
+func TestScheduleStatusHelpShowsExampleWithJobName(t *testing.T) {
+	bin := buildSentinelBinary(t)
+	configPath := writeConfigFromFixture(t, "schedule_status_contract.yaml")
+
+	out, code := runScheduleStatusHelp(t, bin, configPath)
+	if code != 0 {
+		t.Fatalf("schedule status help exited %d: %s", code, out)
+	}
+	assertOutputContainsAll(t, out, "sentinel schedule status postgres-sample --config sentinel.yaml")
+}
+
+func TestScheduleStatusMissingJobFailsViaArgValidation(t *testing.T) {
+	bin := buildSentinelBinary(t)
+	configPath := writeConfigFromFixture(t, "schedule_status_contract.yaml")
+
+	out, code := runSentinelCmd(t, bin, []string{"PG_PASSWORD=secret"}, "schedule", "status", "--config", configPath)
+	if code == 0 {
+		t.Fatalf("expected missing job name to fail, output: %s", out)
+	}
+	assertOutputContainsAll(t, out, "accepts 1 arg(s), received 0")
+}
+
+func TestScheduleStatusExtraArgFailsViaArgValidation(t *testing.T) {
+	bin := buildSentinelBinary(t)
+	configPath := writeConfigFromFixture(t, "schedule_status_contract.yaml")
+
+	out, code := runSentinelCmd(t, bin, []string{"PG_PASSWORD=secret"}, "schedule", "status", "postgres-sample", "extra", "--config", configPath)
+	if code == 0 {
+		t.Fatalf("expected extra arg invocation to fail, output: %s", out)
+	}
+	assertOutputContainsAll(t, out, "accepts 1 arg(s), received 2")
+}
+
+func TestScheduleStatusValidOneArgInvocationSucceeds(t *testing.T) {
+	bin := buildSentinelBinary(t)
+	configPath := writeConfigFromFixture(t, "schedule_status_contract.yaml")
+
+	out, code := runSentinelCmd(t, bin, []string{"PG_PASSWORD=secret"}, "schedule", "status", "postgres-sample", "--config", configPath)
+	if code != 0 {
+		t.Fatalf("schedule status exited %d: %s", code, out)
+	}
+	assertOutputContainsAll(t, out, "Job: postgres-sample", "Schedule:", "Next Execution:", "Last Execution:", "Last Status:")
 }
 
 func TestAddJobInvalidCron(t *testing.T) {
