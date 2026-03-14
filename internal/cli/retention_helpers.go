@@ -2,18 +2,13 @@ package cli
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/spf13/cobra"
 )
 
 func runRetention(cmd *cobra.Command, preview bool) error {
 	path, _ := cmd.Flags().GetString("config")
-	if path == "" {
-		return fmt.Errorf("--config is required")
-	}
 	jobName, _ := cmd.Flags().GetString("job")
 	dryRun := preview
 	if cmd.Flags().Changed("dry-run") {
@@ -21,11 +16,8 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 		dryRun = value
 	}
 
-	cfg, err := config.LoadConfig(path)
+	cfg, err := LoadAndValidateConfig(path)
 	if err != nil {
-		return err
-	}
-	if err := config.ValidateConfig(cfg); err != nil {
 		return err
 	}
 

@@ -93,7 +93,7 @@ func init() {
 	)
 
 	// Add restore flags
-	restoreCmd.PersistentFlags().StringVar(&restoreConfigFile, "config", "", "Path to restore config file (required)")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfigFile, "config", "", "Path to restore config file")
 	restoreCmd.PersistentFlags().StringVar(&restoreLogLevel, "log-level", "info", "Log level: debug, info, warn, error")
 }
 
@@ -274,27 +274,20 @@ func handleRestoreResume(cmd *cobra.Command, args []string) error {
 
 // loadRestoreConfig loads the restore configuration from file
 func loadRestoreConfig() (*config.Configuration, error) {
-	if restoreConfigFile == "" {
-		// Try default locations
-		defaults := []string{
-			"sentinel.yaml",
-			"./config/sentinel.yaml",
-			filepath.Join(os.Getenv("HOME"), ".sentinel", "config.yaml"),
-		}
-
-		for _, path := range defaults {
-			if _, err := os.Stat(path); err == nil {
-				restoreConfigFile = path
-				break
-			}
-		}
-
-		if restoreConfigFile == "" {
-			return nil, fmt.Errorf("no config file found (specify with --config flag)")
-		}
+	path, err := ResolveConfigPath(restoreConfigFile)
+	if err != nil {
+		return nil, err
 	}
 
-	slog.Debug("Loading restore config", "file", restoreConfigFile)
+	slog.Debug("Loading restore config", "file", path)
 
-	return config.LoadConfig(restoreConfigFile)
+	cfg, err := config.LoadConfig(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+	if err := config.ValidateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return cfg, nil
 }

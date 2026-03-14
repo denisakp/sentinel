@@ -28,15 +28,8 @@ var scheduleStartCmd = &cobra.Command{
 	Long:  "Start the scheduler and run backups/restores at their configured cron schedules.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
-
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
-			return err
-		}
-		if err := config.ValidateConfig(cfg); err != nil {
 			return err
 		}
 
@@ -129,14 +122,8 @@ var scheduleListCmd = &cobra.Command{
 	Long:  "List all scheduled backups and restores with their next execution time in table or JSON format.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
-			return err
-		}
-		if err := config.ValidateConfig(cfg); err != nil {
 			return err
 		}
 
@@ -229,17 +216,11 @@ var scheduleStatusCmd = &cobra.Command{
 	Long:  "Show the status and recent execution history for a scheduled backup job.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
 		if len(args) == 0 {
 			return fmt.Errorf("job name is required")
 		}
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
-			return err
-		}
-		if err := config.ValidateConfig(cfg); err != nil {
 			return err
 		}
 
