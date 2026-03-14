@@ -2,13 +2,99 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/scheduler"
+	"github.com/spf13/cobra"
 )
+
+func newScheduleStatusCommandForContractTest() *cobra.Command {
+	return scheduleStatusCmd
+}
+
+func writeStatusContractConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sentinel.yaml")
+	content := `version: "1.0"
+defaults:
+  schedule: "*/10 * * * *"
+  storage:
+    type: local
+    local_path: ./backups
+databases:
+  status-job:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return path
+}
+
+func TestScheduleStatusUsageIncludesRequiredJobName(t *testing.T) {
+	cmd := newScheduleStatusCommandForContractTest()
+	if !strings.Contains(cmd.Use, "status <job-name>") {
+		t.Fatalf("expected status command use to include required job-name, got %q", cmd.Use)
+	}
+}
+
+func TestScheduleStatusHelpContainsValidExample(t *testing.T) {
+	cmd := newScheduleStatusCommandForContractTest()
+	if !strings.Contains(cmd.Example, "sentinel schedule status postgres-sample --config sentinel.yaml") {
+		t.Fatalf("expected status command example to include job name invocation, got %q", cmd.Example)
+	}
+}
+
+func TestScheduleStatusArgValidationIsExactOne(t *testing.T) {
+	cmd := newScheduleStatusCommandForContractTest()
+	if cmd.Args == nil {
+		t.Fatal("expected status command args validator to be configured")
+	}
+	if err := cmd.Args(cmd, []string{"job"}); err != nil {
+		t.Fatalf("expected one arg to pass validation, got %v", err)
+	}
+	if err := cmd.Args(cmd, []string{}); err == nil {
+		t.Fatal("expected zero args to fail validation")
+	}
+	if err := cmd.Args(cmd, []string{"job", "extra"}); err == nil {
+		t.Fatal("expected two args to fail validation")
+	}
+}
+
+func TestScheduleStatusUnknownJobDiffersFromMissingArgValidation(t *testing.T) {
+	configPath := writeStatusContractConfig(t)
+
+	cmd := newScheduleStatusCommandForContractTest()
+	err := cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Fatal("expected missing args to fail validation")
+	}
+	if !strings.Contains(err.Error(), "accepts 1 arg(s), received 0") {
+		t.Fatalf("expected cobra arg validation error, got %v", err)
+	}
+
+	cmd.Flags().Set("config", configPath)
+	err = cmd.RunE(cmd, []string{"unknown-job"})
+	if err == nil {
+		t.Fatal("expected unknown job execution to fail")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "job") {
+		t.Fatalf("expected unknown-job error context, got %v", err)
+	}
+	if strings.Contains(err.Error(), "accepts 1 arg(s), received 0") {
+		t.Fatalf("unknown-job path must remain distinct from missing-arg validation, got %v", err)
+	}
+}
 
 func TestScheduleListTableHeadersAndLastStatusRemoval(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)

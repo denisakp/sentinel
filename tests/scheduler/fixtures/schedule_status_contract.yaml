@@ -1,0 +1,13 @@
+version: "1.0"
+defaults:
+  schedule: "*/10 * * * *"
+  storage:
+    type: local
+    local_path: ./backups
+databases:
+  postgres-sample:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app
