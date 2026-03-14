@@ -42,24 +42,29 @@ var BackupCmd = &cobra.Command{
 	Long:  "Run a database backup using CLI flags or a YAML config.\n\nExamples:\n  sentinel backup --config sentinel.yaml\n  sentinel backup --type postgres --host db --port 5432 --user backup --database app",
 	Run: func(cmd *cobra.Command, args []string) {
 		configPath, _ = cmd.Flags().GetString("config")
-		if configPath != "" {
-			if err := runBackupFromConfig(cmd, configPath); err != nil {
+		cfg, cfgErr := LoadAndValidateConfig(configPath)
+		if cfgErr == nil {
+			if err := runBackupJobsFromConfig(cmd, cfg); err != nil {
 				cmd.PrintErrln(err)
 				os.Exit(1)
 			}
 			return
 		}
+		if configPath != "" {
+			cmd.PrintErrln(cfgErr)
+			os.Exit(1)
+		}
 
 		dbType, _ = cmd.Flags().GetString("type")
 		if dbType == "" {
-			cmd.PrintErrln("database type is required when --config is not provided")
-			return
+			cmd.PrintErrln(cfgErr)
+			os.Exit(1)
 		}
 
 		// validate the database type
 		if err = backup.ValidateDbType(dbType); err != nil {
 			cmd.PrintErrln(err)
-			return
+			os.Exit(1)
 		}
 
 		host, _ = cmd.Flags().GetString("host")           // get the host flag value
@@ -224,15 +229,7 @@ func init() {
 	// required args are enforced at runtime when --config is not provided
 }
 
-func runBackupFromConfig(cmd *cobra.Command, path string) error {
-	cfg, err := config.LoadConfig(path)
-	if err != nil {
-		return err
-	}
-	if err := config.ValidateConfig(cfg); err != nil {
-		return err
-	}
-
+func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) error {
 	for _, job := range cfg.Databases {
 		if job.Enabled != nil && !*job.Enabled {
 			continue

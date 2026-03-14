@@ -29,12 +29,9 @@ var storageStatusCmd = &cobra.Command{
 	Long:  "Connect to each configured storage backend and report reachability, backup count, and total size.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgPath, _ := cmd.Flags().GetString("config")
-		if cfgPath == "" {
-			cfgPath = os.ExpandEnv("$HOME/.sentinel/config.yaml")
-		}
 		outputFmt, _ := cmd.Flags().GetString("output")
 
-		cfg, err := config.LoadConfig(cfgPath)
+		cfg, err := LoadAndValidateConfig(cfgPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}

@@ -213,19 +213,7 @@ func init() {
 
 func loadConfigFromFlags(cmd *cobra.Command) (*config.Configuration, error) {
 	path, _ := cmd.Flags().GetString("config")
-	if path == "" {
-		return nil, fmt.Errorf("--config is required")
-	}
-
-	cfg, err := config.LoadConfig(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := config.ValidateConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
+	return LoadAndValidateConfig(path)
 }
 
 func buildFilterFromFlags(cmd *cobra.Command) (*monitor.Filter, error) {
