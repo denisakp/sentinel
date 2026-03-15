@@ -370,9 +370,9 @@ func TestScheduledOutputStripsCanonicalExtension(t *testing.T) {
 }
 
 func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
-	candidates := []retention.BackupCandidate{{FilePath: "s3://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
+	candidates := []retention.BackupCandidate{{FilePath: "gdrive://folder/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
 
-	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "s3", config.StorageConfig{})
+	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "google-drive", config.StorageConfig{})
 	if len(deleted) != 0 {
 		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
 	}

@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
+	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
 )
 
 // DeleteCandidates removes backup files from storage for supported backends.
@@ -28,18 +30,35 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 				errs = append(errs, fmt.Errorf("failed to delete %s: %w", cand.FilePath, err))
 				continue
 			}
-			deleted = append(deleted, DeletedBackup{
-				FilePath:      cand.FilePath,
-				FileSize:      cand.FileSize,
-				DeletionTime:  nowUTC(),
-				ReasonDeleted: cand.ReasonDeleted,
-			})
+			deleted = append(deleted, deletedBackupFromCandidate(cand))
+		}
+		return deleted, errs
+
+	case "s3":
+		backend, err := newS3DeleteBackend(storageCfg)
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to initialize s3 backend: %w", err)}
+		}
+
+		for _, cand := range candidates {
+			_, object, err := parseBucketObjectRef(cand.FilePath, "s3", storageCfg.S3Bucket)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to parse s3 path %s: %w", cand.FilePath, err))
+				continue
+			}
+
+			if err := backend.Delete(ctx, object); err != nil {
+				errs = append(errs, fmt.Errorf("failed to delete s3 object %s: %w", cand.FilePath, err))
+				continue
+			}
+
+			deleted = append(deleted, deletedBackupFromCandidate(cand))
 		}
 		return deleted, errs
 
 	case "gcs":
 		for _, cand := range candidates {
-			bucket, object, err := parseGCSURI(cand.FilePath)
+			bucket, object, err := parseBucketObjectRef(cand.FilePath, "gs", "")
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse gcs uri %s: %w", cand.FilePath, err))
 				continue
@@ -60,18 +79,62 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 				continue
 			}
 
-			deleted = append(deleted, DeletedBackup{
-				FilePath:      cand.FilePath,
-				FileSize:      cand.FileSize,
-				DeletionTime:  nowUTC(),
-				ReasonDeleted: cand.ReasonDeleted,
-			})
+			deleted = append(deleted, deletedBackupFromCandidate(cand))
+		}
+		return deleted, errs
+
+	case "azure":
+		backend, err := newAzureDeleteBackend(storageCfg)
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to initialize azure backend: %w", err)}
+		}
+
+		for _, cand := range candidates {
+			_, object, err := parseBucketObjectRef(cand.FilePath, "azure", storageCfg.AzureContainer)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to parse azure path %s: %w", cand.FilePath, err))
+				continue
+			}
+
+			if err := backend.Delete(ctx, object); err != nil {
+				errs = append(errs, fmt.Errorf("failed to delete azure blob %s: %w", cand.FilePath, err))
+				continue
+			}
+
+			deleted = append(deleted, deletedBackupFromCandidate(cand))
 		}
 		return deleted, errs
 
 	default:
 		return nil, []error{fmt.Errorf("retention delete not supported for storage type '%s'", storageType)}
 	}
+}
+
+func deletedBackupFromCandidate(cand BackupCandidate) DeletedBackup {
+	return DeletedBackup{
+		FilePath:      cand.FilePath,
+		FileSize:      cand.FileSize,
+		DeletionTime:  nowUTC(),
+		ReasonDeleted: cand.ReasonDeleted,
+	}
+}
+
+type s3DeleteBackend interface {
+	Delete(ctx context.Context, path string) error
+}
+
+var newS3DeleteBackend = func(cfg config.StorageConfig) (s3DeleteBackend, error) {
+	client, err := sentinel_s3.NewS3Storage(&sentinel_s3.AmazonS3Storage{
+		Bucket:    cfg.S3Bucket,
+		Region:    cfg.S3Region,
+		EndPoint:  cfg.S3BucketEndpoint,
+		AccessKey: cfg.S3AccessKeyID,
+		SecretKey: cfg.S3SecretAccessKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sentinel_s3.NewS3Backend(client), nil
 }
 
 type gcsDeleteBackend interface {
@@ -82,13 +145,48 @@ var newGCSDeleteBackend = func(cfg gcs.Config) (gcsDeleteBackend, error) {
 	return gcs.NewGCSBackend(cfg)
 }
 
+type azureDeleteBackend interface {
+	Delete(ctx context.Context, path string) error
+}
+
+var newAzureDeleteBackend = func(cfg config.StorageConfig) (azureDeleteBackend, error) {
+	azCfg := config.AzureConfig{
+		AccountName: cfg.AzureStorageAccount,
+		Container:   cfg.AzureContainer,
+	}
+	if strings.TrimSpace(cfg.AzureStorageKey) != "" {
+		azCfg.Auth = config.AzureAuthConfig{
+			Type:             "connection_string",
+			ConnectionString: fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", cfg.AzureStorageAccount, cfg.AzureStorageKey),
+		}
+	} else {
+		azCfg.Auth = config.AzureAuthConfig{Type: "managed_identity"}
+	}
+	return azure.NewAzureBlobBackend(azCfg)
+}
+
 func parseGCSURI(raw string) (string, string, error) {
+	return parseBucketObjectRef(raw, "gs", "")
+}
+
+func parseBucketObjectRef(raw, scheme, defaultBucket string) (string, string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", "", fmt.Errorf("empty path")
+	}
+	if !strings.Contains(trimmed, "://") {
+		if strings.TrimSpace(defaultBucket) == "" {
+			return "", "", fmt.Errorf("missing container/bucket for non-canonical path")
+		}
+		return defaultBucket, trimmed, nil
+	}
+
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return "", "", err
 	}
-	if parsed.Scheme != "gs" {
-		return "", "", fmt.Errorf("expected gs:// uri")
+	if parsed.Scheme != scheme {
+		return "", "", fmt.Errorf("expected %s:// uri", scheme)
 	}
 	bucket := parsed.Host
 	object := strings.TrimPrefix(parsed.Path, "/")
