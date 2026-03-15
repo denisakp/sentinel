@@ -3,6 +3,8 @@ package mariadb_dump
 import (
 	"reflect"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 func TestArgsBuilder(t *testing.T) {
@@ -70,6 +72,26 @@ func TestArgsBuilder(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ArgsBuilder() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFinalOutNameMariaDBExtensionPreservation(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "adds default sql extension", in: "mariadb-dev", want: "mariadb-dev.sql"},
+		{name: "keeps existing sql extension", in: "mariadb-dev.sql", want: "mariadb-dev.sql"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := utils.FinalOutName(tt.in)
+			if got != tt.want {
+				t.Fatalf("FinalOutName(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}

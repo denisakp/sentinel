@@ -1,0 +1,19 @@
+version: "1.0"
+defaults:
+  schedule: "*/1 * * * *"
+  storage:
+    type: s3
+    s3_bucket: test-bucket
+    s3_region: us-east-1
+    s3_access_key_id: test
+    s3_secret_access_key: test
+databases:
+  postgres-retention-warning:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app
+    output: postgres-dev
+    retention:
+      keep_last: 1

@@ -66,7 +66,7 @@ var scheduleStartCmd = &cobra.Command{
 			}
 			jobCopy := job
 			if err := s.AddJob(job.Name, job.Schedule, func() error {
-				return executeBackupJob(cmd, cfg, jobCopy)
+				return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled)
 			}); err != nil {
 				return err
 			}

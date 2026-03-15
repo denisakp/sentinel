@@ -48,6 +48,12 @@ func Test_argsBuilder(t *testing.T) {
 			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--authenticationDatabase=admin"},
 			wantErr: false,
 		},
+		{
+			name:    "Archive out name remains consistent",
+			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--archive", Storage: &storage.Params{OutName: "mongo-dev.archive"}},
+			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + filepath.Join(backupPath, "mongo-dev.archive"), "--quiet", "--archive"},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
