@@ -11,6 +11,7 @@ func ValidateStorageType(storageType string) error {
 	validStorage := map[string]bool{
 		"local":        true,
 		"s3":           true,
+		"gcs":          true,
 		"google-drive": true,
 		"azure":        true,
 	}
@@ -37,6 +38,20 @@ func ValidateStorage(param *Params) error {
 		}
 	}
 
+	if param.StorageType == "gcs" {
+		if err := ValidateGCSConfig(param.GCSBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ValidateGCSConfig validates the required GCS storage fields.
+func ValidateGCSConfig(bucket string) error {
+	if strings.TrimSpace(bucket) == "" {
+		return fmt.Errorf("gcs: bucket is required")
+	}
 	return nil
 }
 

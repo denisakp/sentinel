@@ -208,6 +208,32 @@ func applyEnvOverrides(cfg *Configuration) error {
 		cfg.Databases[name] = job
 	}
 
+	for name, job := range cfg.Restores {
+		if err := resolveEnvOverride(&job.Host, job.HostEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.Username, job.UsernameEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.URI, job.URIEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.BackupSource.S3AccessKeyID, job.BackupSource.S3AccessKeyIDEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.BackupSource.S3SecretAccessKey, job.BackupSource.S3SecretAccessKeyEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.BackupSource.AzureStorageAccount, job.BackupSource.AzureStorageAccountEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if err := resolveEnvOverride(&job.BackupSource.AzureStorageKey, job.BackupSource.AzureStorageKeyEnv); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+
+		cfg.Restores[name] = job
+	}
+
 	return nil
 }
 
@@ -385,6 +411,93 @@ func interpolateConfig(cfg *Configuration) error {
 		}
 
 		cfg.Databases[name] = job
+	}
+
+	for name, job := range cfg.Restores {
+		var err error
+
+		job.Host, err = interpolateEnvVars(job.Host)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.Username, err = interpolateEnvVars(job.Username)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.URI, err = interpolateEnvVars(job.URI)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.Database, err = interpolateEnvVars(job.Database)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.Type, err = interpolateEnvVars(job.BackupSource.Type)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.LocalPath, err = interpolateEnvVars(job.BackupSource.LocalPath)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.S3Bucket, err = interpolateEnvVars(job.BackupSource.S3Bucket)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.S3BucketEndpoint, err = interpolateEnvVars(job.BackupSource.S3BucketEndpoint)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.S3Region, err = interpolateEnvVars(job.BackupSource.S3Region)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.S3AccessKeyID, err = interpolateEnvVars(job.BackupSource.S3AccessKeyID)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.S3SecretAccessKey, err = interpolateEnvVars(job.BackupSource.S3SecretAccessKey)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.GCSBucket, err = interpolateEnvVars(job.BackupSource.GCSBucket)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.GCSProjectID, err = interpolateEnvVars(job.BackupSource.GCSProjectID)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.GCSCredentialsFile, err = interpolateEnvVars(job.BackupSource.GCSCredentialsFile)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.GDriveFolderID, err = interpolateEnvVars(job.BackupSource.GDriveFolderID)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.GDriveSAFile, err = interpolateEnvVars(job.BackupSource.GDriveSAFile)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.AzureStorageAccount, err = interpolateEnvVars(job.BackupSource.AzureStorageAccount)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.AzureStorageKey, err = interpolateEnvVars(job.BackupSource.AzureStorageKey)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.AzureContainer, err = interpolateEnvVars(job.BackupSource.AzureContainer)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		job.BackupSource.BackupPath, err = interpolateEnvVars(job.BackupSource.BackupPath)
+		if err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+
+		cfg.Restores[name] = job
 	}
 
 	return nil
