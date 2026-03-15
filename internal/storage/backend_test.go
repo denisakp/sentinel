@@ -9,6 +9,7 @@ import (
 
 	storage "github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/azure"
+	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	sentinel_s3 "github.com/denisakp/sentinel/internal/storage/sentinel_s3"
@@ -21,6 +22,7 @@ var (
 	_ storage.StorageBackend = (*sentinel_s3.S3Backend)(nil)
 	_ storage.StorageBackend = (*gdrive.GDriveBackend)(nil)
 	_ storage.StorageBackend = (*azure.AzureBlobBackend)(nil)
+	_ storage.StorageBackend = (*gcs.GCSBackend)(nil)
 )
 
 // TestLocalBackend_InterfaceSmoke verifies the LocalBackend honours the

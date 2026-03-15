@@ -2,6 +2,7 @@ package scheduler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -370,7 +372,7 @@ func TestScheduledOutputStripsCanonicalExtension(t *testing.T) {
 func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
 	candidates := []retention.BackupCandidate{{FilePath: "s3://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
 
-	deleted, errs := retention.DeleteCandidates(candidates, "s3")
+	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "s3", config.StorageConfig{})
 	if len(deleted) != 0 {
 		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
 	}
@@ -379,5 +381,17 @@ func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
 	}
 	if !strings.Contains(errs[0].Error(), "retention delete not supported") {
 		t.Fatalf("unexpected error: %v", errs[0])
+	}
+}
+
+func TestRetentionDeleteGCSFailureYieldsWarningPath(t *testing.T) {
+	candidates := []retention.BackupCandidate{{FilePath: "gs://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
+
+	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "gcs", config.StorageConfig{})
+	if len(deleted) != 0 {
+		t.Fatalf("expected no deletions when gcs delete fails, got %d", len(deleted))
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected gcs delete error")
 	}
 }
