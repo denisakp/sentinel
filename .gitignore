@@ -27,3 +27,4 @@ docs/roadmap/
 .claude/
 prds/
 infra/dataset
+infra/docker/Dockerfile.dev
