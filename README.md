@@ -13,7 +13,7 @@ and Kubernetes environments.
 ## Key Features
 
 - **Backup and Restoration** for SQL and NoSQL databases (PostgreSQL, MySQL, MariaDB, MongoDB).
-- **Storage Support** for local, S3-compatible, Google Drive, and Azure Blob.
+- **Storage Support** for local, S3-compatible, Google Cloud Storage, Google Drive, and Azure Blob.
 - **Notification System** for real-time backup and restore alerts (Slack, Discord, webhook, SMTP).
 - **Scheduling and Automation** through cron-based schedules for both backups and restores.
 - **Backup & Restore History** with SQLite-backed execution records and exports.
@@ -28,7 +28,7 @@ and Kubernetes environments.
 
 - [x] Backup functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
 - [x] Restore functionality for PostgreSQL, MySQL, MariaDB, and MongoDB databases.
-- [x] Local, S3-compatible, Google Drive, and Azure Blob storage backends.
+- [x] Local, S3-compatible, Google Cloud Storage, Google Drive, and Azure Blob storage backends.
 - [x] YAML configuration for multi-job backups and restores with defaults.
 - [x] Cron-based scheduling for backups and restores (`sentinel schedule`).
 - [x] Retention policies for backups and restore history (`sentinel retention`).
@@ -64,13 +64,15 @@ A Go development environment (v1.18+) is required.
    ./sentinel backup --type postgres --host mydb.host.tld --port 5432 --user my-user --password 1234 --database sample
    ```
 
-  Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`, `retention`, `config`, and `db`.
+  Use `sentinel --help` to see all available commands including `backup`, `restore`, `schedule`, `monitor`,
+  `retention`, `config`, and `db`.
 
 > **Note**: Prebuilt release distribution guidance may be expanded in future versions.
 
 ## Usage
 
-Sentinel supports CLI-only operations and YAML-driven workflows. YAML is recommended for multi-job setups with scheduling, notifications, and automated restore testing.
+Sentinel supports CLI-only operations and YAML-driven workflows. YAML is recommended for multi-job setups with 
+scheduling, notifications, and automated restore testing.
 
 ### YAML-Driven Backup & Restore (Recommended)
 
@@ -81,6 +83,7 @@ version: "1.0"
 log_format: json
 
 defaults:
+  schedule: "0 2 * * *"  # Optional shared cron for backup jobs without local schedule
   storage:
     type: local
     local_path: ./backups
@@ -100,7 +103,7 @@ databases:
     username_env: PROD_DB_USER
     password_env: PG_PASSWORD
     database: myapp_prod
-    schedule: "0 2 * * *"
+    schedule: "15 2 * * *"  # Explicit schedule overrides defaults.schedule
 
 restores:
   test-restore:
@@ -120,6 +123,18 @@ restores:
       keep_last: 10
       keep_days: 30
 ```
+
+Schedule defaulting behavior for backups:
+
+- `defaults.schedule` is inherited by backup jobs that omit `schedule`.
+- Job-level `schedule` always takes precedence over `defaults.schedule`.
+- `defaults.schedule` applies only to backup jobs (`databases`), not restore jobs.
+
+Encryption is explicit opt-in for config-driven backups:
+
+- If neither `encryption_key_env` nor `encryption_key_file` is set, backups remain plaintext.
+- `SENTINEL_MASTER_KEY` in the shell does nothing unless referenced by config.
+- If encryption is explicitly configured but key material is missing/invalid, backup fails (no plaintext fallback).
 
 Run backups:
 
@@ -152,6 +167,9 @@ Restore management commands:
 # Test restore without applying (dry-run)
 ./sentinel restore dry-run test-restore --config sentinel.yaml
 
+# Run a restore job immediately
+./sentinel restore run test-restore --config sentinel.yaml
+
 # View restore execution history
 ./sentinel restore history --config sentinel.yaml
 
@@ -176,6 +194,9 @@ Monitoring and retention:
 ```
 
 ### CLI-Only Backup
+
+Note: Encryption opt-in semantics apply to config-driven backup flows (`--config`).
+Imperative flag-only backup mode remains unchanged in this patch.
 
 The `backup` command supports backup operations for:
 
@@ -207,6 +228,7 @@ The `restore` command provides comprehensive restore management:
 - `enable <job>` - Enable a restore job for scheduled execution
 - `disable <job>` - Disable a restore job
 - `dry-run <job>` - Test restore configuration without applying changes
+- `run <job>` - Execute a restore job immediately
 - `history [job]` - View restore execution history
 - `pause <job>` - Temporarily pause a restore job
 - `resume <job>` - Resume a paused restore job
@@ -223,6 +245,9 @@ The `restore` command provides comprehensive restore management:
 # Test restore configuration (dry-run)
 ./sentinel restore dry-run weekly-test-restore --config sentinel.yaml
 
+# Run a restore job immediately
+./sentinel restore run weekly-test-restore --config sentinel.yaml
+
 # View restore history
 ./sentinel restore history --config sentinel.yaml
 ```
@@ -233,21 +258,11 @@ The `restore` command provides comprehensive restore management:
 - **Post-Restore Verification**: Automatic data validation after restore
 - **Flexible Scheduling**: Cron-based automated disaster recovery testing
 - **Conflict Management**: Configure behavior when data exists (ignore/replace/error)
-- **Multi-Source Support**: Restore from local, S3, Google Drive, or other storage backends
+- **Multi-Source Support**: Restore from local, S3, Google Cloud Storage, Google Drive, or other storage backends
 - **Execution Tracking**: Full history of restore operations with success/failure status
 
-## Roadmap
-
-Current roadmap is maintained in:
-
-- `docs/roadmap/ROADMAP.md`
-
-Planned themes:
-
-- v1.1: MySQL/MariaDB compression
-- v1.2: Advanced restore options
-- v1.3: Security and reliability hardening
-- v2.0: Enterprise performance and scale
+For GCS restore jobs, Sentinel downloads the selected object to a local staged file before restore execution.
+The staged file is removed after the attempt by default, or retained when `keep_file: true` is configured or `--keep-file` is passed to `sentinel restore run`.
 
 ---
 
@@ -323,5 +338,3 @@ following resources:
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): Community standards for respectful and inclusive collaboration.
 
 Thank you for helping improve Sentinel.
-
----
