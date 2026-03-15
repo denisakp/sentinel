@@ -57,6 +57,10 @@ type RestoreJob struct {
 
 	// Retention policy for backup files used in restore
 	Retention RestoreRetentionPolicy `yaml:"retention,omitempty"`
+
+	// KeepFile prevents the staged restore artifact from being deleted after the
+	// restore attempt.  Useful for debugging restore failures.
+	KeepFile bool `yaml:"keep_file,omitempty"`
 }
 
 // RestoreRetentionPolicy defines how long to keep restore backup files
@@ -224,6 +228,34 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	}
 	if job.BackupSource.BackupPath == "" {
 		return fmt.Errorf("backup_source.backup_path is required")
+	}
+
+	switch job.BackupSource.Type {
+	case "local":
+		if job.BackupSource.LocalPath == "" {
+			return fmt.Errorf("backup_source.local_path is required for local type")
+		}
+	case "s3":
+		if job.BackupSource.S3Bucket == "" {
+			return fmt.Errorf("backup_source.s3_bucket is required for s3 type")
+		}
+	case "google-drive":
+		if job.BackupSource.GDriveFolderID == "" {
+			return fmt.Errorf("backup_source.gdrive_folder_id is required for google-drive type")
+		}
+	case "azure":
+		if job.BackupSource.AzureContainer == "" {
+			return fmt.Errorf("backup_source.azure_container is required for azure type")
+		}
+		if job.BackupSource.AzureStorageAccount == "" && job.BackupSource.AzureStorageAccountEnv == "" {
+			return fmt.Errorf("backup_source.azure_storage_account or backup_source.azure_storage_account_env is required for azure type")
+		}
+	case "gcs":
+		if job.BackupSource.GCSBucket == "" {
+			return fmt.Errorf("backup_source.gcs_bucket is required for gcs type")
+		}
+	default:
+		return fmt.Errorf("unsupported backup_source.type: %s", job.BackupSource.Type)
 	}
 
 	return nil

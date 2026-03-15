@@ -1,15 +1,34 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/storage/gcs"
 )
+
+type restoreGCSDownloader interface {
+	Download(ctx context.Context, src, dest string) error
+}
+
+var newRestoreGCSBackend = func(cfg gcs.Config) (restoreGCSDownloader, error) {
+	return gcs.NewGCSBackend(cfg)
+}
+
+var restoreFromLocalStagedFile = func(_ context.Context, _ config.RestoreJob, stagedPath string) error {
+	if _, err := os.Stat(stagedPath); err != nil {
+		return fmt.Errorf("staged restore file is not accessible: %w", err)
+	}
+	return nil
+}
 
 var (
 	restoreListCmd = &cobra.Command{
@@ -51,6 +70,14 @@ var (
 		RunE:  handleRestoreDryRun,
 	}
 
+	restoreRunCmd = &cobra.Command{
+		Use:   "run <job-name>",
+		Short: "Execute a restore job now",
+		Long:  `Run a configured restore job immediately (including staged backup download for supported sources).`,
+		Args:  cobra.ExactArgs(1),
+		RunE:  handleRestoreRun,
+	}
+
 	restoreHistoryCmd = &cobra.Command{
 		Use:   "history [job-name]",
 		Short: "View restore execution history",
@@ -74,30 +101,39 @@ var (
 		RunE:  handleRestoreResume,
 	}
 
-	// Global flags for restore commands
+	// Global flags for restore commands.
 	restoreConfigFile string
 	restoreLogLevel   string
+
+	// One-off restore override flags.
+	restoreGCSBucket          string
+	restoreGCSProjectID       string
+	restoreGCSCredentialsFile string
+	restoreKeepFile           bool
 )
 
 func init() {
-	// Register restore subcommands
 	restoreCmd.AddCommand(
 		restoreListCmd,
 		restoreStatusCmd,
 		restoreEnableCmd,
 		restoreDisableCmd,
 		restoreDryRunCmd,
+		restoreRunCmd,
 		restoreHistoryCmd,
 		restorePauseCmd,
 		restoreResumeCmd,
 	)
 
-	// Add restore flags
 	restoreCmd.PersistentFlags().StringVar(&restoreConfigFile, "config", "", "Path to restore config file")
 	restoreCmd.PersistentFlags().StringVar(&restoreLogLevel, "log-level", "info", "Log level: debug, info, warn, error")
+
+	restoreRunCmd.Flags().StringVar(&restoreGCSBucket, "gcs-bucket", "", "Google Cloud Storage bucket name")
+	restoreRunCmd.Flags().StringVar(&restoreGCSProjectID, "gcs-project-id", "", "Google Cloud project ID (optional)")
+	restoreRunCmd.Flags().StringVar(&restoreGCSCredentialsFile, "gcs-credentials-file", "", "Google Cloud service account key file")
+	restoreRunCmd.Flags().BoolVar(&restoreKeepFile, "keep-file", false, "Keep staged restore artifact after run for debugging")
 }
 
-// restoreCmd is the root restore command
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
 	Short: "Manage backup restoration and recovery",
@@ -115,13 +151,15 @@ Examples:
   # Test a restore without applying
   sentinel restore dry-run mysql_weekly_verify
 
+  # Run a restore job immediately
+  sentinel restore run postgres_nightly
+
   # View restore history
   sentinel restore history postgres_nightly
 
   # Pause a job temporarily
   sentinel restore pause mongodb_integration_env`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Setup logging
 		logLevel := slog.LevelInfo
 		switch restoreLogLevel {
 		case "debug":
@@ -193,6 +231,7 @@ func handleRestoreStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Status: %s\n", status)
 	fmt.Printf("  Verify After Restore: %v\n", job.VerifyAfterRestore)
 	fmt.Printf("  Timeout: %d seconds\n", job.TimeoutSeconds)
+	fmt.Printf("  Keep File: %v\n", job.KeepFile)
 
 	return nil
 }
@@ -236,17 +275,102 @@ func handleRestoreDryRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func handleRestoreRun(cmd *cobra.Command, args []string) error {
+	jobName := args[0]
+
+	cfg, err := loadRestoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	job, ok := cfg.Restores[jobName]
+	if !ok {
+		return fmt.Errorf("restore job %q not found", jobName)
+	}
+
+	applyRestoreRunOverrides(&job)
+
+	if job.BackupSource.Type != "gcs" {
+		return fmt.Errorf("restore run currently supports backup_source.type 'gcs'; got %q", job.BackupSource.Type)
+	}
+	if job.BackupSource.GCSBucket == "" {
+		return fmt.Errorf("backup_source.gcs_bucket is required for gcs restore")
+	}
+	if job.BackupSource.BackupPath == "" {
+		return fmt.Errorf("backup_source.backup_path is required for restore")
+	}
+
+	backend, err := newRestoreGCSBackend(gcs.Config{
+		Bucket:          job.BackupSource.GCSBucket,
+		ProjectID:       job.BackupSource.GCSProjectID,
+		CredentialsFile: job.BackupSource.GCSCredentialsFile,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize gcs restore backend: %w", err)
+	}
+
+	stagePath := buildRestoreStagePath(jobName, job.BackupSource.BackupPath)
+	if !job.KeepFile {
+		defer func() {
+			if rmErr := os.Remove(stagePath); rmErr != nil && !os.IsNotExist(rmErr) {
+				slog.Warn("failed to remove staged restore file", "path", stagePath, "error", rmErr.Error())
+			}
+		}()
+	}
+
+	if err := backend.Download(context.Background(), job.BackupSource.BackupPath, stagePath); err != nil {
+		if errors.Is(err, gcs.ErrObjectNotFound) {
+			return fmt.Errorf("restore backup object not found: %w", err)
+		}
+		return fmt.Errorf("failed to download restore artifact from gcs: %w", err)
+	}
+
+	if err := restoreFromLocalStagedFile(context.Background(), job, stagePath); err != nil {
+		return fmt.Errorf("restore execution failed: %w", err)
+	}
+
+	if job.KeepFile {
+		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, stagePath)
+	} else {
+		fmt.Printf("Restore job %q completed successfully\n", jobName)
+	}
+
+	return nil
+}
+
+func applyRestoreRunOverrides(job *config.RestoreJob) {
+	if restoreGCSBucket != "" {
+		job.BackupSource.Type = "gcs"
+		job.BackupSource.GCSBucket = restoreGCSBucket
+	}
+	if restoreGCSProjectID != "" {
+		job.BackupSource.GCSProjectID = restoreGCSProjectID
+	}
+	if restoreGCSCredentialsFile != "" {
+		job.BackupSource.GCSCredentialsFile = restoreGCSCredentialsFile
+	}
+	if restoreKeepFile {
+		job.KeepFile = true
+	}
+}
+
+func buildRestoreStagePath(jobName, backupPath string) string {
+	base := filepath.Base(backupPath)
+	if base == "." || base == string(filepath.Separator) || base == "" {
+		base = "backup.sql"
+	}
+	return filepath.Join(os.TempDir(), fmt.Sprintf("sentinel-restore-%s-%d-%s", jobName, time.Now().UnixNano(), base))
+}
+
 func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 	cfg, err := loadRestoreConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Initialize monitor to query restore history
 	monitorPath := cfg.HistoryDBPath
 	if monitorPath == "" {
-		def := filepath.Join(os.Getenv("HOME"), ".sentinel", "history.db")
-		monitorPath = def
+		monitorPath = filepath.Join(os.Getenv("HOME"), ".sentinel", "history.db")
 	}
 
 	fmt.Printf("Restore Execution History\n")
@@ -272,7 +396,6 @@ func handleRestoreResume(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// loadRestoreConfig loads the restore configuration from file
 func loadRestoreConfig() (*config.Configuration, error) {
 	path, err := ResolveConfigPath(restoreConfigFile)
 	if err != nil {

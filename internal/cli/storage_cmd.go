@@ -11,6 +11,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/storage/azure"
+	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
@@ -103,6 +104,26 @@ var storageStatusCmd = &cobra.Command{
 					entry.Error = err.Error()
 				} else {
 					backend := gdrive.NewGDriveBackend(client)
+					status, _ := backend.Status(ctx)
+					entry.Reachable = status.Reachable
+					entry.BackupCount = status.BackupCount
+					entry.TotalSizeMB = float64(status.TotalSizeBytes) / (1024 * 1024)
+					entry.Error = status.Error
+					if status.LastBackup != nil {
+						entry.LastBackup = status.LastBackup.Format(time.RFC3339)
+					}
+				}
+
+			case "gcs":
+				backend, err := gcs.NewGCSBackend(gcs.Config{
+					Bucket:          storageCfg.GCSBucket,
+					ProjectID:       storageCfg.GCSProjectID,
+					CredentialsFile: storageCfg.GCSCredentialsFile,
+				})
+				if err != nil {
+					entry.Reachable = false
+					entry.Error = err.Error()
+				} else {
 					status, _ := backend.Status(ctx)
 					entry.Reachable = status.Reachable
 					entry.BackupCount = status.BackupCount

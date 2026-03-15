@@ -218,6 +218,11 @@ func validateStorage(job BackupJob) error {
 			return err
 		}
 	}
+	if job.Storage.Type == "gcs" {
+		if err := storage.ValidateGCSConfig(job.Storage.GCSBucket); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

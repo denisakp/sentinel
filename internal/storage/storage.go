@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
@@ -23,6 +24,9 @@ type Params struct {
 	LocalPath            string
 	GoogleDriveFolderId  string
 	GoogleServiceAccount string
+	GCSBucket            string
+	GCSProjectID         string
+	GCSCredentialsFile   string
 	AWSSecretAccessKey   string
 	AWSAccessKeyID       string
 	AWSRegion            string
@@ -63,6 +67,17 @@ func NewStorage(p *Params) (Storage, error) {
 		}
 
 		return gDriveStorage, nil
+	case "gcs":
+		gcsStorage, err := gcs.NewGoogleCloudStorage(gcs.Config{
+			Bucket:          p.GCSBucket,
+			ProjectID:       p.GCSProjectID,
+			CredentialsFile: p.GCSCredentialsFile,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error initializing GCS storage: %w", err)
+		}
+
+		return gcsStorage, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage type %s", storageType)
 	}

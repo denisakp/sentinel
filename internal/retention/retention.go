@@ -70,7 +70,7 @@ func (m *Manager) Apply(ctx context.Context, backupName string, dryRun bool) ([]
 		return candidatesToDeleted(candidates), nil
 	}
 
-	deleted, errs := DeleteCandidates(candidates, job.Storage.Type)
+	deleted, errs := DeleteCandidates(ctx, candidates, job.Storage.Type, job.Storage)
 	if len(errs) > 0 {
 		return deleted, fmt.Errorf("retention delete failed: %v", errs[0])
 	}

@@ -32,6 +32,7 @@ import (
 var dbType, host, port, user, password, database,
 	pgOutFormat, pgCompressionAlgo, uri,
 	output, storageType, localPath, gDriveSaFile, gDriveFolderId,
+	gcsBucket, gcsProjectID, gcsCredentialsFile,
 	awsSecretAccessKey, awsAccessKeyID, awsRegion, awsBucket, awsBucketEndpoint,
 	additionalArgs, configPath string
 var compress bool
@@ -90,6 +91,10 @@ var BackupCmd = &cobra.Command{
 		// google drive
 		gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
 		gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
+		// google cloud storage
+		gcsBucket, _ = cmd.Flags().GetString("gcs-bucket")
+		gcsProjectID, _ = cmd.Flags().GetString("gcs-project-id")
+		gcsCredentialsFile, _ = cmd.Flags().GetString("gcs-credentials-file")
 		//aws s3 storage
 		awsBucket, _ = cmd.Flags().GetString("aws-bucket")
 		awsRegion, _ = cmd.Flags().GetString("aws-region")
@@ -103,6 +108,9 @@ var BackupCmd = &cobra.Command{
 			OutName:              output,
 			GoogleServiceAccount: gDriveSaFile,
 			GoogleDriveFolderId:  gDriveFolderId,
+			GCSBucket:            gcsBucket,
+			GCSProjectID:         gcsProjectID,
+			GCSCredentialsFile:   gcsCredentialsFile,
 			AWSBucket:            awsBucket,
 			AWSRegion:            awsRegion,
 			AWSBucketEndpoint:    awsBucketEndpoint,
@@ -222,9 +230,13 @@ func init() {
 	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
 
 	// storage flags
-	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, google-drive)")
+	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
 	BackupCmd.Flags().StringVarP(&localPath, "local-path", "", "", "Local path to store the backup")
 	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
+	// google cloud storage
+	BackupCmd.Flags().StringVarP(&gcsBucket, "gcs-bucket", "", "", "Google Cloud Storage bucket name")
+	BackupCmd.Flags().StringVarP(&gcsProjectID, "gcs-project-id", "", "", "Google Cloud project ID (optional)")
+	BackupCmd.Flags().StringVarP(&gcsCredentialsFile, "gcs-credentials-file", "", "", "Google Cloud service account key file")
 	//google drive
 	BackupCmd.Flags().StringVarP(&gDriveFolderId, "gdrive-folder-id", "", "", "Google Drive folder ID")
 	BackupCmd.Flags().StringVarP(&gDriveSaFile, "gdrive-sa-file", "", "", "Google Drive service account file")
@@ -645,6 +657,9 @@ func resolveBackupPath(storageParams *storage.Params) (string, int64) {
 	}
 
 	if storageParams.OutName != "" {
+		if storageParams.StorageType == "gcs" {
+			return fmt.Sprintf("gs://%s/%s", storageParams.GCSBucket, storageParams.OutName), 0
+		}
 		return storageParams.OutName, 0
 	}
 
@@ -793,6 +808,18 @@ func applyStorageOverrides(cmd *cobra.Command, params *storage.Params, job *conf
 	if cmd.Flags().Changed("gdrive-sa-file") {
 		params.GoogleServiceAccount, _ = cmd.Flags().GetString("gdrive-sa-file")
 		job.Storage.GDriveSAFile = params.GoogleServiceAccount
+	}
+	if cmd.Flags().Changed("gcs-bucket") {
+		params.GCSBucket, _ = cmd.Flags().GetString("gcs-bucket")
+		job.Storage.GCSBucket = params.GCSBucket
+	}
+	if cmd.Flags().Changed("gcs-project-id") {
+		params.GCSProjectID, _ = cmd.Flags().GetString("gcs-project-id")
+		job.Storage.GCSProjectID = params.GCSProjectID
+	}
+	if cmd.Flags().Changed("gcs-credentials-file") {
+		params.GCSCredentialsFile, _ = cmd.Flags().GetString("gcs-credentials-file")
+		job.Storage.GCSCredentialsFile = params.GCSCredentialsFile
 	}
 	if cmd.Flags().Changed("aws-bucket") {
 		params.AWSBucket, _ = cmd.Flags().GetString("aws-bucket")
