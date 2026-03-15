@@ -56,6 +56,24 @@ func Test_setOutName(t *testing.T) {
 			wantOut: "test.sql",
 			wantErr: false,
 		},
+		{
+			name:    "Plain format keeps existing .sql extension",
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test.sql"}, Compress: false, PgOutFormat: "p", Database: "test"},
+			wantOut: "test.sql",
+			wantErr: false,
+		},
+		{
+			name:    "Custom format keeps existing .backup extension",
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test.backup"}, Compress: false, PgOutFormat: "c", Database: "test"},
+			wantOut: "test.backup",
+			wantErr: false,
+		},
+		{
+			name:    "Tar format keeps existing .tar extension",
+			args:    &PgDumpArgs{Storage: &storage.Params{OutName: "test.tar"}, Compress: false, PgOutFormat: "t", Database: "test"},
+			wantOut: "test.tar",
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

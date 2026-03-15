@@ -2,8 +2,40 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
+
+var (
+	nowFnMu sync.RWMutex
+	nowFn   = time.Now
+)
+
+// Now returns the current time using the package clock seam.
+func Now() time.Time {
+	nowFnMu.RLock()
+	defer nowFnMu.RUnlock()
+	return nowFn()
+}
+
+// NowUTC returns the current UTC time using the package clock seam.
+func NowUTC() time.Time {
+	return Now().UTC()
+}
+
+// SetNowForTest overrides the package clock and returns a restore function.
+func SetNowForTest(fn func() time.Time) func() {
+	nowFnMu.Lock()
+	prev := nowFn
+	nowFn = fn
+	nowFnMu.Unlock()
+
+	return func() {
+		nowFnMu.Lock()
+		nowFn = prev
+		nowFnMu.Unlock()
+	}
+}
 
 // FmtDuration formats a duration as a human-readable string
 // Examples: "1s", "12s", "1m 30s", "2h 15m"
@@ -79,5 +111,5 @@ func ParseCronExpression(expr string) error {
 // GetBackupTimestamp returns a timestamp string suitable for backup filenames
 // Format: SENTINEL_2006-01-02T15-04-05 (sortable, filesystem-safe)
 func GetBackupTimestamp() string {
-	return time.Now().Format("SENTINEL_2006-01-02T15-04-05")
+	return Now().Format("SENTINEL_2006-01-02T15-04-05")
 }

@@ -19,7 +19,9 @@ import (
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
@@ -35,6 +37,13 @@ var dbType, host, port, user, password, database,
 var compress bool
 var pgCompressionLevel int
 var err error
+
+type backupExecutionMode string
+
+const (
+	executionModeConfig    backupExecutionMode = "config"
+	executionModeScheduled backupExecutionMode = "scheduled"
+)
 
 var BackupCmd = &cobra.Command{
 	Use:   "backup",
@@ -234,7 +243,7 @@ func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) erro
 		if job.Enabled != nil && !*job.Enabled {
 			continue
 		}
-		if err := executeBackupJob(cmd, cfg, job); err != nil {
+		if err := executeBackupJobWithMode(cmd, cfg, job, executionModeConfig); err != nil {
 			return err
 		}
 	}
@@ -243,23 +252,28 @@ func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) erro
 }
 
 func executeBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+	return executeBackupJobWithMode(cmd, cfg, job, executionModeConfig)
+}
+
+func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	if err := applyCLIOverrides(cmd, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
 	if job.Database == "*" {
-		return executeAutoDiscovery(cmd, cfg, job)
+		return executeAutoDiscovery(cmd, cfg, job, mode)
 	}
 
-	return executeSingleBackupJob(cmd, cfg, job)
+	return executeSingleBackupJob(cmd, cfg, job, mode)
 }
 
-func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	start := time.Now()
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
+	applyScheduledOutputName(job, storageParams, mode, start)
 
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
@@ -330,24 +344,27 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
 	}
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
 
 	return backupErr
 }
 
-func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	strategy := job.Strategy
 	if strategy == "" {
 		strategy = "individual"
 	}
 
 	if strategy == "single" {
-		return executeAutoDiscoverySingle(cmd, cfg, job)
+		return executeAutoDiscoverySingle(cmd, cfg, job, mode)
 	}
 
-	return executeAutoDiscoveryIndividual(cmd, cfg, job)
+	return executeAutoDiscoveryIndividual(cmd, cfg, job, mode)
 }
 
-func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	databaseNames, err := listDatabases(job)
 	if err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
@@ -365,7 +382,7 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 		childJob := job
 		childJob.Database = dbName
 		childJob.Strategy = ""
-		if err := executeSingleBackupJob(cmd, cfg, childJob); err != nil {
+		if err := executeSingleBackupJob(cmd, cfg, childJob, mode); err != nil {
 			return err
 		}
 	}
@@ -373,12 +390,13 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 	return nil
 }
 
-func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	start := time.Now()
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
+	applyScheduledOutputName(job, storageParams, mode, start)
 
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
@@ -459,8 +477,76 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
 		cmd.PrintErrln("notification error:", notifyErr)
 	}
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
 
 	return backupErr
+}
+
+func applyScheduledOutputName(job config.BackupJob, storageParams *storage.Params, mode backupExecutionMode, timestamp time.Time) {
+	if mode != executionModeScheduled || storageParams == nil {
+		return
+	}
+
+	canonicalExt := canonicalScheduledExtension(job)
+	storageParams.OutName = utils.BuildScheduledOutName(storageParams.OutName, canonicalExt, job.Name, timestamp)
+}
+
+func canonicalScheduledExtension(job config.BackupJob) string {
+	switch job.Type {
+	case "postgres":
+		format := "p"
+		if value, ok := job.DatabaseOptions["pg_out_format"].(string); ok && value != "" {
+			format = value
+		}
+		switch format {
+		case "c":
+			return ".backup"
+		case "t":
+			return ".tar"
+		case "d":
+			return ""
+		default:
+			return ".sql"
+		}
+	case "mysql", "mariadb":
+		return ".sql"
+	default:
+		return ""
+	}
+}
+
+func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) {
+	if cfg == nil {
+		return
+	}
+	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
+		return
+	}
+
+	cmd.Printf("Retention: evaluating backup '%s' (keep_last=%d, keep_days=%d)\n", job.Name, job.Retention.KeepLast, job.Retention.KeepDays)
+
+	manager, err := retention.NewManager(cfg)
+	if err != nil {
+		cmd.PrintErrf("warning: retention manager init failed for backup '%s': %v\n", job.Name, err)
+		return
+	}
+	defer func() {
+		if closeErr := manager.Close(); closeErr != nil {
+			cmd.PrintErrf("warning: retention manager close failed for backup '%s': %v\n", job.Name, closeErr)
+		}
+	}()
+
+	deleted, err := manager.Apply(context.Background(), job.Name, false)
+	if err != nil {
+		cmd.PrintErrf("warning: retention apply failed for backup '%s': %v\n", job.Name, err)
+		return
+	}
+
+	if len(deleted) > 0 {
+		cmd.Printf("Retention: deleted %d artifact(s) for backup '%s'\n", len(deleted), job.Name)
+	}
 }
 
 func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult) error {

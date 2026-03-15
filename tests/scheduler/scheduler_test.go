@@ -9,8 +9,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/scheduler"
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 func repoRoot(t *testing.T) string {
@@ -78,6 +81,17 @@ func assertOutputContainsAll(t *testing.T, output string, expected ...string) {
 		if !strings.Contains(output, token) {
 			t.Fatalf("expected output to contain %q, got: %s", token, output)
 		}
+	}
+}
+
+func assertUniqueNames(t *testing.T, names ...string) {
+	t.Helper()
+	seen := map[string]struct{}{}
+	for _, name := range names {
+		if _, ok := seen[name]; ok {
+			t.Fatalf("expected unique names, got duplicate %q", name)
+		}
+		seen[name] = struct{}{}
 	}
 }
 
@@ -300,5 +314,70 @@ func TestAddJobInvalidCron(t *testing.T) {
 	s := scheduler.NewScheduler(1)
 	if err := s.AddJob("job", "invalid", func() error { return nil }); err == nil {
 		t.Fatalf("expected error for invalid cron expression")
+	}
+}
+
+func TestScheduledOutputFixedPrefixIsUnique(t *testing.T) {
+	t.Cleanup(utils.ResetScheduledOutCountersForTest)
+	fixed := time.Date(2026, 3, 15, 2, 0, 0, 0, time.UTC)
+
+	first := utils.BuildScheduledOutName("postgres-dev", ".sql", "postgres-sample", fixed)
+	second := utils.BuildScheduledOutName("postgres-dev", ".sql", "postgres-sample", fixed)
+
+	assertUniqueNames(t, first, second)
+	if first != "postgres-dev_2026-03-15T02-00-00.sql" {
+		t.Fatalf("unexpected first artifact name: %s", first)
+	}
+	if second != "postgres-dev_2026-03-15T02-00-00-1.sql" {
+		t.Fatalf("unexpected second artifact name: %s", second)
+	}
+}
+
+func TestScheduledOutputEmptyPrefixUsesDefaultAndIsUnique(t *testing.T) {
+	t.Cleanup(utils.ResetScheduledOutCountersForTest)
+	restore := utils.SetNowForTest(func() time.Time {
+		return time.Date(2026, 3, 15, 2, 10, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	first := utils.BuildScheduledOutName("", ".sql", "postgres-sample", utils.NowUTC())
+	second := utils.BuildScheduledOutName("", ".sql", "postgres-sample", utils.NowUTC())
+
+	if !strings.HasPrefix(first, "SENTINEL_2026-03-15T02-10-00_2026-03-15T02-10-00") {
+		t.Fatalf("unexpected default-prefix artifact name: %s", first)
+	}
+	if !strings.HasSuffix(first, ".sql") || !strings.HasSuffix(second, ".sql") {
+		t.Fatalf("expected .sql suffixes, got %q and %q", first, second)
+	}
+	if first == second {
+		t.Fatalf("expected unique artifact names for same-second runs")
+	}
+}
+
+func TestScheduledOutputStripsCanonicalExtension(t *testing.T) {
+	t.Cleanup(utils.ResetScheduledOutCountersForTest)
+	fixed := time.Date(2026, 3, 15, 2, 20, 0, 0, time.UTC)
+
+	got := utils.BuildScheduledOutName("postgres-dev.sql", ".sql", "postgres-sample", fixed)
+	if got != "postgres-dev_2026-03-15T02-20-00.sql" {
+		t.Fatalf("canonical extension stripping mismatch: got %q", got)
+	}
+	if strings.Contains(got, ".sql_") {
+		t.Fatalf("expected no double extension in artifact name: %q", got)
+	}
+}
+
+func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
+	candidates := []retention.BackupCandidate{{FilePath: "s3://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
+
+	deleted, errs := retention.DeleteCandidates(candidates, "s3")
+	if len(deleted) != 0 {
+		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected unsupported backend delete error")
+	}
+	if !strings.Contains(errs[0].Error(), "retention delete not supported") {
+		t.Fatalf("unexpected error: %v", errs[0])
 	}
 }
