@@ -3,9 +3,10 @@ package pg_dump
 import (
 	"bytes"
 	"fmt"
+	"os/exec"
+
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/storage"
-	"os/exec"
 )
 
 // Backup backs up a PostgresSQL database using pg_dump
