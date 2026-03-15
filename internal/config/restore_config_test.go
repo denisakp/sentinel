@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,94 @@ func TestRestoreBackupSource(t *testing.T) {
 				t.Errorf("source type should not be empty")
 			}
 		})
+	}
+}
+
+func TestLoadConfig_InterpolatesRestoreGCSFields(t *testing.T) {
+	t.Setenv("RESTORE_GCS_BUCKET", "restore-bucket")
+	t.Setenv("RESTORE_GCS_PROJECT", "restore-project")
+	t.Setenv("RESTORE_GCS_CREDS", "/tmp/restore-creds.json")
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+
+	cfgPath := writeTempConfig(t, "version: \"1.0\"\n"+
+		"defaults:\n"+
+		"  storage:\n"+
+		"    type: local\n"+
+		"    local_path: ./backups\n\n"+
+		"databases:\n"+
+		"  pg:\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app\n\n"+
+		"restores:\n"+
+		"  pg-restore:\n"+
+		"    enabled: true\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app_restore\n"+
+		"    schedule: \"0 2 * * *\"\n"+
+		"    backup_source:\n"+
+		"      type: gcs\n"+
+		"      gcs_bucket: \"${RESTORE_GCS_BUCKET}\"\n"+
+		"      gcs_project_id: \"${RESTORE_GCS_PROJECT}\"\n"+
+		"      gcs_credentials_file: \"${RESTORE_GCS_CREDS}\"\n"+
+		"      backup_path: \"dumps/latest.sql\"\n")
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	job := cfg.Restores["pg-restore"]
+	if job.BackupSource.GCSBucket != "restore-bucket" {
+		t.Fatalf("GCSBucket = %q", job.BackupSource.GCSBucket)
+	}
+	if job.BackupSource.GCSProjectID != "restore-project" {
+		t.Fatalf("GCSProjectID = %q", job.BackupSource.GCSProjectID)
+	}
+	if job.BackupSource.GCSCredentialsFile != "/tmp/restore-creds.json" {
+		t.Fatalf("GCSCredentialsFile = %q", job.BackupSource.GCSCredentialsFile)
+	}
+}
+
+func TestLoadConfig_RestoreGCSInterpolationMissingEnvFails(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+
+	cfgPath := writeTempConfig(t, "version: \"1.0\"\n"+
+		"defaults:\n"+
+		"  storage:\n"+
+		"    type: local\n"+
+		"    local_path: ./backups\n\n"+
+		"databases:\n"+
+		"  pg:\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app\n\n"+
+		"restores:\n"+
+		"  pg-restore:\n"+
+		"    enabled: true\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app_restore\n"+
+		"    schedule: \"0 2 * * *\"\n"+
+		"    backup_source:\n"+
+		"      type: gcs\n"+
+		"      gcs_bucket: \"${MISSING_RESTORE_GCS_BUCKET}\"\n"+
+		"      backup_path: \"dumps/latest.sql\"\n")
+
+	_, err := LoadConfig(cfgPath)
+	if err == nil {
+		t.Fatal("expected interpolation error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_RESTORE_GCS_BUCKET") {
+		t.Fatalf("expected missing env error, got %v", err)
 	}
 }

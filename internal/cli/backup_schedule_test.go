@@ -105,6 +105,65 @@ func TestRunScheduledRetentionWarningNonFatal(t *testing.T) {
 	}
 }
 
+func TestRunScheduledRetentionWarningNonFatalGCS(t *testing.T) {
+	historyPath := filepath.Join(t.TempDir(), "history.db")
+	cfg := &config.Configuration{
+		HistoryDBPath: historyPath,
+		Databases: map[string]config.BackupJob{
+			"retention-job": {
+				Name: "retention-job",
+				Type: "postgres",
+				Storage: config.StorageConfig{
+					Type:      "gcs",
+					GCSBucket: "bucket-a",
+				},
+				Retention: config.RetentionPolicy{KeepLast: 1},
+			},
+		},
+	}
+
+	mon, err := monitor.NewMonitor(historyPath)
+	if err != nil {
+		t.Fatalf("new monitor: %v", err)
+	}
+	t.Cleanup(func() { _ = mon.Close() })
+
+	executions := []*monitor.Execution{
+		{
+			BackupName:    "retention-job",
+			DatabaseType:  "postgres",
+			Timestamp:     time.Now().Add(-1 * time.Hour).UTC(),
+			Status:        "success",
+			FilePath:      "gs://bucket-a/backup-new.sql",
+			FileSizeBytes: 123,
+		},
+		{
+			BackupName:    "retention-job",
+			DatabaseType:  "postgres",
+			Timestamp:     time.Now().Add(-2 * time.Hour).UTC(),
+			Status:        "success",
+			FilePath:      "gs://bucket-a/backup-old.sql",
+			FileSizeBytes: 123,
+		},
+	}
+	for _, exec := range executions {
+		if err := mon.RecordExecution(context.Background(), exec); err != nil {
+			t.Fatalf("record execution: %v", err)
+		}
+	}
+
+	cmd := &cobra.Command{}
+	var errBuf bytes.Buffer
+	cmd.SetErr(&errBuf)
+	cmd.SetOut(&bytes.Buffer{})
+
+	runScheduledRetention(cmd, cfg, cfg.Databases["retention-job"])
+
+	if !strings.Contains(errBuf.String(), "warning: retention apply failed") {
+		t.Fatalf("expected warning output, got: %s", errBuf.String())
+	}
+}
+
 func TestRunScheduledRetentionSkipWhenNoPolicy(t *testing.T) {
 	cfg := &config.Configuration{
 		HistoryDBPath: filepath.Join(t.TempDir(), "history.db"),
@@ -156,5 +215,26 @@ func TestBuildScheduledOutNameCollisionFromBackupFlow(t *testing.T) {
 	}
 	if second.OutName != "postgres-dev_2026-03-15T02-00-00-1.sql" {
 		t.Fatalf("second outName = %q", second.OutName)
+	}
+}
+
+func TestResolveBackupPathGCSDoesNotExposeCredentials(t *testing.T) {
+	params := &storage.Params{
+		StorageType:        "gcs",
+		GCSBucket:          "prod-backups",
+		OutName:            "db/prod.sql",
+		GCSCredentialsFile: "/secrets/prod-sa.json",
+		GCSProjectID:       "prod-project",
+	}
+
+	path, _ := resolveBackupPath(params)
+	if path != "gs://prod-backups/db/prod.sql" {
+		t.Fatalf("path = %q", path)
+	}
+	if strings.Contains(path, params.GCSCredentialsFile) {
+		t.Fatalf("path leaked credentials file: %q", path)
+	}
+	if strings.Contains(path, params.GCSProjectID) {
+		t.Fatalf("path leaked project id unexpectedly: %q", path)
 	}
 }
