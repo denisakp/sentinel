@@ -37,7 +37,7 @@ var envVarNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 
 // ValidateConfig validates all configuration rules.
 func ValidateConfig(cfg *Configuration) error {
-	if cfg.Version == "" || cfg.Version != "1.0" {
+	if cfg.Version != "1.0" {
 		return fmt.Errorf("invalid config version '%s': expected '1.0'", cfg.Version)
 	}
 	if len(cfg.Databases) == 0 {

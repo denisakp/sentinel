@@ -251,10 +251,6 @@ func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) erro
 	return nil
 }
 
-func executeBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
-	return executeBackupJobWithMode(cmd, cfg, job, executionModeConfig)
-}
-
 func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode) error {
 	if err := applyCLIOverrides(cmd, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
