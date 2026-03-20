@@ -33,13 +33,8 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 	}
 
 	hasArchive := false
-	for i, arg := range parsedAdditionalArgs {
-		if arg == "--archive" {
-			hasArchive = true
-			parsedAdditionalArgs[i] = fmt.Sprintf("--archive=%s", da.Storage.OutName)
-			continue
-		}
-		if strings.HasPrefix(arg, "--archive=") {
+	for _, arg := range parsedAdditionalArgs {
+		if arg == "--archive" || strings.HasPrefix(arg, "--archive=") {
 			hasArchive = true
 		}
 	}
