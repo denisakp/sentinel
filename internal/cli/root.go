@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+
+	"github.com/denisakp/sentinel/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +21,10 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
+	meta := version.Get()
+	RootCmd.Version = meta.Version
+	RootCmd.SetVersionTemplate(fmt.Sprintf("sentinel %s\n", meta.Version))
+
 	RootCmd.AddCommand(BackupCmd)
 	RootCmd.AddCommand(scheduleCmd)
 	RootCmd.AddCommand(retentionCmd)
@@ -27,6 +34,7 @@ func init() {
 	RootCmd.AddCommand(dbCmd)
 	RootCmd.AddCommand(SecurityCmd)
 	RootCmd.AddCommand(StorageCmd)
+	RootCmd.AddCommand(versionCmd)
 }
 
 func Execute() error {

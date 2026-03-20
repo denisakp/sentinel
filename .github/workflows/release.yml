@@ -18,7 +18,9 @@ jobs:
       
       - name: build binary
         run: |
-          go build -o sentinel
+          go build \
+            -ldflags "-X github.com/denisakp/sentinel/internal/version.Version=${{ github.ref_name }} -X github.com/denisakp/sentinel/internal/version.Commit=${{ github.sha }} -X github.com/denisakp/sentinel/internal/version.BuildDate=${{ github.event.repository.updated_at }}" \
+            -o sentinel
           tar -czvf sentinel-${{ github.ref_name }}-linux-amd64.tar.gz sentinel
       - name: Release
         uses: softprops/action-gh-release@v2
