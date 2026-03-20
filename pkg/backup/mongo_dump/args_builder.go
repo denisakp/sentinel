@@ -2,6 +2,7 @@ package mongo_dump
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
@@ -26,11 +27,30 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 	outName := utils.DefaultValue(da.Storage.OutName, utils.DefaultBackupOutName())
 	da.Storage.OutName = utils.FullPath(backupPath, outName)
 
+	parsedAdditionalArgs := []string{}
+	if da.AdditionalArgs != "" {
+		parsedAdditionalArgs = backup.ParseAdditionalArgs(da.AdditionalArgs)
+	}
+
+	hasArchive := false
+	for i, arg := range parsedAdditionalArgs {
+		if arg == "--archive" {
+			hasArchive = true
+			parsedAdditionalArgs[i] = fmt.Sprintf("--archive=%s", da.Storage.OutName)
+			continue
+		}
+		if strings.HasPrefix(arg, "--archive=") {
+			hasArchive = true
+		}
+	}
+
 	args := []string{
 		fmt.Sprintf("--uri=%s", da.Uri),
-		fmt.Sprintf("--out=%s", da.Storage.OutName),
-		"--quiet",
 	}
+	if !hasArchive {
+		args = append(args, fmt.Sprintf("--out=%s", da.Storage.OutName))
+	}
+	args = append(args, "--quiet")
 	if da.Database != "" {
 		args = append(args, fmt.Sprintf("--db=%s", da.Database))
 	}
@@ -40,9 +60,8 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 		args = append(args, "--gzip")
 	}
 
-	if da.AdditionalArgs != "" {
-		additionalArgs := backup.ParseAdditionalArgs(da.AdditionalArgs)
-		args = append(args, additionalArgs...)
+	if len(parsedAdditionalArgs) > 0 {
+		args = append(args, parsedAdditionalArgs...)
 	}
 
 	args = append(args, internaltls.BuildTLSArgs("mongodb", da.TLS)...)

@@ -3,9 +3,11 @@ package mongo_dump
 import (
 	"bytes"
 	"fmt"
+	"os/exec"
+	"strings"
+
 	"github.com/denisakp/sentinel/internal/backup/mongo"
 	"github.com/denisakp/sentinel/internal/storage"
-	"os/exec"
 )
 
 // Backup backs up a MongoDB database using mongo_dump
@@ -45,7 +47,17 @@ func Backup(da *DumpMongoArgs) error {
 	// run the command
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to run mongo_dump: %w", err)
+		stderr := strings.TrimSpace(stdErr.String())
+		if stderr != "" {
+			return fmt.Errorf("failed to run mongo_dump: %w: %s", err, stderr)
+		}
+
+		stdout := strings.TrimSpace(stdOut.String())
+		if stdout != "" {
+			return fmt.Errorf("failed to run mongo_dump: %w: %s", err, stdout)
+		}
+
+		return fmt.Errorf("failed to run mongo_dump: %w (command: mongodump %s)", err, strings.Join(args, " "))
 	}
 
 	// write backup to storage
