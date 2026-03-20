@@ -40,6 +40,12 @@ func WriteData(data []byte, resource string) error {
 		return nil
 	}
 
+	// Ensure parent directory exists
+	dir := filepath.Dir(resource)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
 	file, err := os.Create(resource)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
