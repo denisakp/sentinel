@@ -36,6 +36,7 @@ func LoadConfig(path string) (*Configuration, error) {
 	}
 
 	applyDefaults(&cfg)
+
 	if err := resolveNamedStorages(&cfg); err != nil {
 		return nil, err
 	}
@@ -85,7 +86,8 @@ func applyDefaults(cfg *Configuration) {
 		if job.Schedule == "" && cfg.Defaults.Schedule != "" {
 			job.Schedule = cfg.Defaults.Schedule
 		}
-		if job.Storage.Type == "" && cfg.Defaults.Storage.Type != "" {
+		// Only apply storage defaults if no named storage reference is defined
+		if job.Storage.Name == "" && job.Storage.Type == "" && cfg.Defaults.Storage.Type != "" {
 			job.Storage = cfg.Defaults.Storage
 		}
 		if !hasRetention(job.Retention) && hasRetention(cfg.Defaults.Retention) {
