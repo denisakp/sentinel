@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,6 +61,94 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	if !strings.Contains(showBuf.String(), "ID: exec-001") {
 		t.Fatalf("monitor show output should include handed-off id, got:\n%s", showBuf.String())
 	}
+}
+
+func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+	dbPath := filepath.Join(t.TempDir(), "restore-history.db")
+	cfgPath := writeRestoreHistoryConfig(t, dbPath)
+
+	mon, err := monitor.NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	t.Cleanup(func() { _ = mon.Close() })
+
+	now := time.Now().UTC()
+	records := []monitor.RestoreExecution{
+		{RestoreName: "r-success", DatabaseType: "postgres", DatabaseName: "db", Status: "completed", Timestamp: now, CreatedAt: now},
+		{RestoreName: "r-failed", DatabaseType: "postgres", DatabaseName: "db", Status: "failure", Timestamp: now, CreatedAt: now},
+	}
+	for _, rec := range records {
+		rec := rec
+		if err := mon.RecordRestoreExecution(context.Background(), &rec); err != nil {
+			t.Fatalf("RecordRestoreExecution() error = %v", err)
+		}
+	}
+
+	prevCfg := restoreConfigFile
+	t.Cleanup(func() { restoreConfigFile = prevCfg })
+	restoreConfigFile = cfgPath
+
+	cmd := &cobra.Command{}
+	buf := &bytes.Buffer{}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	if err := handleRestoreHistory(cmd, nil); err != nil {
+		t.Fatalf("handleRestoreHistory() error = %v", err)
+	}
+
+	output := buf.String()
+	for _, expected := range []string{"success", "failed"} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("restore history output missing normalized status %q in:\n%s", expected, output)
+		}
+	}
+
+	if got := normalizeRestoreStatus(monitor.StatusTimeout); got != monitor.StatusTimeout {
+		t.Fatalf("normalizeRestoreStatus(timeout) = %q, want %q", got, monitor.StatusTimeout)
+	}
+	if got := normalizeRestoreStatus(monitor.StatusSkipped); got != monitor.StatusSkipped {
+		t.Fatalf("normalizeRestoreStatus(skipped) = %q, want %q", got, monitor.StatusSkipped)
+	}
+}
+
+func writeRestoreHistoryConfig(t *testing.T, historyPath string) string {
+	t.Helper()
+	content := "version: \"1.0\"\n" +
+		"history_db_path: " + historyPath + "\n" +
+		"defaults:\n" +
+		"  storage:\n" +
+		"    type: local\n" +
+		"    local_path: ./backups\n" +
+		"databases:\n" +
+		"  pg:\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"restores:\n" +
+		"  restore-job:\n" +
+		"    enabled: true\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"    staging_dir: /tmp/sentinel\n" +
+		"    schedule: \"0 1 * * *\"\n" +
+		"    backup_source:\n" +
+		"      type: local\n" +
+		"      local_path: ./backups\n" +
+		"      backup_path: app.sql\n"
+
+	path := filepath.Join(t.TempDir(), "restore-history.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }
 
 func TestMonitorListErrorPreviewTruncation(t *testing.T) {
