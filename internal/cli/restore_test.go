@@ -2,30 +2,17 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
+	"github.com/denisakp/sentinel/internal/monitor"
+	internalrestore "github.com/denisakp/sentinel/internal/restore"
 )
-
-type fakeRestoreGCSDownloader struct {
-	downloadErr error
-	lastSrc     string
-	lastDest    string
-}
-
-func (f *fakeRestoreGCSDownloader) Download(_ context.Context, src, dest string) error {
-	f.lastSrc = src
-	f.lastDest = dest
-	if f.downloadErr != nil {
-		return f.downloadErr
-	}
-	return os.WriteFile(dest, []byte("backup-bytes"), 0o644)
-}
 
 func TestRestoreRunCmd_GCSFlagsRegistered(t *testing.T) {
 	if restoreRunCmd.Flags().Lookup("gcs-bucket") == nil {
@@ -39,81 +26,39 @@ func TestRestoreRunCmd_GCSFlagsRegistered(t *testing.T) {
 	}
 }
 
-func TestHandleRestoreRun_DeletesStagedFileOnSuccess(t *testing.T) {
+func TestHandleRestoreRun_DispatchesSharedExecutor(t *testing.T) {
 	cfgPath := writeRestoreRunConfig(t, false)
 
 	prevCfg := restoreConfigFile
 	prevKeep := restoreKeepFile
-	prevFactory := newRestoreGCSBackend
-	prevExec := restoreFromLocalStagedFile
+	prevExecutor := runRestoreExecution
 	t.Cleanup(func() {
 		restoreConfigFile = prevCfg
 		restoreKeepFile = prevKeep
-		newRestoreGCSBackend = prevFactory
-		restoreFromLocalStagedFile = prevExec
+		runRestoreExecution = prevExecutor
 	})
 
 	restoreConfigFile = cfgPath
 	restoreKeepFile = false
 
-	fake := &fakeRestoreGCSDownloader{}
-	newRestoreGCSBackend = func(cfg gcs.Config) (restoreGCSDownloader, error) {
-		if cfg.Bucket != "backup-bucket" {
-			return nil, fmt.Errorf("unexpected bucket: %s", cfg.Bucket)
+	called := false
+	runRestoreExecution = func(_ context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		called = true
+		if req.Job.BackupSource.Type != "gcs" {
+			return nil, fmt.Errorf("unexpected source type: %s", req.Job.BackupSource.Type)
 		}
-		return fake, nil
-	}
-	restoreFromLocalStagedFile = func(_ context.Context, _ config.RestoreJob, stagedPath string) error {
-		if _, err := os.Stat(stagedPath); err != nil {
-			return err
+		if req.Job.BackupSource.GCSBucket != "backup-bucket" {
+			return nil, fmt.Errorf("unexpected bucket: %s", req.Job.BackupSource.GCSBucket)
 		}
-		return nil
+		return &internalrestore.ExecutionResult{Status: monitor.StatusSuccess}, nil
 	}
 
 	err := handleRestoreRun(nil, []string{"pg-restore"})
 	if err != nil {
 		t.Fatalf("handleRestoreRun() error = %v", err)
 	}
-	if fake.lastDest == "" {
-		t.Fatal("expected downloader destination path to be captured")
-	}
-	if _, err := os.Stat(fake.lastDest); !os.IsNotExist(err) {
-		t.Fatalf("expected staged file to be deleted, stat err = %v", err)
-	}
-}
-
-func TestHandleRestoreRun_DeletesStagedFileOnFailure(t *testing.T) {
-	cfgPath := writeRestoreRunConfig(t, false)
-
-	prevCfg := restoreConfigFile
-	prevKeep := restoreKeepFile
-	prevFactory := newRestoreGCSBackend
-	prevExec := restoreFromLocalStagedFile
-	t.Cleanup(func() {
-		restoreConfigFile = prevCfg
-		restoreKeepFile = prevKeep
-		newRestoreGCSBackend = prevFactory
-		restoreFromLocalStagedFile = prevExec
-	})
-
-	restoreConfigFile = cfgPath
-	restoreKeepFile = false
-
-	fake := &fakeRestoreGCSDownloader{}
-	newRestoreGCSBackend = func(_ gcs.Config) (restoreGCSDownloader, error) { return fake, nil }
-	restoreFromLocalStagedFile = func(_ context.Context, _ config.RestoreJob, _ string) error {
-		return errors.New("restore failed")
-	}
-
-	err := handleRestoreRun(nil, []string{"pg-restore"})
-	if err == nil {
-		t.Fatal("expected restore failure error")
-	}
-	if fake.lastDest == "" {
-		t.Fatal("expected downloader destination path to be captured")
-	}
-	if _, statErr := os.Stat(fake.lastDest); !os.IsNotExist(statErr) {
-		t.Fatalf("expected staged file to be deleted after failure, stat err = %v", statErr)
+	if !called {
+		t.Fatal("expected shared restore executor to be called")
 	}
 }
 
@@ -122,56 +67,98 @@ func TestHandleRestoreRun_KeepFilePreservesStagedFile(t *testing.T) {
 
 	prevCfg := restoreConfigFile
 	prevKeep := restoreKeepFile
-	prevFactory := newRestoreGCSBackend
-	prevExec := restoreFromLocalStagedFile
+	prevExecutor := runRestoreExecution
 	t.Cleanup(func() {
 		restoreConfigFile = prevCfg
 		restoreKeepFile = prevKeep
-		newRestoreGCSBackend = prevFactory
-		restoreFromLocalStagedFile = prevExec
+		runRestoreExecution = prevExecutor
 	})
 
 	restoreConfigFile = cfgPath
 	restoreKeepFile = false
 
-	fake := &fakeRestoreGCSDownloader{}
-	newRestoreGCSBackend = func(_ gcs.Config) (restoreGCSDownloader, error) { return fake, nil }
-	restoreFromLocalStagedFile = func(_ context.Context, _ config.RestoreJob, _ string) error { return nil }
+	retainedPath := t.TempDir() + "/staged.sql"
+	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		return &internalrestore.ExecutionResult{
+			Status:             monitor.StatusSuccess,
+			StagedFileRetained: true,
+			StagedFilePath:     retainedPath,
+		}, nil
+	}
 
 	err := handleRestoreRun(nil, []string{"pg-restore"})
 	if err != nil {
 		t.Fatalf("handleRestoreRun() error = %v", err)
 	}
-	if fake.lastDest == "" {
-		t.Fatal("expected downloader destination path to be captured")
-	}
-	if _, statErr := os.Stat(fake.lastDest); statErr != nil {
-		t.Fatalf("expected staged file to be preserved with keep_file=true, stat err = %v", statErr)
-	}
-	_ = os.Remove(fake.lastDest)
 }
 
-func TestHandleRestoreRun_NotFoundErrorIsActionable(t *testing.T) {
+func TestHandleRestoreRun_LockConflictIsActionable(t *testing.T) {
 	cfgPath := writeRestoreRunConfig(t, false)
 
 	prevCfg := restoreConfigFile
-	prevFactory := newRestoreGCSBackend
+	prevExecutor := runRestoreExecution
 	t.Cleanup(func() {
 		restoreConfigFile = prevCfg
-		newRestoreGCSBackend = prevFactory
+		runRestoreExecution = prevExecutor
 	})
 
 	restoreConfigFile = cfgPath
-	newRestoreGCSBackend = func(_ gcs.Config) (restoreGCSDownloader, error) {
-		return &fakeRestoreGCSDownloader{downloadErr: fmt.Errorf("%w: %q", gcs.ErrObjectNotFound, "missing.sql")}, nil
+	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		return &internalrestore.ExecutionResult{Status: monitor.StatusSkipped, Reason: "lock_conflict"}, internalrestore.ErrRestoreLockConflict
 	}
 
 	err := handleRestoreRun(nil, []string{"pg-restore"})
 	if err == nil {
-		t.Fatal("expected error for missing object")
+		t.Fatal("expected lock conflict error")
 	}
-	if !strings.Contains(err.Error(), "restore backup object not found") {
+	if !strings.Contains(err.Error(), "restore execution skipped: lock_conflict") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestHandleRestoreRun_NotifyRestoreStatuses(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfgPath := writeRestoreRunConfigWithNotifications(t, server.URL)
+
+	tests := []struct {
+		name   string
+		result *internalrestore.ExecutionResult
+		err    error
+	}{
+		{name: "success", result: &internalrestore.ExecutionResult{Status: monitor.StatusSuccess}},
+		{name: "failed", result: &internalrestore.ExecutionResult{Status: monitor.StatusFailed}, err: fmt.Errorf("restore failed")},
+		{name: "timeout", result: &internalrestore.ExecutionResult{Status: monitor.StatusTimeout}, err: context.DeadlineExceeded},
+		{name: "skipped", result: &internalrestore.ExecutionResult{Status: monitor.StatusSkipped, Reason: "lock_conflict"}, err: internalrestore.ErrRestoreLockConflict},
+	}
+
+	prevCfg := restoreConfigFile
+	prevExecutor := runRestoreExecution
+	t.Cleanup(func() {
+		restoreConfigFile = prevCfg
+		runRestoreExecution = prevExecutor
+	})
+
+	restoreConfigFile = cfgPath
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+				return tt.result, tt.err
+			}
+			_ = handleRestoreRun(nil, []string{"pg-restore"})
+		})
+	}
+
+	if calls.Load() != int32(len(tests)) {
+		t.Fatalf("expected %d notification webhook calls, got %d", len(tests), calls.Load())
 	}
 }
 
@@ -212,6 +199,47 @@ func writeRestoreRunConfig(t *testing.T, keepFile bool) string {
 		"      backup_path: dumps/latest.sql\n"
 
 	path := t.TempDir() + "/restore.yaml"
+	if err := os.WriteFile(path, []byte(cfg), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
+}
+
+func writeRestoreRunConfigWithNotifications(t *testing.T, webhookURL string) string {
+	t.Helper()
+	t.Setenv("TEST_WEBHOOK_URL", webhookURL)
+	cfg := "version: \"1.0\"\n" +
+		"defaults:\n" +
+		"  storage:\n" +
+		"    type: local\n" +
+		"    local_path: ./backups\n" +
+		"databases:\n" +
+		"  pg:\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"restores:\n" +
+		"  pg-restore:\n" +
+		"    enabled: true\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app_restore\n" +
+		"    schedule: \"0 2 * * *\"\n" +
+		"    staging_dir: /tmp/sentinel\n" +
+		"    notifications:\n" +
+		"      - type: webhook\n" +
+		"        webhook_url_env: TEST_WEBHOOK_URL\n" +
+		"        events: [success, failure, warning]\n" +
+		"    backup_source:\n" +
+		"      type: gcs\n" +
+		"      gcs_bucket: backup-bucket\n" +
+		"      backup_path: dumps/latest.sql\n"
+
+	path := t.TempDir() + "/restore-notify.yaml"
 	if err := os.WriteFile(path, []byte(cfg), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

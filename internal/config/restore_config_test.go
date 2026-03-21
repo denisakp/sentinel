@@ -28,10 +28,20 @@ func TestRestoreJobValidation(t *testing.T) {
 		{
 			name: "missing schedule",
 			job: &RestoreJob{
-				Name: "test-restore",
+				Name:       "test-restore",
+				Type:       "postgres",
+				StagingDir: "/tmp/sentinel",
+				Host:       "localhost",
+				Username:   "user",
+				Database:   "testdb",
+				BackupSource: RestoreBackupSource{
+					Type:       "local",
+					LocalPath:  "/backup",
+					BackupPath: "prod.sql",
+				},
 			},
 			wantErr: true,
-			errMsg:  "schedule is required",
+			errMsg:  "restore schedule (cron) is required",
 		},
 		{
 			name: "missing database type",
@@ -45,13 +55,14 @@ func TestRestoreJobValidation(t *testing.T) {
 		{
 			name: "valid postgres restore job",
 			job: &RestoreJob{
-				Name:     "test-restore",
-				Type:     "postgres",
-				Schedule: "0 2 * * *",
-				Host:     "localhost",
-				Port:     5432,
-				Username: "user",
-				Database: "testdb",
+				Name:       "test-restore",
+				Type:       "postgres",
+				Schedule:   "0 2 * * *",
+				StagingDir: "/tmp/sentinel",
+				Host:       "localhost",
+				Port:       5432,
+				Username:   "user",
+				Database:   "testdb",
 				BackupSource: RestoreBackupSource{
 					Type:       "local",
 					LocalPath:  "/backup/prod.sql",
@@ -61,6 +72,42 @@ func TestRestoreJobValidation(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "missing staging dir",
+			job: &RestoreJob{
+				Name:     "test-restore",
+				Type:     "postgres",
+				Schedule: "0 2 * * *",
+				Host:     "localhost",
+				Username: "user",
+				Database: "testdb",
+				BackupSource: RestoreBackupSource{
+					Type:       "local",
+					LocalPath:  "/backup/prod.sql",
+					BackupPath: "prod.sql",
+				},
+			},
+			wantErr: true,
+			errMsg:  "staging_dir is required",
+		},
+		{
+			name: "unsupported restore source",
+			job: &RestoreJob{
+				Name:       "test-restore",
+				Type:       "postgres",
+				Schedule:   "0 2 * * *",
+				StagingDir: "/tmp/sentinel",
+				Host:       "localhost",
+				Username:   "user",
+				Database:   "testdb",
+				BackupSource: RestoreBackupSource{
+					Type:       "azure",
+					BackupPath: "prod.sql",
+				},
+			},
+			wantErr: true,
+			errMsg:  "unsupported backup_source.type",
+		},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +115,9 @@ func TestRestoreJobValidation(t *testing.T) {
 			err := ValidateRestoreJob(tt.job)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateRestoreJob() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && tt.errMsg != "" && err != nil && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Fatalf("ValidateRestoreJob() error = %q, want to contain %q", err.Error(), tt.errMsg)
 			}
 		})
 	}
@@ -114,6 +164,48 @@ func TestRestoreBackupSource(t *testing.T) {
 				t.Errorf("source type should not be empty")
 			}
 		})
+	}
+}
+
+func TestLoadConfig_AppliesRestoreStagingDefaults(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+
+	cfgPath := writeTempConfig(t, "version: \"1.0\"\n"+
+		"restore:\n"+
+		"  staging_dir: /tmp/sentinel\n"+
+		"defaults:\n"+
+		"  storage:\n"+
+		"    type: local\n"+
+		"    local_path: ./backups\n\n"+
+		"databases:\n"+
+		"  pg:\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app\n\n"+
+		"restores:\n"+
+		"  pg-restore:\n"+
+		"    enabled: true\n"+
+		"    type: postgres\n"+
+		"    host: localhost\n"+
+		"    username: sentinel\n"+
+		"    password_env: TEST_PG_PASSWORD\n"+
+		"    database: app_restore\n"+
+		"    schedule: \"0 2 * * *\"\n"+
+		"    backup_source:\n"+
+		"      type: local\n"+
+		"      local_path: ./backups\n"+
+		"      backup_path: dumps/latest.sql\n")
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	job := cfg.Restores["pg-restore"]
+	if job.StagingDir != "/tmp/sentinel" {
+		t.Fatalf("StagingDir = %q, want /tmp/sentinel", job.StagingDir)
 	}
 }
 
