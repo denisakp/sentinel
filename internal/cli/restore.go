@@ -2,33 +2,21 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
+	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/notifier"
+	internalrestore "github.com/denisakp/sentinel/internal/restore"
 )
 
-type restoreGCSDownloader interface {
-	Download(ctx context.Context, src, dest string) error
-}
-
-var newRestoreGCSBackend = func(cfg gcs.Config) (restoreGCSDownloader, error) {
-	return gcs.NewGCSBackend(cfg)
-}
-
-var restoreFromLocalStagedFile = func(_ context.Context, _ config.RestoreJob, stagedPath string) error {
-	if _, err := os.Stat(stagedPath); err != nil {
-		return fmt.Errorf("staged restore file is not accessible: %w", err)
-	}
-	return nil
-}
+var runRestoreExecution = internalrestore.ExecuteRestore
 
 var (
 	restoreListCmd = &cobra.Command{
@@ -290,51 +278,40 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 
 	applyRestoreRunOverrides(&job)
 
-	if job.BackupSource.Type != "gcs" {
-		return fmt.Errorf("restore run currently supports backup_source.type 'gcs'; got %q", job.BackupSource.Type)
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize restore monitor: %w", err)
 	}
-	if job.BackupSource.GCSBucket == "" {
-		return fmt.Errorf("backup_source.gcs_bucket is required for gcs restore")
-	}
-	if job.BackupSource.BackupPath == "" {
-		return fmt.Errorf("backup_source.backup_path is required for restore")
+	defer mon.Close()
+
+	ctx := context.Background()
+	if cmd != nil {
+		ctx = cmd.Context()
 	}
 
-	backend, err := newRestoreGCSBackend(gcs.Config{
-		Bucket:          job.BackupSource.GCSBucket,
-		ProjectID:       job.BackupSource.GCSProjectID,
-		CredentialsFile: job.BackupSource.GCSCredentialsFile,
+	result, err := runRestoreExecution(ctx, &internalrestore.ExecutionRequest{
+		JobName: jobName,
+		Job:     job,
+		Config:  cfg,
+		LockDir: cfg.Scheduler.LockDir,
+		Monitor: mon,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize gcs restore backend: %w", err)
-	}
-
-	stagePath := buildRestoreStagePath(jobName, job.BackupSource.BackupPath)
-	if !job.KeepFile {
-		defer func() {
-			if rmErr := os.Remove(stagePath); rmErr != nil && !os.IsNotExist(rmErr) {
-				slog.Warn("failed to remove staged restore file", "path", stagePath, "error", rmErr.Error())
-			}
-		}()
-	}
-
-	if err := backend.Download(context.Background(), job.BackupSource.BackupPath, stagePath); err != nil {
-		if errors.Is(err, gcs.ErrObjectNotFound) {
-			return fmt.Errorf("restore backup object not found: %w", err)
+		notifyRestoreResult(ctx, jobName, job, result, err)
+		if result != nil && result.Status == monitor.StatusSkipped {
+			return fmt.Errorf("restore execution skipped: %s", result.Reason)
 		}
-		return fmt.Errorf("failed to download restore artifact from gcs: %w", err)
-	}
-
-	if err := restoreFromLocalStagedFile(context.Background(), job, stagePath); err != nil {
 		return fmt.Errorf("restore execution failed: %w", err)
 	}
 
-	if job.KeepFile {
-		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, stagePath)
-	} else {
-		fmt.Printf("Restore job %q completed successfully\n", jobName)
+	notifyRestoreResult(ctx, jobName, job, result, nil)
+
+	if result != nil && result.StagedFileRetained {
+		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, result.StagedFilePath)
+		return nil
 	}
 
+	fmt.Printf("Restore job %q completed successfully\n", jobName)
 	return nil
 }
 
@@ -354,32 +331,123 @@ func applyRestoreRunOverrides(job *config.RestoreJob) {
 	}
 }
 
-func buildRestoreStagePath(jobName, backupPath string) string {
-	base := filepath.Base(backupPath)
-	if base == "." || base == string(filepath.Separator) || base == "" {
-		base = "backup.sql"
-	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("sentinel-restore-%s-%d-%s", jobName, time.Now().UnixNano(), base))
-}
-
 func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 	cfg, err := loadRestoreConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	monitorPath := cfg.HistoryDBPath
-	if monitorPath == "" {
-		monitorPath = filepath.Join(os.Getenv("HOME"), ".sentinel", "history.db")
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize monitor: %w", err)
+	}
+	defer mon.Close()
+
+	var filter *monitor.RestoreFilter
+	if len(args) == 1 {
+		filter = &monitor.RestoreFilter{RestoreName: args[0]}
 	}
 
-	fmt.Printf("Restore Execution History\n")
-	fmt.Printf("(from %s)\n\n", monitorPath)
-	fmt.Println("Job Name | Database | Status | Duration | Timestamp | Verified")
-	fmt.Println("---------|----------|--------|----------|-----------|----------")
-	fmt.Println("(Use 'sentinel monitor list --type restore' for detailed history)")
+	records, err := mon.ListRestoreExecutions(cmd.Context(), filter, 50, 0)
+	if err != nil {
+		return fmt.Errorf("failed to read restore history: %w", err)
+	}
+
+	if len(records) == 0 {
+		cmd.Println("no restore records found")
+		return nil
+	}
+
+	cmd.Println("RESTORE | DATABASE | STATUS | DURATION | TIMESTAMP | REASON")
+	for _, rec := range records {
+		dur := time.Duration(rec.DurationMs) * time.Millisecond
+		reason := rec.Reason
+		if reason == "" {
+			reason = "-"
+		}
+		cmd.Printf("%s | %s | %s | %s | %s | %s\n",
+			rec.RestoreName,
+			rec.DatabaseName,
+			normalizeRestoreStatus(rec.Status),
+			dur.Truncate(time.Millisecond).String(),
+			rec.Timestamp.UTC().Format(time.RFC3339),
+			reason,
+		)
+	}
 
 	return nil
+}
+
+func normalizeRestoreStatus(status string) string {
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
+	case "completed":
+		return monitor.StatusSuccess
+	case "failure":
+		return monitor.StatusFailed
+	default:
+		return status
+	}
+}
+
+func notifyRestoreResult(ctx context.Context, jobName string, job config.RestoreJob, result *internalrestore.ExecutionResult, runErr error) {
+	if len(job.Notifications) == 0 {
+		return
+	}
+	dispatcher, err := notifier.NewDispatcherFromRestoreConfig(job.Notifications)
+	if err != nil {
+		slog.Warn("failed to initialize restore notifier", "job", jobName, "error", err.Error())
+		return
+	}
+
+	status := notifier.StatusWarning
+	start := time.Now().UTC()
+	end := time.Now().UTC()
+	bytesRestored := int64(0)
+	verificationPassed := false
+	sourcePath := job.BackupSource.BackupPath
+	errMsg := ""
+	if runErr != nil {
+		errMsg = runErr.Error()
+	}
+
+	if result != nil {
+		status = notifier.NotificationStatusFromRestoreStatus(result.Status)
+		if !result.StartedAt.IsZero() {
+			start = result.StartedAt
+		}
+		if !result.CompletedAt.IsZero() {
+			end = result.CompletedAt
+		}
+		bytesRestored = result.BytesRestored
+		verificationPassed = result.VerificationPassed
+		if result.SourcePath != "" {
+			sourcePath = result.SourcePath
+		}
+		if errMsg == "" && result.Error != nil {
+			errMsg = result.Error.Error()
+		}
+		if errMsg == "" && result.Reason != "" && status != notifier.StatusSuccess {
+			errMsg = result.Reason
+		}
+	}
+
+	restoreCtx := &notifier.RestoreContext{
+		RestoreName:        jobName,
+		DatabaseType:       job.Type,
+		DatabaseName:       job.Database,
+		Status:             status,
+		StartTime:          start,
+		EndTime:            end,
+		Error:              errMsg,
+		BytesRestored:      bytesRestored,
+		SourceBackupPath:   sourcePath,
+		VerificationPassed: verificationPassed,
+	}
+
+	if err := dispatcher.NotifyRestore(restoreCtx); err != nil {
+		slog.Warn("failed to dispatch restore notification", "job", jobName, "error", err.Error())
+	}
 }
 
 func handleRestorePause(cmd *cobra.Command, args []string) error {

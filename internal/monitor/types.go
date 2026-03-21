@@ -9,6 +9,9 @@ const (
 	StatusCompleted   = "completed"
 	StatusFailed      = "failed"
 	StatusInterrupted = "interrupted"
+	StatusSuccess     = "success"
+	StatusTimeout     = "timeout"
+	StatusSkipped     = "skipped"
 )
 
 // Legacy status aliases for backward compatibility with existing data.
@@ -69,13 +72,20 @@ type RestoreExecution struct {
 	RestoreName        string
 	DatabaseType       string
 	DatabaseName       string
+	SourceType         string
+	ConflictStrategy   string
 	Timestamp          time.Time
 	DurationMs         int64
 	Status             string
 	ErrorMessage       string
+	ErrorReason        string
+	Reason             string
 	SourceBackupPath   string
+	StagedFilePath     string
+	StagedFileRetained bool
 	BytesRestored      int64
 	VerificationPassed bool
+	TimeoutSeconds     int
 	CreatedAt          time.Time
 	// V1 Consolidation: Cleanup and interruption fields
 	FinishedAt       *time.Time
@@ -93,6 +103,15 @@ type Filter struct {
 	StorageBackend string
 	StartDate      time.Time
 	EndDate        time.Time
+}
+
+// RestoreFilter specifies query filters for listing restore executions.
+type RestoreFilter struct {
+	RestoreName  string
+	Status       string
+	DatabaseType string
+	StartDate    time.Time
+	EndDate      time.Time
 }
 
 // Statistics aggregates execution statistics for a backup job.

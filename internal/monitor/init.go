@@ -198,6 +198,170 @@ func ensureSchemaColumns(db *sql.DB) error {
 		return err
 	}
 
+	restoreRows, err := db.Query(`PRAGMA table_info(restore_executions)`)
+	if err != nil {
+		return fmt.Errorf("failed to read restore schema info: %w", err)
+	}
+	defer restoreRows.Close()
+
+	restoreColumns := map[string]struct{}{}
+	for restoreRows.Next() {
+		var cid int
+		var name string
+		var ctype string
+		var notnull int
+		var dflt sql.NullString
+		var pk int
+		if err := restoreRows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("failed to scan restore schema info: %w", err)
+		}
+		restoreColumns[name] = struct{}{}
+	}
+	if err := restoreRows.Err(); err != nil {
+		return fmt.Errorf("failed to read restore schema info: %w", err)
+	}
+
+	addRestoreColumn := func(name, definition string) error {
+		if _, ok := restoreColumns[name]; ok {
+			return nil
+		}
+		stmt := fmt.Sprintf("ALTER TABLE restore_executions ADD COLUMN %s %s", name, definition)
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("failed to add restore column %s: %w", name, err)
+		}
+		return nil
+	}
+
+	if err := addRestoreColumn("source_type", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("conflict_strategy", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("staged_file_path", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("staged_file_retained", "INTEGER DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("error_reason", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("reason", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("timeout_seconds", "INTEGER"); err != nil {
+		return err
+	}
+
+	if err := ensureRestoreStatusConstraint(db); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureRestoreStatusConstraint(db *sql.DB) error {
+	var tableSQL sql.NullString
+	if err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'restore_executions'`).Scan(&tableSQL); err != nil {
+		return fmt.Errorf("failed to inspect restore_executions schema: %w", err)
+	}
+	if !tableSQL.Valid {
+		return nil
+	}
+
+	schemaLower := strings.ToLower(tableSQL.String)
+	if strings.Contains(schemaLower, "'timeout'") && strings.Contains(schemaLower, "'skipped'") {
+		return nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin restore schema repair transaction: %w", err)
+	}
+
+	repairErr := func() error {
+		if _, err := tx.Exec(`
+CREATE TABLE restore_executions_new (
+	id TEXT PRIMARY KEY,
+	restore_name TEXT NOT NULL,
+	database_type TEXT NOT NULL,
+	database_name TEXT NOT NULL,
+	source_type TEXT NOT NULL DEFAULT '',
+	conflict_strategy TEXT NOT NULL DEFAULT '',
+	timestamp DATETIME NOT NULL,
+	status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'interrupted', 'success', 'failure', 'in-progress', 'timeout', 'skipped')),
+	duration_ms INTEGER,
+	source_backup_path TEXT NOT NULL,
+	staged_file_path TEXT,
+	staged_file_retained INTEGER DEFAULT 0,
+	bytes_restored INTEGER,
+	verification_passed BOOLEAN,
+	error_message TEXT,
+	error_reason TEXT,
+	reason TEXT,
+	timeout_seconds INTEGER,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	finished_at DATETIME,
+	cleanup_attempted INTEGER DEFAULT 0,
+	cleanup_succeeded INTEGER,
+	cleanup_error TEXT,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`); err != nil {
+			return fmt.Errorf("failed to create restore_executions_new table: %w", err)
+		}
+
+		if _, err := tx.Exec(`
+INSERT INTO restore_executions_new (
+	id, restore_name, database_type, database_name, source_type, conflict_strategy,
+	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
+	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,
+	created_at, finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
+)
+SELECT
+	id, restore_name, database_type, database_name, source_type, conflict_strategy,
+	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
+	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,
+	created_at, finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
+FROM restore_executions;
+`); err != nil {
+			return fmt.Errorf("failed to copy restore execution rows: %w", err)
+		}
+
+		if _, err := tx.Exec(`DROP TABLE restore_executions;`); err != nil {
+			return fmt.Errorf("failed to drop old restore_executions table: %w", err)
+		}
+		if _, err := tx.Exec(`ALTER TABLE restore_executions_new RENAME TO restore_executions;`); err != nil {
+			return fmt.Errorf("failed to rename restore_executions_new: %w", err)
+		}
+
+		indexStatements := []string{
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_restore_name ON restore_executions(restore_name);`,
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_timestamp ON restore_executions(timestamp DESC);`,
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_status ON restore_executions(status);`,
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_restore_name_timestamp ON restore_executions(restore_name, timestamp DESC);`,
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_database_type ON restore_executions(database_type);`,
+			`CREATE INDEX IF NOT EXISTS idx_restore_executions_database_name ON restore_executions(database_name);`,
+		}
+		for _, stmt := range indexStatements {
+			if _, err := tx.Exec(stmt); err != nil {
+				return fmt.Errorf("failed to recreate restore index: %w", err)
+			}
+		}
+
+		return nil
+	}()
+
+	if repairErr != nil {
+		_ = tx.Rollback()
+		return repairErr
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit restore schema repair transaction: %w", err)
+	}
+
 	return nil
 }
 
