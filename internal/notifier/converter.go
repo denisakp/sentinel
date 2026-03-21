@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/denisakp/sentinel/internal/config"
 )
@@ -93,6 +94,21 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 // It uses the same notification channels as backups.
 func NewDispatcherFromRestoreConfig(notifications []config.NotificationChannel) (*Dispatcher, error) {
 	return NewDispatcherFromConfig(notifications)
+}
+
+// NotificationStatusFromRestoreStatus maps restore execution status values to
+// notifier event categories used by channel event filters.
+func NotificationStatusFromRestoreStatus(status string) BackupStatus {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "success", "completed":
+		return StatusSuccess
+	case "skipped":
+		return StatusWarning
+	case "failed", "failure", "timeout", "interrupted":
+		return StatusFailure
+	default:
+		return StatusWarning
+	}
 }
 
 // resolveEnvVar resolves an environment variable name to its value.

@@ -55,6 +55,13 @@ type RestoreJob struct {
 	// What to do if data exists: "ignore", "replace", "error" (default: "error")
 	ConflictStrategy string `yaml:"conflict_strategy,omitempty"`
 
+	// AllowCascade is required for PostgreSQL replace operations that may
+	// remove dependent objects through DROP ... CASCADE.
+	AllowCascade bool `yaml:"allow_cascade,omitempty"`
+
+	// StagingDir overrides the global restore staging directory for this job.
+	StagingDir string `yaml:"staging_dir,omitempty"`
+
 	// Retention policy for backup files used in restore
 	Retention RestoreRetentionPolicy `yaml:"retention,omitempty"`
 
@@ -77,7 +84,7 @@ type RestoreRetentionPolicy struct {
 
 // RestoreBackupSource specifies where to read the backup from
 type RestoreBackupSource struct {
-	// Source type: "local", "s3", "google-drive", "azure", "gcs"
+	// Source type: "local", "s3", or "gcs"
 	Type string `yaml:"type"`
 
 	// Local filesystem path
@@ -168,6 +175,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	if job.Type == "" {
 		return fmt.Errorf("restore job type is required")
 	}
+	if job.StagingDir == "" {
+		return fmt.Errorf("staging_dir is required")
+	}
 
 	// Validate type
 	validTypes := map[string]bool{
@@ -214,6 +224,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 			return fmt.Errorf("invalid conflict_strategy: %s", job.ConflictStrategy)
 		}
 	}
+	if job.AllowCascade && job.Type != "postgres" {
+		return fmt.Errorf("allow_cascade is only supported for postgres restores")
+	}
 
 	// Validate retention policy
 	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
@@ -238,17 +251,6 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	case "s3":
 		if job.BackupSource.S3Bucket == "" {
 			return fmt.Errorf("backup_source.s3_bucket is required for s3 type")
-		}
-	case "google-drive":
-		if job.BackupSource.GDriveFolderID == "" {
-			return fmt.Errorf("backup_source.gdrive_folder_id is required for google-drive type")
-		}
-	case "azure":
-		if job.BackupSource.AzureContainer == "" {
-			return fmt.Errorf("backup_source.azure_container is required for azure type")
-		}
-		if job.BackupSource.AzureStorageAccount == "" && job.BackupSource.AzureStorageAccountEnv == "" {
-			return fmt.Errorf("backup_source.azure_storage_account or backup_source.azure_storage_account_env is required for azure type")
 		}
 	case "gcs":
 		if job.BackupSource.GCSBucket == "" {

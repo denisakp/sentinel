@@ -73,6 +73,7 @@ var scheduleStartCmd = &cobra.Command{
 		}
 
 		// Add restore jobs
+		restoreLimiter := make(chan struct{}, cfg.Scheduler.MaxConcurrentRestores)
 		for name, restoreJob := range cfg.Restores {
 			if restoreJob.Enabled != nil && !*restoreJob.Enabled {
 				continue
@@ -83,7 +84,7 @@ var scheduleStartCmd = &cobra.Command{
 			restoreCopy := restoreJob
 			restoreCopy.Name = name
 			if err := s.AddJob(name, restoreJob.Schedule, func() error {
-				return executeRestoreJob(cmd, cfg, restoreCopy)
+				return executeRestoreJob(cmd, cfg, mon, restoreCopy, restoreLimiter)
 			}); err != nil {
 				return err
 			}
@@ -274,22 +275,27 @@ func init() {
 }
 
 // executeRestoreJob executes a single restore job
-func executeRestoreJob(cmd *cobra.Command, cfg *config.Configuration, job config.RestoreJob) error {
-	cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n",
-		job.Name, job.Type, job.Database)
+func executeRestoreJob(
+	cmd *cobra.Command,
+	cfg *config.Configuration,
+	mon *monitor.Monitor,
+	job config.RestoreJob,
+	limiter chan struct{},
+) error {
+	ctx := context.Background()
+	if cmd != nil {
+		ctx = cmd.Context()
+		cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n", job.Name, job.Type, job.Database)
+	}
 
-	// TODO: Implement full restore execution logic
-	// This will integrate with:
-	// - internal/scheduler/restore_integration.go (RestoreScheduleManager)
-	// - pkg/restore/{db}_restore/{db}_restore.go (actual restore functions)
-	// - internal/monitor (record restore execution)
-	// - internal/notifier (send restore notifications)
+	result, err := scheduler.ExecuteScheduledRestore(ctx, cfg, job.Name, job, mon, limiter)
+	if err != nil {
+		return err
+	}
 
-	// For now, log the restore job parameters
-	cmd.Printf("  Schedule: %s\\n", job.Schedule)
-	cmd.Printf("  Backup Source: %s\\n", job.BackupSource.Type)
-	cmd.Printf("  Verify After Restore: %v\\n", job.VerifyAfterRestore)
+	if result != nil && result.Status == monitor.StatusSkipped && cmd != nil {
+		cmd.Printf("Restore job %s skipped: %s\\n", job.Name, result.Reason)
+	}
 
-	// Return success for now - full implementation will call actual restore functions
 	return nil
 }

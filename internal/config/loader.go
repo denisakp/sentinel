@@ -11,6 +11,7 @@ const (
 	defaultLogFormat             = "json"
 	defaultMaxConcurrentJobs     = 3
 	defaultHistoryDBPath         = "~/.sentinel/history.db"
+	defaultRestoreStagingDir     = "/tmp/sentinel"
 	defaultAutoDiscoveryMode     = "individual"
 	defaultTLSMode               = "prefer"
 	defaultJobTimeoutMinutes     = 180
@@ -60,6 +61,9 @@ func applyDefaults(cfg *Configuration) {
 	if cfg.HistoryDBPath == "" {
 		cfg.HistoryDBPath = defaultHistoryDBPath
 	}
+	if cfg.Restore.StagingDir == "" {
+		cfg.Restore.StagingDir = defaultRestoreStagingDir
+	}
 
 	// Apply scheduler defaults
 	if cfg.Scheduler.MaxConcurrentBackups == 0 {
@@ -102,6 +106,20 @@ func applyDefaults(cfg *Configuration) {
 		applyTLSDefaults(job.TLS)
 		applyNotificationDefaults(job.Notifications)
 		cfg.Databases[name] = job
+	}
+
+	for name, job := range cfg.Restores {
+		job.Name = name
+		if job.Enabled == nil {
+			job.Enabled = boolPtr(false)
+		}
+		if job.StagingDir == "" {
+			job.StagingDir = cfg.Restore.StagingDir
+		}
+		if !job.KeepFile && cfg.Restore.KeepFile {
+			job.KeepFile = true
+		}
+		cfg.Restores[name] = job
 	}
 
 	applyNotificationDefaults(cfg.Defaults.Notifications)
@@ -246,6 +264,14 @@ func interpolateConfig(cfg *Configuration) error {
 			return err
 		}
 		cfg.HistoryDBPath = value
+	}
+
+	if cfg.Restore.StagingDir != "" {
+		value, err := interpolateEnvVars(cfg.Restore.StagingDir)
+		if err != nil {
+			return err
+		}
+		cfg.Restore.StagingDir = value
 	}
 
 	if cfg.EncryptionKeyFile != "" {

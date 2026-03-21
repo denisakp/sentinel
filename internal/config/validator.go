@@ -112,6 +112,25 @@ func ValidateConfig(cfg *Configuration) error {
 		warnPlaintextCredentials(name, job)
 	}
 
+	for name, job := range cfg.Restores {
+		job.Name = name
+		if err := ValidateRestoreJob(&job); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+		if strings.TrimSpace(job.Schedule) == "" {
+			return fmt.Errorf("restore '%s': invalid cron expression '%s': schedule cannot be whitespace-only", name, job.Schedule)
+		}
+		if _, err := parser.Parse(job.Schedule); err != nil {
+			return fmt.Errorf("restore '%s': invalid cron expression '%s': %w", name, job.Schedule, err)
+		}
+		if job.TimeoutSeconds < 0 {
+			return fmt.Errorf("restore '%s': timeout_seconds must be non-negative", name)
+		}
+		if err := validateRestoreEnvNames(job); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
+	}
+
 	return nil
 }
 
@@ -190,6 +209,30 @@ func validateEnvNames(job BackupJob) error {
 			if !envVarNamePattern.MatchString(value) {
 				return fmt.Errorf("%s must match pattern ^[A-Z_][A-Z0-9_]*$", field)
 			}
+		}
+	}
+
+	return nil
+}
+
+func validateRestoreEnvNames(job RestoreJob) error {
+	fields := map[string]string{
+		"host_env":                  job.HostEnv,
+		"username_env":              job.UsernameEnv,
+		"password_env":              job.PasswordEnv,
+		"uri_env":                   job.URIEnv,
+		"s3_access_key_id_env":      job.BackupSource.S3AccessKeyIDEnv,
+		"s3_secret_access_key_env":  job.BackupSource.S3SecretAccessKeyEnv,
+		"azure_storage_account_env": job.BackupSource.AzureStorageAccountEnv,
+		"azure_storage_key_env":     job.BackupSource.AzureStorageKeyEnv,
+	}
+
+	for field, value := range fields {
+		if value == "" {
+			continue
+		}
+		if !envVarNamePattern.MatchString(value) {
+			return fmt.Errorf("%s must match pattern ^[A-Z_][A-Z0-9_]*$", field)
 		}
 	}
 

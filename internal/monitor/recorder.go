@@ -69,22 +69,30 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *RestoreExecu
 	}
 
 	query := `INSERT INTO restore_executions
-		(id, restore_name, database_type, database_name, timestamp, duration_ms, status, error_message, source_backup_path, bytes_restored, verification_passed, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(id, restore_name, database_type, database_name, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := m.db.ExecContext(ctx, query,
 		exec.ID,
 		exec.RestoreName,
 		exec.DatabaseType,
 		exec.DatabaseName,
+		exec.SourceType,
+		exec.ConflictStrategy,
 		exec.Timestamp,
 		exec.DurationMs,
 		exec.Status,
 		exec.ErrorMessage,
+		exec.ErrorReason,
+		exec.Reason,
 		exec.SourceBackupPath,
+		exec.StagedFilePath,
+		exec.StagedFileRetained,
 		exec.BytesRestored,
 		exec.VerificationPassed,
+		exec.TimeoutSeconds,
 		exec.CreatedAt,
+		exec.FinishedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to record restore execution: %w", err)

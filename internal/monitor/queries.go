@@ -70,6 +70,47 @@ func (m *Monitor) GetExecution(ctx context.Context, id string) (*Execution, erro
 	return exec, nil
 }
 
+// ListRestoreExecutions retrieves restore history with filtering.
+func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilter, limit int, offset int) ([]RestoreExecution, error) {
+	if m == nil || m.db == nil {
+		return nil, fmt.Errorf("monitor database is not initialized")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClause, args := buildRestoreFilter(filter)
+	query := `SELECT id, restore_name, database_type, database_name, source_type, conflict_strategy,
+		timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path,
+		staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds,
+		created_at, finished_at
+		FROM restore_executions ` + whereClause + ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := m.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list restore executions: %w", err)
+	}
+	defer rows.Close()
+
+	var executions []RestoreExecution
+	for rows.Next() {
+		exec, err := scanRestoreExecution(rows)
+		if err != nil {
+			return nil, err
+		}
+		executions = append(executions, *exec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read restore execution rows: %w", err)
+	}
+
+	return executions, nil
+}
+
 func buildFilter(filter *Filter) (string, []interface{}) {
 	if filter == nil {
 		return "", nil
@@ -93,6 +134,42 @@ func buildFilter(filter *Filter) (string, []interface{}) {
 	if filter.StorageBackend != "" {
 		clauses = append(clauses, "storage_backend = ?")
 		args = append(args, filter.StorageBackend)
+	}
+	if !filter.StartDate.IsZero() {
+		clauses = append(clauses, "timestamp >= ?")
+		args = append(args, filter.StartDate)
+	}
+	if !filter.EndDate.IsZero() {
+		clauses = append(clauses, "timestamp <= ?")
+		args = append(args, filter.EndDate)
+	}
+
+	if len(clauses) == 0 {
+		return "", args
+	}
+
+	return "WHERE " + strings.Join(clauses, " AND "), args
+}
+
+func buildRestoreFilter(filter *RestoreFilter) (string, []interface{}) {
+	if filter == nil {
+		return "", nil
+	}
+
+	var clauses []string
+	var args []interface{}
+
+	if filter.RestoreName != "" {
+		clauses = append(clauses, "restore_name = ?")
+		args = append(args, filter.RestoreName)
+	}
+	if filter.Status != "" {
+		clauses = append(clauses, "status = ?")
+		args = append(args, filter.Status)
+	}
+	if filter.DatabaseType != "" {
+		clauses = append(clauses, "database_type = ?")
+		args = append(args, filter.DatabaseType)
 	}
 	if !filter.StartDate.IsZero() {
 		clauses = append(clauses, "timestamp >= ?")
@@ -283,6 +360,82 @@ func scanFullExecution(row rowScanner) (*Execution, error) {
 	}
 	if cleanupError.Valid {
 		exec.CleanupError = cleanupError.String
+	}
+
+	return &exec, nil
+}
+
+func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
+	var exec RestoreExecution
+	var timestamp time.Time
+	var createdAt time.Time
+	var durationMs sql.NullInt64
+	var errorMessage sql.NullString
+	var errorReason sql.NullString
+	var reason sql.NullString
+	var stagedFilePath sql.NullString
+	var stagedRetained sql.NullBool
+	var bytesRestored sql.NullInt64
+	var verificationPassed sql.NullBool
+	var timeoutSeconds sql.NullInt64
+	var finishedAt sql.NullTime
+
+	if err := row.Scan(
+		&exec.ID,
+		&exec.RestoreName,
+		&exec.DatabaseType,
+		&exec.DatabaseName,
+		&exec.SourceType,
+		&exec.ConflictStrategy,
+		&timestamp,
+		&durationMs,
+		&exec.Status,
+		&errorMessage,
+		&errorReason,
+		&reason,
+		&exec.SourceBackupPath,
+		&stagedFilePath,
+		&stagedRetained,
+		&bytesRestored,
+		&verificationPassed,
+		&timeoutSeconds,
+		&createdAt,
+		&finishedAt,
+	); err != nil {
+		return nil, fmt.Errorf("failed to scan restore execution: %w", err)
+	}
+
+	exec.Timestamp = timestamp
+	exec.CreatedAt = createdAt
+	if durationMs.Valid {
+		exec.DurationMs = durationMs.Int64
+	}
+	if errorMessage.Valid {
+		exec.ErrorMessage = errorMessage.String
+	}
+	if errorReason.Valid {
+		exec.ErrorReason = errorReason.String
+	}
+	if reason.Valid {
+		exec.Reason = reason.String
+	}
+	if stagedFilePath.Valid {
+		exec.StagedFilePath = stagedFilePath.String
+	}
+	if stagedRetained.Valid {
+		exec.StagedFileRetained = stagedRetained.Bool
+	}
+	if bytesRestored.Valid {
+		exec.BytesRestored = bytesRestored.Int64
+	}
+	if verificationPassed.Valid {
+		exec.VerificationPassed = verificationPassed.Bool
+	}
+	if timeoutSeconds.Valid {
+		exec.TimeoutSeconds = int(timeoutSeconds.Int64)
+	}
+	if finishedAt.Valid {
+		exec.FinishedAt = &finishedAt.Time
 	}
 
 	return &exec, nil

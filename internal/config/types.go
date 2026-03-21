@@ -40,6 +40,15 @@ type SchedulerConfig struct {
 	LockDir string `yaml:"lock_dir"`
 }
 
+// RestoreRuntimeConfig holds shared runtime settings for restore execution.
+type RestoreRuntimeConfig struct {
+	// StagingDir is the base directory used for staged restore artifacts.
+	StagingDir string `yaml:"staging_dir,omitempty"`
+
+	// KeepFile retains staged artifacts after execution for debugging.
+	KeepFile bool `yaml:"keep_file,omitempty"`
+}
+
 // AzureAuthConfig specifies authentication method for Azure Blob Storage.
 type AzureAuthConfig struct {
 	// Type is one of: managed_identity, connection_string, sas_token
@@ -86,6 +95,9 @@ type Configuration struct {
 
 	// Restore job definitions keyed by job name
 	Restores map[string]RestoreJob `yaml:"restores,omitempty"`
+
+	// Restore holds shared runtime settings for restore execution.
+	Restore RestoreRuntimeConfig `yaml:"restore,omitempty"`
 
 	// Named storage configurations (reusable references)
 	Storages map[string]StorageConfig `yaml:"storages,omitempty"`

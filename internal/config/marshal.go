@@ -11,6 +11,10 @@ import (
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
 	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
+	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
+	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
+	"github.com/denisakp/sentinel/pkg/restore/pg_restore"
 )
 
 // BuildStorageParams converts a job's storage configuration into storage.Params.
@@ -201,4 +205,105 @@ func BuildAdditionalArgs(job BackupJob) string {
 		}
 	}
 	return strings.Join(args, " ")
+}
+
+// BuildPgRestoreArgs maps a restore job into pg_restore arguments.
+func BuildPgRestoreArgs(job RestoreJob, password, stagedPath string) (*pg_restore.RestoreArgs, error) {
+	return &pg_restore.RestoreArgs{
+		Host:           job.Host,
+		Port:           job.Port,
+		Username:       job.Username,
+		Password:       password,
+		Database:       job.Database,
+		BackupPath:     stagedPath,
+		OnConflict:     effectiveRestoreConflict(job),
+		AdditionalArgs: BuildRestoreAdditionalArgs(job),
+	}, nil
+}
+
+// BuildMySQLRestoreArgs maps a restore job into mysql restore arguments.
+func BuildMySQLRestoreArgs(job RestoreJob, password, stagedPath string) (*mysql_restore.RestoreArgs, error) {
+	return &mysql_restore.RestoreArgs{
+		Host:           job.Host,
+		Port:           job.Port,
+		Username:       job.Username,
+		Password:       password,
+		Database:       job.Database,
+		BackupPath:     stagedPath,
+		OnConflict:     effectiveRestoreConflict(job),
+		AdditionalArgs: BuildRestoreAdditionalArgs(job),
+	}, nil
+}
+
+// BuildMariaDBRestoreArgs maps a restore job into mariadb restore arguments.
+func BuildMariaDBRestoreArgs(job RestoreJob, password, stagedPath string) (*mariadb_restore.RestoreArgs, error) {
+	return &mariadb_restore.RestoreArgs{
+		Host:           job.Host,
+		Port:           job.Port,
+		Username:       job.Username,
+		Password:       password,
+		Database:       job.Database,
+		BackupPath:     stagedPath,
+		OnConflict:     effectiveRestoreConflict(job),
+		AdditionalArgs: BuildRestoreAdditionalArgs(job),
+	}, nil
+}
+
+// BuildMongoRestoreArgs maps a restore job into mongorestore arguments.
+func BuildMongoRestoreArgs(job RestoreJob, stagedPath string) (*mongo_restore.RestoreArgs, error) {
+	return &mongo_restore.RestoreArgs{
+		URI:            job.URI,
+		Database:       job.Database,
+		BackupPath:     stagedPath,
+		OnConflict:     effectiveRestoreConflict(job),
+		Gzip:           optionBool(job.RestoreOptions, "gzip"),
+		Archive:        optionBool(job.RestoreOptions, "archive"),
+		AdditionalArgs: BuildRestoreAdditionalArgs(job),
+	}, nil
+}
+
+// RestorePasswordFromEnv resolves a restore password from the configured env var.
+func RestorePasswordFromEnv(envName string) (string, error) {
+	if envName == "" {
+		return "", nil
+	}
+	value := os.Getenv(envName)
+	if value == "" {
+		return "", fmt.Errorf("environment variable '%s' is not set", envName)
+	}
+	return value, nil
+}
+
+// BuildRestoreAdditionalArgs builds a space-separated args string from restore options.
+func BuildRestoreAdditionalArgs(job RestoreJob) string {
+	if len(job.RestoreOptions) == 0 {
+		return ""
+	}
+	var args []string
+	for key, value := range job.RestoreOptions {
+		if flag, ok := value.(bool); ok && flag {
+			switch key {
+			case "clean":
+				args = append(args, "--clean")
+			case "if_exists":
+				args = append(args, "--if-exists")
+			case "no_owner":
+				args = append(args, "--no-owner")
+			case "no_privileges":
+				args = append(args, "--no-privileges")
+			case "gzip":
+				if job.Type == "mongodb" {
+					args = append(args, "--gzip")
+				}
+			}
+		}
+	}
+	return strings.Join(args, " ")
+}
+
+func effectiveRestoreConflict(job RestoreJob) string {
+	if job.ConflictStrategy == "" {
+		return "error"
+	}
+	return job.ConflictStrategy
 }
