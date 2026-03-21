@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/storage"
 )
+
+var runSharedRestoreExecution = internalrestore.ExecuteRestore
 
 // RestoreExecutionConfig defines parameters for a scheduled restore operation
 type RestoreExecutionConfig struct {
@@ -230,4 +234,76 @@ func ExecuteRestoreWithCleanup(
 
 	result.Success = true
 	return result
+}
+
+// ExecuteScheduledRestore executes a restore job through the shared restore
+// executor and enforces optional scheduler-level concurrency limits.
+func ExecuteScheduledRestore(
+	ctx context.Context,
+	cfg *config.Configuration,
+	jobName string,
+	job config.RestoreJob,
+	mon *monitor.Monitor,
+	limiter chan struct{},
+) (*internalrestore.ExecutionResult, error) {
+	if limiter != nil {
+		select {
+		case limiter <- struct{}{}:
+			defer func() { <-limiter }()
+		default:
+			result := &internalrestore.ExecutionResult{
+				Status:             monitor.StatusSkipped,
+				Reason:             "concurrency_limit_reached",
+				StartedAt:          time.Now().UTC(),
+				CompletedAt:        time.Now().UTC(),
+				SourceType:         job.BackupSource.Type,
+				ConflictStrategy:   effectiveConflictStrategy(job.ConflictStrategy),
+				TimeoutSeconds:     job.TimeoutSeconds,
+				VerificationPassed: false,
+			}
+
+			if mon != nil {
+				_ = mon.RecordRestoreExecution(ctx, &monitor.RestoreExecution{
+					RestoreName:      jobName,
+					DatabaseType:     job.Type,
+					DatabaseName:     job.Database,
+					SourceType:       job.BackupSource.Type,
+					ConflictStrategy: effectiveConflictStrategy(job.ConflictStrategy),
+					Timestamp:        result.StartedAt,
+					DurationMs:       0,
+					Status:           monitor.StatusSkipped,
+					Reason:           "concurrency_limit_reached",
+					ErrorReason:      "concurrency_limit_reached",
+					SourceBackupPath: job.BackupSource.BackupPath,
+					CreatedAt:        result.StartedAt,
+					FinishedAt:       &result.CompletedAt,
+				})
+			}
+
+			return result, nil
+		}
+	}
+
+	result, err := runSharedRestoreExecution(ctx, &internalrestore.ExecutionRequest{
+		JobName: jobName,
+		Job:     job,
+		Config:  cfg,
+		Monitor: mon,
+		LockDir: cfg.Scheduler.LockDir,
+	})
+	if err != nil {
+		if result != nil && result.Status == monitor.StatusSkipped {
+			return result, nil
+		}
+		return result, err
+	}
+
+	return result, nil
+}
+
+func effectiveConflictStrategy(strategy string) string {
+	if strategy == "" {
+		return "error"
+	}
+	return strategy
 }
