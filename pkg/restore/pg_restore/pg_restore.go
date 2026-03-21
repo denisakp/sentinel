@@ -50,9 +50,6 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("invalid conflict strategy - %w", err)
 	}
 
-	var backupData []byte
-	var err error
-
 	// Read backup from cloud storage if storage handler exists
 	if ra.Storage != nil && ra.Storage.Handler != nil {
 		// Type assert to storage.Storage interface
@@ -63,16 +60,26 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 			return fmt.Errorf("storage handler does not implement ReadBackup method")
 		}
 
-		backupData, err = handler.ReadBackup(ra.Storage.OutName)
+		backupData, err := handler.ReadBackup(ra.Storage.OutName)
 		if err != nil {
 			return fmt.Errorf("failed to read backup from cloud storage - %w", err)
 		}
-	} else if ra.BackupPath != "" {
-		// Fall back to local file
-		backupData, err = os.ReadFile(ra.BackupPath)
+
+		tmpFile, err := os.CreateTemp("", "sentinel-pg-restore-*")
 		if err != nil {
-			return fmt.Errorf("failed to read backup file - %w", err)
+			return fmt.Errorf("failed to create temp backup file - %w", err)
 		}
+		defer os.Remove(tmpFile.Name())
+		if _, err := tmpFile.Write(backupData); err != nil {
+			tmpFile.Close()
+			return fmt.Errorf("failed to write temp backup file - %w", err)
+		}
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to finalize temp backup file - %w", err)
+		}
+		ra.BackupPath = tmpFile.Name()
+	} else if ra.BackupPath != "" {
+		// Local restore paths are handed to pg_restore directly.
 	} else {
 		return fmt.Errorf("backup path or storage handler is required")
 	}
@@ -111,7 +118,11 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		args = append(args, additionalArgs...)
 	}
 
-	// Execute pg_restore with stdin piping
+	if ra.BackupPath != "" {
+		args = append(args, ra.BackupPath)
+	}
+
+	// Execute pg_restore against the staged backup path.
 	cmd := exec.CommandContext(ctx, "pg_restore", args...)
 
 	// Set up environment with password
@@ -120,27 +131,8 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", ra.Password))
 	}
 
-	// Pipe backup data to stdin
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stdin pipe - %w", err)
-	}
-
-	// Start command
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start pg_restore command - %w", err)
-	}
-
-	// Write backup data to stdin
-	if _, err := stdin.Write(backupData); err != nil {
-		stdin.Close()
-		return fmt.Errorf("failed to write backup data to pg_restore stdin - %w", err)
-	}
-	stdin.Close()
-
-	// Wait for command completion
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("pg_restore command failed - %w", err)
 	}
 
 	return nil

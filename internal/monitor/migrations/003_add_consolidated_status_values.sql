@@ -53,7 +53,7 @@ CREATE TABLE restore_executions_new (
 	database_type TEXT NOT NULL,
 	database_name TEXT NOT NULL,
 	timestamp DATETIME NOT NULL,
-	status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'interrupted', 'success', 'failure', 'in-progress')),
+	status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'interrupted', 'success', 'failure', 'in-progress', 'timeout', 'skipped')),
 	duration_ms INTEGER,
 	source_backup_path TEXT NOT NULL,
 	bytes_restored INTEGER,
