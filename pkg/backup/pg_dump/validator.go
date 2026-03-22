@@ -55,3 +55,19 @@ func validateRequiredArgs(pda *PgDumpArgs) error {
 
 	return nil
 }
+
+func validatePITRMetadataArgs(pda *PgDumpArgs) error {
+	if pda == nil {
+		return fmt.Errorf("pg_dump args are required")
+	}
+	if !pda.PITREnabled {
+		return nil
+	}
+	if pda.WALArchivePrefix == "" {
+		return fmt.Errorf("wal archive prefix is required when pitr metadata capture is enabled")
+	}
+	if !pda.PITRWindowStartUTC.IsZero() && !pda.PITRWindowEndUTC.IsZero() && pda.PITRWindowEndUTC.Before(pda.PITRWindowStartUTC) {
+		return fmt.Errorf("pitr window end must be greater than or equal to start")
+	}
+	return nil
+}

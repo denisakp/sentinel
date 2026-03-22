@@ -64,3 +64,15 @@ func ReadManifest(path string) (*BackupManifest, error) {
 
 	return &m, nil
 }
+
+// LoadRestoreManifest loads restore manifest metadata and preserves ErrNoManifest semantics.
+func LoadRestoreManifest(path string) (*BackupManifest, error) {
+	if path == "" {
+		return nil, ErrNoManifest
+	}
+	m, err := ReadManifest(path)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}

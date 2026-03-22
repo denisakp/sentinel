@@ -3,6 +3,7 @@ package pg_dump
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestValidatePgCompressionAlgorithm(t *testing.T) {
@@ -101,4 +102,61 @@ func Test_validateRequiredArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidatePITRMetadataArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    *PgDumpArgs
+		wantErr bool
+	}{
+		{
+			name:    "nil args",
+			args:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "pitr disabled",
+			args:    &PgDumpArgs{PITREnabled: false},
+			wantErr: false,
+		},
+		{
+			name:    "missing wal archive prefix",
+			args:    &PgDumpArgs{PITREnabled: true},
+			wantErr: true,
+		},
+		{
+			name: "window end before start",
+			args: &PgDumpArgs{
+				PITREnabled:        true,
+				WALArchivePrefix:   "wal/archive",
+				PITRWindowStartUTC: nowUTC(2026, 3, 20, 22, 0),
+				PITRWindowEndUTC:   nowUTC(2026, 3, 20, 21, 0),
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid pitr metadata",
+			args: &PgDumpArgs{
+				PITREnabled:        true,
+				WALArchivePrefix:   "wal/archive",
+				PITRWindowStartUTC: nowUTC(2026, 3, 20, 20, 0),
+				PITRWindowEndUTC:   nowUTC(2026, 3, 20, 21, 0),
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validatePITRMetadataArgs(tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validatePITRMetadataArgs() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func nowUTC(year, month, day, hour, minute int) time.Time {
+	return time.Date(year, time.Month(month), day, hour, minute, 0, 0, time.UTC)
 }

@@ -64,3 +64,7 @@ func truncatePreview(input string, maxLen int) string {
 	}
 	return input[:maxLen-3] + "..."
 }
+
+func formatRestoreHistoryRow(cells ...string) string {
+	return strings.Join(cells, " | ")
+}

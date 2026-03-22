@@ -253,6 +253,24 @@ func ensureSchemaColumns(db *sql.DB) error {
 	if err := addRestoreColumn("timeout_seconds", "INTEGER"); err != nil {
 		return err
 	}
+	if err := addRestoreColumn("restore_mode", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("planning_status", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("requested_pitr_time_utc", "DATETIME"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("baseline_backup_id", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("fallback_decision", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("recovery_timeline_id", "TEXT"); err != nil {
+		return err
+	}
 
 	if err := ensureRestoreStatusConstraint(db); err != nil {
 		return err
@@ -287,6 +305,12 @@ CREATE TABLE restore_executions_new (
 	restore_name TEXT NOT NULL,
 	database_type TEXT NOT NULL,
 	database_name TEXT NOT NULL,
+	restore_mode TEXT,
+	planning_status TEXT,
+	requested_pitr_time_utc DATETIME,
+	baseline_backup_id TEXT,
+	fallback_decision TEXT,
+	recovery_timeline_id TEXT,
 	source_type TEXT NOT NULL DEFAULT '',
 	conflict_strategy TEXT NOT NULL DEFAULT '',
 	timestamp DATETIME NOT NULL,
@@ -314,13 +338,17 @@ CREATE TABLE restore_executions_new (
 
 		if _, err := tx.Exec(`
 INSERT INTO restore_executions_new (
-	id, restore_name, database_type, database_name, source_type, conflict_strategy,
+	id, restore_name, database_type, database_name, restore_mode, planning_status,
+	requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id,
+	source_type, conflict_strategy,
 	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
 	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,
 	created_at, finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
 )
 SELECT
-	id, restore_name, database_type, database_name, source_type, conflict_strategy,
+	id, restore_name, database_type, database_name, NULL, NULL,
+	NULL, NULL, NULL, NULL,
+	source_type, conflict_strategy,
 	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
 	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,
 	created_at, finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at

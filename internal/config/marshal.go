@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
@@ -205,6 +206,33 @@ func BuildAdditionalArgs(job BackupJob) string {
 		}
 	}
 	return strings.Join(args, " ")
+}
+
+// BuildAdvancedRestoreRequest normalizes restore-mode-specific fields for planner input.
+func BuildAdvancedRestoreRequest(job RestoreJob) (*AdvancedRestoreRequest, error) {
+	mode := job.RestoreMode
+	if mode == "" {
+		mode = "full"
+	}
+
+	request := &AdvancedRestoreRequest{
+		RestoreMode:           mode,
+		PITRInputValue:        job.PITRTimestamp,
+		PITRTargetTimeline:    job.PITRTargetTimeline,
+		IncrementalFromBackup: job.IncrementalFromBackup,
+		ConfirmFullFallback:   job.ConfirmFullFallback,
+	}
+
+	if mode == "pitr" && job.PITRTimestamp != "" {
+		parsed, err := time.Parse(time.RFC3339, job.PITRTimestamp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse pitr_timestamp: %w", err)
+		}
+		utc := parsed.UTC()
+		request.PITRTimestampUTC = &utc
+	}
+
+	return request, nil
 }
 
 // BuildPgRestoreArgs maps a restore job into pg_restore arguments.
