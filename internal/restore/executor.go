@@ -26,6 +26,14 @@ var (
 	ErrRestoreInterrupted  = errors.New("restore interrupted")
 )
 
+var (
+	stageRestoreSource    = StageRestoreSource
+	applyRestorePreflight = applyPreflight
+	executeRestoreEngine  = executeEngineRestore
+	runPostgresRestore    = pgrestore.Restore
+	runPostgresPITR       = executePostgresPITR
+)
+
 type ExecutionRequest struct {
 	JobName           string
 	Job               config.RestoreJob
@@ -38,21 +46,27 @@ type ExecutionRequest struct {
 }
 
 type ExecutionResult struct {
-	ExecutionID        string
-	Status             string
-	Reason             string
-	StartedAt          time.Time
-	CompletedAt        time.Time
-	Duration           time.Duration
-	StagedFilePath     string
-	StagedFileRetained bool
-	SourcePath         string
-	SourceType         string
-	BytesRestored      int64
-	VerificationPassed bool
-	ConflictStrategy   string
-	TimeoutSeconds     int
-	Error              error
+	ExecutionID          string
+	Status               string
+	Reason               string
+	RestoreMode          string
+	PlanningStatus       string
+	RequestedPITRTimeUTC *time.Time
+	BaselineBackupID     string
+	FallbackDecision     string
+	RecoveryTimelineID   string
+	StartedAt            time.Time
+	CompletedAt          time.Time
+	Duration             time.Duration
+	StagedFilePath       string
+	StagedFileRetained   bool
+	SourcePath           string
+	SourceType           string
+	BytesRestored        int64
+	VerificationPassed   bool
+	ConflictStrategy     string
+	TimeoutSeconds       int
+	Error                error
 }
 
 func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResult, error) {
@@ -101,7 +115,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		defer cancel()
 	}
 
-	artifact, err := StageRestoreSource(ctx, job)
+	artifact, err := stageRestoreSource(ctx, job)
 	if err != nil {
 		result.Reason = classifyRestoreError(err)
 		result.Error = err
@@ -125,7 +139,62 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		_ = CleanupStagedArtifact(artifact)
 	}()
 
-	stagedPath, err := applyPreflight(ctx, req.Config, artifact)
+	planningInput, err := config.BuildAdvancedRestoreRequest(job)
+	if err != nil {
+		result.Reason = classifyRestoreError(err)
+		result.Error = err
+		result.CompletedAt = time.Now().UTC()
+		result.Duration = result.CompletedAt.Sub(result.StartedAt)
+		recordRestoreExecution(ctx, req, job, result)
+		return result, err
+	}
+
+	plan, err := PlanAdvancedRestoreFromManifestPath(job, planningInput, artifact.ManifestPath)
+	if err != nil {
+		result.Reason = classifyRestoreError(err)
+		result.Error = err
+		result.CompletedAt = time.Now().UTC()
+		result.Duration = result.CompletedAt.Sub(result.StartedAt)
+		recordRestoreExecution(ctx, req, job, result)
+		return result, err
+	}
+	if plan.Status == PlanStatusRejected {
+		err := fmt.Errorf("restore planning rejected: %s", plan.ReasonCode)
+		result.Reason = plan.ReasonCode
+		result.RestoreMode = string(plan.Mode)
+		result.PlanningStatus = string(plan.Status)
+		result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
+		result.BaselineBackupID = plan.BaselineBackupID
+		result.FallbackDecision = string(plan.Fallback)
+		result.Error = err
+		result.CompletedAt = time.Now().UTC()
+		result.Duration = result.CompletedAt.Sub(result.StartedAt)
+		recordRestoreExecution(ctx, req, job, result)
+		return result, err
+	}
+	if plan.Status == PlanStatusConfirmationRequired {
+		err := fmt.Errorf("restore planning requires confirmation: %s", plan.ReasonCode)
+		result.Reason = plan.ReasonCode
+		result.RestoreMode = string(plan.Mode)
+		result.PlanningStatus = string(plan.Status)
+		result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
+		result.BaselineBackupID = plan.BaselineBackupID
+		result.FallbackDecision = string(plan.Fallback)
+		result.Error = err
+		result.CompletedAt = time.Now().UTC()
+		result.Duration = result.CompletedAt.Sub(result.StartedAt)
+		recordRestoreExecution(ctx, req, job, result)
+		return result, err
+	}
+	job.RestoreMode = string(plan.Mode)
+	result.RestoreMode = string(plan.Mode)
+	result.PlanningStatus = string(plan.Status)
+	result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
+	result.BaselineBackupID = plan.BaselineBackupID
+	result.FallbackDecision = string(plan.Fallback)
+	result.RecoveryTimelineID = plan.RequestedTimeline
+
+	stagedPath, err := applyRestorePreflight(ctx, req.Config, artifact)
 	if err != nil {
 		result.Reason = classifyRestoreError(err)
 		result.Error = err
@@ -147,7 +216,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		}
 	}
 
-	if err := executeEngineRestore(ctx, job, stagedPath); err != nil {
+	if err := executeRestoreEngine(ctx, job, stagedPath); err != nil {
 		result.Reason = classifyRestoreError(err)
 		result.Error = err
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -173,7 +242,17 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		}
 	}
 
-	if job.VerifyAfterRestore && req.VerifyAfterRun != nil {
+	requiresVerification := job.VerifyAfterRestore || job.RestoreMode == "pitr" || job.RestoreMode == "incremental"
+	if requiresVerification {
+		if req.VerifyAfterRun == nil {
+			err := fmt.Errorf("verification handler is required for restore mode %q", job.RestoreMode)
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
 		verified, err := req.VerifyAfterRun(ctx, job)
 		if err != nil {
 			result.Reason = classifyRestoreError(err)
@@ -183,7 +262,16 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 			recordRestoreExecution(ctx, req, job, result)
 			return result, err
 		}
-		result.VerificationPassed = verified
+		if !verified {
+			err := fmt.Errorf("post-restore verification failed")
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
+		result.VerificationPassed = true
 	}
 
 	result.Status = monitor.StatusSuccess
@@ -246,11 +334,14 @@ func executeEngineRestore(ctx context.Context, job config.RestoreJob, stagedPath
 
 	switch job.Type {
 	case "postgres":
+		if job.RestoreMode == "pitr" {
+			return runPostgresPITR(ctx, job, password, stagedPath)
+		}
 		args, err := config.BuildPgRestoreArgs(job, password, stagedPath)
 		if err != nil {
 			return err
 		}
-		return pgrestore.Restore(ctx, args)
+		return runPostgresRestore(ctx, args)
 	case "mysql":
 		args, err := config.BuildMySQLRestoreArgs(job, password, stagedPath)
 		if err != nil {
@@ -279,26 +370,32 @@ func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job conf
 		return
 	}
 	entry := &monitor.RestoreExecution{
-		ID:                 result.ExecutionID,
-		RestoreName:        req.JobName,
-		DatabaseType:       job.Type,
-		DatabaseName:       job.Database,
-		SourceType:         job.BackupSource.Type,
-		ConflictStrategy:   result.ConflictStrategy,
-		Timestamp:          result.StartedAt,
-		DurationMs:         result.Duration.Milliseconds(),
-		Status:             result.Status,
-		ErrorMessage:       errorMessage(result.Error),
-		ErrorReason:        result.Reason,
-		Reason:             result.Reason,
-		SourceBackupPath:   result.SourcePath,
-		StagedFilePath:     result.StagedFilePath,
-		StagedFileRetained: result.StagedFileRetained,
-		BytesRestored:      result.BytesRestored,
-		VerificationPassed: result.VerificationPassed,
-		TimeoutSeconds:     result.TimeoutSeconds,
-		CreatedAt:          result.StartedAt,
-		FinishedAt:         &result.CompletedAt,
+		ID:                   result.ExecutionID,
+		RestoreName:          req.JobName,
+		DatabaseType:         job.Type,
+		DatabaseName:         job.Database,
+		RestoreMode:          result.RestoreMode,
+		PlanningStatus:       result.PlanningStatus,
+		RequestedPITRTimeUTC: result.RequestedPITRTimeUTC,
+		BaselineBackupID:     result.BaselineBackupID,
+		FallbackDecision:     result.FallbackDecision,
+		RecoveryTimelineID:   result.RecoveryTimelineID,
+		SourceType:           job.BackupSource.Type,
+		ConflictStrategy:     result.ConflictStrategy,
+		Timestamp:            result.StartedAt,
+		DurationMs:           result.Duration.Milliseconds(),
+		Status:               result.Status,
+		ErrorMessage:         errorMessage(result.Error),
+		ErrorReason:          result.Reason,
+		Reason:               result.Reason,
+		SourceBackupPath:     result.SourcePath,
+		StagedFilePath:       result.StagedFilePath,
+		StagedFileRetained:   result.StagedFileRetained,
+		BytesRestored:        result.BytesRestored,
+		VerificationPassed:   result.VerificationPassed,
+		TimeoutSeconds:       result.TimeoutSeconds,
+		CreatedAt:            result.StartedAt,
+		FinishedAt:           &result.CompletedAt,
 	}
 	_ = req.Monitor.RecordRestoreExecution(ctx, entry)
 	result.ExecutionID = entry.ID

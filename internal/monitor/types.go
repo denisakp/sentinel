@@ -68,25 +68,31 @@ type Execution struct {
 
 // RestoreExecution represents a single restore execution record.
 type RestoreExecution struct {
-	ID                 string
-	RestoreName        string
-	DatabaseType       string
-	DatabaseName       string
-	SourceType         string
-	ConflictStrategy   string
-	Timestamp          time.Time
-	DurationMs         int64
-	Status             string
-	ErrorMessage       string
-	ErrorReason        string
-	Reason             string
-	SourceBackupPath   string
-	StagedFilePath     string
-	StagedFileRetained bool
-	BytesRestored      int64
-	VerificationPassed bool
-	TimeoutSeconds     int
-	CreatedAt          time.Time
+	ID                   string
+	RestoreName          string
+	DatabaseType         string
+	DatabaseName         string
+	RestoreMode          string
+	PlanningStatus       string
+	RequestedPITRTimeUTC *time.Time
+	BaselineBackupID     string
+	FallbackDecision     string
+	RecoveryTimelineID   string
+	SourceType           string
+	ConflictStrategy     string
+	Timestamp            time.Time
+	DurationMs           int64
+	Status               string
+	ErrorMessage         string
+	ErrorReason          string
+	Reason               string
+	SourceBackupPath     string
+	StagedFilePath       string
+	StagedFileRetained   bool
+	BytesRestored        int64
+	VerificationPassed   bool
+	TimeoutSeconds       int
+	CreatedAt            time.Time
 	// V1 Consolidation: Cleanup and interruption fields
 	FinishedAt       *time.Time
 	CleanupAttempted bool

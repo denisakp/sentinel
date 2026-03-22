@@ -1,17 +1,21 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	"github.com/spf13/cobra"
 )
 
 func TestRestoreRunCmd_GCSFlagsRegistered(t *testing.T) {
@@ -244,4 +248,93 @@ func writeRestoreRunConfigWithNotifications(t *testing.T, webhookURL string) str
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	return path
+}
+
+func TestHandleRestoreHistory_RendersAdvancedRestoreFields(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "history.db")
+	cfgPath := filepath.Join(tmpDir, "restore-history.yaml")
+
+	cfg := "version: \"1.0\"\n" +
+		"history_db_path: " + dbPath + "\n" +
+		"defaults:\n" +
+		"  storage:\n" +
+		"    type: local\n" +
+		"    local_path: ./backups\n" +
+		"databases:\n" +
+		"  pg:\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"restores:\n" +
+		"  pg-restore:\n" +
+		"    enabled: true\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"    schedule: \"0 2 * * *\"\n" +
+		"    staging_dir: /tmp/sentinel\n" +
+		"    backup_source:\n" +
+		"      type: local\n" +
+		"      local_path: /tmp\n" +
+		"      backup_path: backup.sql\n"
+
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	mon, err := monitor.NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := mon.RecordRestoreExecution(context.Background(), &monitor.RestoreExecution{
+		RestoreName:      "pg-restore",
+		DatabaseType:     "postgres",
+		DatabaseName:     "app",
+		RestoreMode:      "pitr",
+		PlanningStatus:   "ready",
+		FallbackDecision: "none",
+		SourceType:       "local",
+		ConflictStrategy: "error",
+		Timestamp:        now,
+		DurationMs:       1000,
+		Status:           monitor.StatusSuccess,
+		SourceBackupPath: "backup.sql",
+		CreatedAt:        now,
+		FinishedAt:       &now,
+	}); err != nil {
+		_ = mon.Close()
+		t.Fatalf("RecordRestoreExecution() error = %v", err)
+	}
+	if err := mon.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	prevCfg := restoreConfigFile
+	t.Cleanup(func() { restoreConfigFile = prevCfg })
+	restoreConfigFile = cfgPath
+
+	buf := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetContext(context.Background())
+
+	if err := handleRestoreHistory(cmd, []string{"pg-restore"}); err != nil {
+		t.Fatalf("handleRestoreHistory() error = %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "MODE") || !strings.Contains(out, "PLAN") || !strings.Contains(out, "FALLBACK") {
+		t.Fatalf("expected advanced restore history headers, got: %s", out)
+	}
+	if !strings.Contains(out, "pitr") || !strings.Contains(out, "ready") {
+		t.Fatalf("expected advanced restore values in output, got: %s", out)
+	}
 }

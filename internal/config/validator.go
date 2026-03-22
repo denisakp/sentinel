@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/robfig/cron/v3"
 
@@ -126,6 +127,9 @@ func ValidateConfig(cfg *Configuration) error {
 		if job.TimeoutSeconds < 0 {
 			return fmt.Errorf("restore '%s': timeout_seconds must be non-negative", name)
 		}
+		if err := validateAdvancedRestoreOptions(job); err != nil {
+			return fmt.Errorf("restore '%s': %w", name, err)
+		}
 		if err := validateRestoreEnvNames(job); err != nil {
 			return fmt.Errorf("restore '%s': %w", name, err)
 		}
@@ -237,6 +241,54 @@ func validateRestoreEnvNames(job RestoreJob) error {
 	}
 
 	return nil
+}
+
+func validateAdvancedRestoreOptions(job RestoreJob) error {
+	mode := job.RestoreMode
+	if mode == "" {
+		mode = "full"
+	}
+
+	switch mode {
+	case "full":
+		if job.ConfirmFullFallback {
+			return fmt.Errorf("confirm_full_fallback is only valid when restore_mode is incremental")
+		}
+		if job.PITRTimestamp != "" || job.PITRTargetTimeline != "" || job.IncrementalFromBackup != "" {
+			return fmt.Errorf("advanced restore fields require restore_mode to be pitr or incremental")
+		}
+		return nil
+	case "pitr":
+		if job.Type != "postgres" {
+			return fmt.Errorf("restore_mode pitr is currently supported only for postgres")
+		}
+		if job.PITRTimestamp == "" {
+			return fmt.Errorf("pitr_timestamp is required when restore_mode is pitr")
+		}
+		if _, err := time.Parse(time.RFC3339, job.PITRTimestamp); err != nil {
+			return fmt.Errorf("pitr_timestamp must be RFC3339 with timezone: %w", err)
+		}
+		if job.ConfirmFullFallback {
+			return fmt.Errorf("confirm_full_fallback is only valid when restore_mode is incremental")
+		}
+		if job.IncrementalFromBackup != "" {
+			return fmt.Errorf("incremental_from_backup is only valid when restore_mode is incremental")
+		}
+		return nil
+	case "incremental":
+		if job.Type != "postgres" {
+			return fmt.Errorf("restore_mode incremental is currently supported only for postgres")
+		}
+		if job.IncrementalFromBackup == "" {
+			return fmt.Errorf("incremental_from_backup is required when restore_mode is incremental")
+		}
+		if job.PITRTimestamp != "" || job.PITRTargetTimeline != "" {
+			return fmt.Errorf("pitr fields are only valid when restore_mode is pitr")
+		}
+		return nil
+	default:
+		return fmt.Errorf("restore_mode must be one of: full, pitr, incremental")
+	}
 }
 
 func validateStorage(job BackupJob) error {

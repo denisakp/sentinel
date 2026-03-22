@@ -2,6 +2,7 @@ package pg_dump
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
@@ -22,6 +23,14 @@ type PgDumpArgs struct {
 	AdditionalArgs       string          // Additional arguments for the pg_dump command
 	Storage              *storage.Params // Storage parameters
 	TLS                  *internaltls.Config
+
+	PITREnabled        bool      // Enables PITR metadata capture
+	WALArchivePrefix   string    // WAL archive prefix associated with the backup lineage
+	PITRWindowStartUTC time.Time // Earliest recoverable point for this backup lineage
+	PITRWindowEndUTC   time.Time // Latest recoverable point for this backup lineage
+	BackupTimelineID   string    // Source timeline id used for PITR metadata
+	WALStartLSN        string    // First WAL LSN in backup lineage
+	WALEndLSN          string    // Last WAL LSN in backup lineage
 }
 
 // argsBuilder builds the arguments for the pg_dump command
@@ -36,9 +45,7 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 	if err := validatePgOutFormat(pda.PgOutFormat); err != nil {
 		return nil, err
 	}
-
-	// validate output format
-	if err := validatePgOutFormat(pda.PgOutFormat); err != nil {
+	if err := validatePITRMetadataArgs(pda); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 )
 
 // RestoreJob represents a scheduled restore operation in YAML config
@@ -39,6 +40,21 @@ type RestoreJob struct {
 
 	// Cron schedule for restore testing (5-field format)
 	Schedule string `yaml:"schedule"`
+
+	// RestoreMode selects restore execution mode: full, pitr, or incremental.
+	RestoreMode string `yaml:"restore_mode,omitempty"`
+
+	// PITRTimestamp is the operator-supplied timestamp for PITR requests.
+	PITRTimestamp string `yaml:"pitr_timestamp,omitempty"`
+
+	// PITRTargetTimeline optionally selects a recovery timeline for PITR.
+	PITRTargetTimeline string `yaml:"pitr_target_timeline,omitempty"`
+
+	// IncrementalFromBackup references the baseline backup for incremental planning.
+	IncrementalFromBackup string `yaml:"incremental_from_backup,omitempty"`
+
+	// ConfirmFullFallback authorizes fallback to full restore when required.
+	ConfirmFullFallback bool `yaml:"confirm_full_fallback,omitempty"`
 
 	// Restore-specific options
 	RestoreOptions map[string]interface{} `yaml:"restore_options,omitempty"`
@@ -142,6 +158,16 @@ type RestoreConfiguration struct {
 }
 
 // RestoreDefaults provides default values for all restore jobs
+// AdvancedRestoreRequest captures normalized advanced restore input consumed by planner/executor flows.
+type AdvancedRestoreRequest struct {
+	RestoreMode           string
+	PITRTimestampUTC      *time.Time
+	PITRInputValue        string
+	PITRTargetTimeline    string
+	IncrementalFromBackup string
+	ConfirmFullFallback   bool
+}
+
 type RestoreDefaults struct {
 	// Default verification on/off
 	VerifyAfterRestore bool `yaml:"verify_after_restore,omitempty"`

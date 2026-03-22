@@ -82,3 +82,46 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 		})
 	}
 }
+
+func TestPgDumpArgsBuilder_PITRMetadataValidation(t *testing.T) {
+	backupPath := filepath.Join("tmp", "backups")
+
+	tests := []struct {
+		name    string
+		args    *PgDumpArgs
+		wantErr bool
+	}{
+		{
+			name: "pitr enabled missing wal archive prefix",
+			args: &PgDumpArgs{
+				Username:    "test",
+				Database:    "test",
+				Storage:     &storage.Params{OutName: "test.sql"},
+				PgOutFormat: "p",
+				PITREnabled: true,
+			},
+			wantErr: true,
+		},
+		{
+			name: "pitr metadata accepted",
+			args: &PgDumpArgs{
+				Username:         "test",
+				Database:         "test",
+				Storage:          &storage.Params{OutName: "test.sql"},
+				PgOutFormat:      "p",
+				PITREnabled:      true,
+				WALArchivePrefix: "wal/archive",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := argsBuilder(tt.args, backupPath)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("argsBuilder() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

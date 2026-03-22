@@ -15,6 +15,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/crypto"
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/monitor"
 )
 
 type mockBackupStorage struct{}
@@ -145,5 +146,45 @@ func TestExecuteRestore_EncryptedPreflightStillPassesWithConfiguredKey(t *testin
 	}
 	if strings.Contains(err.Error(), "failed to load master key") {
 		t.Fatalf("executeRestore() unexpectedly failed during encrypted preflight: %v", err)
+	}
+}
+
+func TestRecordRestoreExecution_PropagatesAdvancedDefaults(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "history.db")
+	mon, err := monitor.NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	defer mon.Close()
+
+	rsm := &RestoreScheduleManager{
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		monitor: mon,
+	}
+
+	rsm.recordRestoreExecution(context.Background(), &RestoreScheduleConfig{
+		Name: "restore-scheduled",
+		RestoreConfig: &RestoreExecutionConfig{
+			DatabaseType: "postgres",
+			Database:     "app",
+		},
+		BackupPath: "backup.sql",
+	}, time.Now().UTC(), true, 100, true, "")
+
+	items, err := mon.ListRestoreExecutions(context.Background(), &monitor.RestoreFilter{RestoreName: "restore-scheduled"}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListRestoreExecutions() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 restore execution, got %d", len(items))
+	}
+	if items[0].RestoreMode != "full" {
+		t.Fatalf("RestoreMode = %q, want full", items[0].RestoreMode)
+	}
+	if items[0].PlanningStatus != "ready" {
+		t.Fatalf("PlanningStatus = %q, want ready", items[0].PlanningStatus)
+	}
+	if items[0].FallbackDecision != "none" {
+		t.Fatalf("FallbackDecision = %q, want none", items[0].FallbackDecision)
 	}
 }

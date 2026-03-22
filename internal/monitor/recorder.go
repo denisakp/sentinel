@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -69,14 +70,20 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *RestoreExecu
 	}
 
 	query := `INSERT INTO restore_executions
-		(id, restore_name, database_type, database_name, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(id, restore_name, database_type, database_name, restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := m.db.ExecContext(ctx, query,
 		exec.ID,
 		exec.RestoreName,
 		exec.DatabaseType,
 		exec.DatabaseName,
+		exec.RestoreMode,
+		exec.PlanningStatus,
+		exec.RequestedPITRTimeUTC,
+		exec.BaselineBackupID,
+		exec.FallbackDecision,
+		exec.RecoveryTimelineID,
 		exec.SourceType,
 		exec.ConflictStrategy,
 		exec.Timestamp,
@@ -95,6 +102,37 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *RestoreExecu
 		exec.FinishedAt,
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "restore_mode") || strings.Contains(err.Error(), "planning_status") {
+			legacyQuery := `INSERT INTO restore_executions
+				(id, restore_name, database_type, database_name, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			_, legacyErr := m.db.ExecContext(ctx, legacyQuery,
+				exec.ID,
+				exec.RestoreName,
+				exec.DatabaseType,
+				exec.DatabaseName,
+				exec.SourceType,
+				exec.ConflictStrategy,
+				exec.Timestamp,
+				exec.DurationMs,
+				exec.Status,
+				exec.ErrorMessage,
+				exec.ErrorReason,
+				exec.Reason,
+				exec.SourceBackupPath,
+				exec.StagedFilePath,
+				exec.StagedFileRetained,
+				exec.BytesRestored,
+				exec.VerificationPassed,
+				exec.TimeoutSeconds,
+				exec.CreatedAt,
+				exec.FinishedAt,
+			)
+			if legacyErr == nil {
+				return nil
+			}
+			return fmt.Errorf("failed to record restore execution with legacy fallback: %w", legacyErr)
+		}
 		return fmt.Errorf("failed to record restore execution: %w", err)
 	}
 

@@ -187,6 +187,15 @@ type BackupJob struct {
 	// MongoDB: gzip, oplog, archive
 	DatabaseOptions map[string]interface{} `yaml:"database_options,omitempty"`
 
+	// PITREnabled enables capture of PITR-related metadata for this backup job.
+	PITREnabled bool `yaml:"pitr_enabled,omitempty"`
+
+	// WALArchivePrefix describes where archived WAL segments can be retrieved.
+	WALArchivePrefix string `yaml:"wal_archive_prefix,omitempty"`
+
+	// IncrementalMetadataEnabled enables lineage metadata capture for future incremental restores.
+	IncrementalMetadataEnabled bool `yaml:"incremental_metadata_enabled,omitempty"`
+
 	// Cron expression for scheduling (5-field format)
 	Schedule string `yaml:"schedule,omitempty"`
 

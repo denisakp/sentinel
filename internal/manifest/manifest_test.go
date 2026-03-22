@@ -175,3 +175,65 @@ func TestWriteReadManifest_WithEncryption(t *testing.T) {
 		t.Errorf("Encryption.Iterations = %d, want %d", got.Encryption.Iterations, 100000)
 	}
 }
+
+func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/advanced.manifest.json"
+	start := time.Date(2026, 3, 20, 20, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 3, 20, 23, 59, 0, 0, time.UTC)
+
+	orig := &manifest.BackupManifest{
+		BackupID:     "adv-001",
+		Database:     "appdb",
+		DatabaseType: "postgres",
+		CreatedAt:    time.Now().UTC().Truncate(time.Second),
+		SizeBytes:    4096,
+		Hash:         manifest.HashInfo{Algorithm: "sha256", Value: "feedbeef"},
+		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			Capabilities:                  []string{"full", "pitr", "incremental"},
+			InitialReleaseSupported:       true,
+			RecoverableWindowStartUTC:     &start,
+			RecoverableWindowEndUTC:       &end,
+			BaseBackupKind:                "physical",
+			RequiresIntegrityVerification: true,
+			PostgresRecovery: &manifest.PostgresRecoveryMetadata{
+				TimelineID:         "1",
+				WALStartLSN:        "0/1000000",
+				WALEndLSN:          "0/2000000",
+				BackupStartTimeUTC: start,
+				BackupEndTimeUTC:   end,
+				WALArchivePrefix:   "wal/archive/prefix",
+			},
+			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+				BaselineBackupID:            "base-001",
+				RequiredBackupIDs:           []string{"base-001", "delta-001"},
+				CompatibleTargetFingerprint: "fp-123",
+				ExecutionSupported:          false,
+			},
+		},
+	}
+
+	if err := manifest.WriteManifest(path, orig); err != nil {
+		t.Fatalf("WriteManifest() error = %v", err)
+	}
+
+	got, err := manifest.ReadManifest(path)
+	if err != nil {
+		t.Fatalf("ReadManifest() error = %v", err)
+	}
+	if got.AdvancedRestore == nil {
+		t.Fatal("AdvancedRestore is nil")
+	}
+	if got.AdvancedRestore.PostgresRecovery == nil {
+		t.Fatal("PostgresRecovery is nil")
+	}
+	if got.AdvancedRestore.PostgresRecovery.WALArchivePrefix != "wal/archive/prefix" {
+		t.Fatalf("WALArchivePrefix = %q", got.AdvancedRestore.PostgresRecovery.WALArchivePrefix)
+	}
+	if got.AdvancedRestore.IncrementalLineage == nil {
+		t.Fatal("IncrementalLineage is nil")
+	}
+	if got.AdvancedRestore.IncrementalLineage.BaselineBackupID != "base-001" {
+		t.Fatalf("BaselineBackupID = %q", got.AdvancedRestore.IncrementalLineage.BaselineBackupID)
+	}
+}

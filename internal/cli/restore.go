@@ -217,6 +217,7 @@ func handleRestoreStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Database: %s\n", job.Database)
 	fmt.Printf("  Schedule: %s\n", job.Schedule)
 	fmt.Printf("  Status: %s\n", status)
+	fmt.Printf("  Restore Mode: %s\n", effectiveRestoreMode(job))
 	fmt.Printf("  Verify After Restore: %v\n", job.VerifyAfterRestore)
 	fmt.Printf("  Timeout: %d seconds\n", job.TimeoutSeconds)
 	fmt.Printf("  Keep File: %v\n", job.KeepFile)
@@ -256,6 +257,7 @@ func handleRestoreDryRun(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Database: %s\n", job.Database)
 	fmt.Printf("  Backup Source Type: %s\n", job.BackupSource.Type)
 	fmt.Printf("  Backup Path: %s\n", job.BackupSource.BackupPath)
+	fmt.Printf("  Restore Mode: %s\n", effectiveRestoreMode(job))
 	fmt.Printf("  Timeout: %d seconds\n", job.TimeoutSeconds)
 	fmt.Println()
 	fmt.Println("NOTE: This is a dry-run. No data will be restored.")
@@ -358,21 +360,36 @@ func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cmd.Println("RESTORE | DATABASE | STATUS | DURATION | TIMESTAMP | REASON")
+	cmd.Println(formatRestoreHistoryRow("RESTORE", "DATABASE", "MODE", "PLAN", "STATUS", "DURATION", "TIMESTAMP", "REASON", "FALLBACK"))
 	for _, rec := range records {
 		dur := time.Duration(rec.DurationMs) * time.Millisecond
 		reason := rec.Reason
 		if reason == "" {
 			reason = "-"
 		}
-		cmd.Printf("%s | %s | %s | %s | %s | %s\n",
+		mode := rec.RestoreMode
+		if mode == "" {
+			mode = "full"
+		}
+		plan := rec.PlanningStatus
+		if plan == "" {
+			plan = "-"
+		}
+		fallback := rec.FallbackDecision
+		if fallback == "" {
+			fallback = "-"
+		}
+		cmd.Println(formatRestoreHistoryRow(
 			rec.RestoreName,
 			rec.DatabaseName,
+			mode,
+			plan,
 			normalizeRestoreStatus(rec.Status),
 			dur.Truncate(time.Millisecond).String(),
 			rec.Timestamp.UTC().Format(time.RFC3339),
 			reason,
-		)
+			fallback,
+		))
 	}
 
 	return nil
@@ -388,6 +405,13 @@ func normalizeRestoreStatus(status string) string {
 	default:
 		return status
 	}
+}
+
+func effectiveRestoreMode(job config.RestoreJob) string {
+	if strings.TrimSpace(job.RestoreMode) == "" {
+		return "full"
+	}
+	return strings.TrimSpace(job.RestoreMode)
 }
 
 func notifyRestoreResult(ctx context.Context, jobName string, job config.RestoreJob, result *internalrestore.ExecutionResult, runErr error) {

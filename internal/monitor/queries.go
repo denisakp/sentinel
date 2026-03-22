@@ -84,6 +84,7 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 
 	whereClause, args := buildRestoreFilter(filter)
 	query := `SELECT id, restore_name, database_type, database_name, source_type, conflict_strategy,
+		restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id,
 		timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path,
 		staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds,
 		created_at, finished_at
@@ -92,6 +93,31 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 
 	rows, err := m.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		if strings.Contains(err.Error(), "restore_mode") || strings.Contains(err.Error(), "planning_status") {
+			legacyQuery := `SELECT id, restore_name, database_type, database_name, source_type, conflict_strategy,
+				timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path,
+				staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds,
+				created_at, finished_at
+				FROM restore_executions ` + whereClause + ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`
+			legacyRows, legacyErr := m.db.QueryContext(ctx, legacyQuery, args...)
+			if legacyErr != nil {
+				return nil, fmt.Errorf("failed to list restore executions with legacy fallback: %w", legacyErr)
+			}
+			defer legacyRows.Close()
+
+			var legacyExecutions []RestoreExecution
+			for legacyRows.Next() {
+				exec, scanErr := scanRestoreExecutionLegacy(legacyRows)
+				if scanErr != nil {
+					return nil, scanErr
+				}
+				legacyExecutions = append(legacyExecutions, *exec)
+			}
+			if err := legacyRows.Err(); err != nil {
+				return nil, fmt.Errorf("failed to read legacy restore execution rows: %w", err)
+			}
+			return legacyExecutions, nil
+		}
 		return nil, fmt.Errorf("failed to list restore executions: %w", err)
 	}
 	defer rows.Close()
@@ -373,6 +399,113 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 	var errorMessage sql.NullString
 	var errorReason sql.NullString
 	var reason sql.NullString
+	var restoreMode sql.NullString
+	var planningStatus sql.NullString
+	var requestedPITRTime sql.NullTime
+	var baselineBackupID sql.NullString
+	var fallbackDecision sql.NullString
+	var recoveryTimelineID sql.NullString
+	var stagedFilePath sql.NullString
+	var stagedRetained sql.NullBool
+	var bytesRestored sql.NullInt64
+	var verificationPassed sql.NullBool
+	var timeoutSeconds sql.NullInt64
+	var finishedAt sql.NullTime
+
+	if err := row.Scan(
+		&exec.ID,
+		&exec.RestoreName,
+		&exec.DatabaseType,
+		&exec.DatabaseName,
+		&exec.SourceType,
+		&exec.ConflictStrategy,
+		&restoreMode,
+		&planningStatus,
+		&requestedPITRTime,
+		&baselineBackupID,
+		&fallbackDecision,
+		&recoveryTimelineID,
+		&timestamp,
+		&durationMs,
+		&exec.Status,
+		&errorMessage,
+		&errorReason,
+		&reason,
+		&exec.SourceBackupPath,
+		&stagedFilePath,
+		&stagedRetained,
+		&bytesRestored,
+		&verificationPassed,
+		&timeoutSeconds,
+		&createdAt,
+		&finishedAt,
+	); err != nil {
+		return nil, fmt.Errorf("failed to scan restore execution: %w", err)
+	}
+
+	exec.Timestamp = timestamp
+	exec.CreatedAt = createdAt
+	if restoreMode.Valid {
+		exec.RestoreMode = restoreMode.String
+	}
+	if planningStatus.Valid {
+		exec.PlanningStatus = planningStatus.String
+	}
+	if requestedPITRTime.Valid {
+		t := requestedPITRTime.Time
+		exec.RequestedPITRTimeUTC = &t
+	}
+	if baselineBackupID.Valid {
+		exec.BaselineBackupID = baselineBackupID.String
+	}
+	if fallbackDecision.Valid {
+		exec.FallbackDecision = fallbackDecision.String
+	}
+	if recoveryTimelineID.Valid {
+		exec.RecoveryTimelineID = recoveryTimelineID.String
+	}
+	if durationMs.Valid {
+		exec.DurationMs = durationMs.Int64
+	}
+	if errorMessage.Valid {
+		exec.ErrorMessage = errorMessage.String
+	}
+	if errorReason.Valid {
+		exec.ErrorReason = errorReason.String
+	}
+	if reason.Valid {
+		exec.Reason = reason.String
+	}
+	if stagedFilePath.Valid {
+		exec.StagedFilePath = stagedFilePath.String
+	}
+	if stagedRetained.Valid {
+		exec.StagedFileRetained = stagedRetained.Bool
+	}
+	if bytesRestored.Valid {
+		exec.BytesRestored = bytesRestored.Int64
+	}
+	if verificationPassed.Valid {
+		exec.VerificationPassed = verificationPassed.Bool
+	}
+	if timeoutSeconds.Valid {
+		exec.TimeoutSeconds = int(timeoutSeconds.Int64)
+	}
+	if finishedAt.Valid {
+		exec.FinishedAt = &finishedAt.Time
+	}
+
+	return &exec, nil
+}
+
+func scanRestoreExecutionLegacy(row rowScanner) (*RestoreExecution, error) {
+	var exec RestoreExecution
+	var timestamp time.Time
+	var createdAt time.Time
+	var durationMs sql.NullInt64
+	var errorMessage sql.NullString
+	var errorReason sql.NullString
+	var reason sql.NullString
 	var stagedFilePath sql.NullString
 	var stagedRetained sql.NullBool
 	var bytesRestored sql.NullInt64
@@ -402,7 +535,7 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 		&createdAt,
 		&finishedAt,
 	); err != nil {
-		return nil, fmt.Errorf("failed to scan restore execution: %w", err)
+		return nil, fmt.Errorf("failed to scan legacy restore execution: %w", err)
 	}
 
 	exec.Timestamp = timestamp
