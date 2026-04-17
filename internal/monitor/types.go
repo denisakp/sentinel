@@ -57,13 +57,18 @@ type Execution struct {
 	CleanupError     string
 	UpdatedAt        time.Time
 	// V1.1.0: Security and integrity fields (migration 004)
-	HashAlgorithm      string
-	HashValue          string
-	PlaintextHashValue string
-	Encrypted          bool
-	EncryptionKeyHint  string
-	ManifestPath       string
-	RetryCount         int
+	HashAlgorithm       string
+	HashValue           string
+	PlaintextHashValue  string
+	Encrypted           bool
+	EncryptionKeyHint   string
+	ManifestPath        string
+	RetryCount          int
+	BackupType          string
+	ChainID             string
+	ChainIndex          int
+	DeltaSizeBytes      int64
+	FullBackupSizeBytes int64
 }
 
 // RestoreExecution represents a single restore execution record.
@@ -77,6 +82,8 @@ type RestoreExecution struct {
 	RequestedPITRTimeUTC *time.Time
 	BaselineBackupID     string
 	FallbackDecision     string
+	FallbackReason       string
+	FallbackBackupID     string
 	RecoveryTimelineID   string
 	SourceType           string
 	ConflictStrategy     string
@@ -94,11 +101,14 @@ type RestoreExecution struct {
 	TimeoutSeconds       int
 	CreatedAt            time.Time
 	// V1 Consolidation: Cleanup and interruption fields
-	FinishedAt       *time.Time
-	CleanupAttempted bool
-	CleanupSucceeded *bool
-	CleanupError     string
-	UpdatedAt        time.Time
+	FinishedAt         *time.Time
+	CleanupAttempted   bool
+	CleanupSucceeded   *bool
+	CleanupError       string
+	UpdatedAt          time.Time
+	ChainDepth         int
+	ChainID            string
+	AssemblyDurationMs int64
 }
 
 // Filter specifies query filters for listing executions.

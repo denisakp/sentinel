@@ -13,6 +13,10 @@ import (
 
 var runSharedRestoreExecution = internalrestore.ExecuteRestore
 
+// SharedRestoreRunner is the shared restore execution function signature used
+// by both CLI and scheduler paths.
+type SharedRestoreRunner func(context.Context, *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error)
+
 // RestoreExecutionConfig defines parameters for a scheduled restore operation
 type RestoreExecutionConfig struct {
 	// Job identifier/name
@@ -246,6 +250,24 @@ func ExecuteScheduledRestore(
 	mon *monitor.Monitor,
 	limiter chan struct{},
 ) (*internalrestore.ExecutionResult, error) {
+	return ExecuteScheduledRestoreWithRunner(ctx, cfg, jobName, job, mon, limiter, runSharedRestoreExecution)
+}
+
+// ExecuteScheduledRestoreWithRunner executes a restore job and allows callers
+// to provide the exact restore execution function used by CLI restore paths.
+func ExecuteScheduledRestoreWithRunner(
+	ctx context.Context,
+	cfg *config.Configuration,
+	jobName string,
+	job config.RestoreJob,
+	mon *monitor.Monitor,
+	limiter chan struct{},
+	runner SharedRestoreRunner,
+) (*internalrestore.ExecutionResult, error) {
+	if runner == nil {
+		runner = runSharedRestoreExecution
+	}
+
 	if limiter != nil {
 		select {
 		case limiter <- struct{}{}:
@@ -284,7 +306,7 @@ func ExecuteScheduledRestore(
 		}
 	}
 
-	result, err := runSharedRestoreExecution(ctx, &internalrestore.ExecutionRequest{
+	result, err := runner(ctx, &internalrestore.ExecutionRequest{
 		JobName: jobName,
 		Job:     job,
 		Config:  cfg,

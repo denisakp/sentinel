@@ -180,6 +180,21 @@ func ensureSchemaColumns(db *sql.DB) error {
 	if err := addColumn("checksum", "TEXT"); err != nil {
 		return err
 	}
+	if err := addColumn("backup_type", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumn("chain_id", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumn("chain_index", "INTEGER"); err != nil {
+		return err
+	}
+	if err := addColumn("delta_size_bytes", "INTEGER"); err != nil {
+		return err
+	}
+	if err := addColumn("full_backup_size_bytes", "INTEGER"); err != nil {
+		return err
+	}
 
 	// V1 Consolidation: Add cleanup and interruption tracking columns
 	if err := addColumn("finished_at", "DATETIME"); err != nil {
@@ -268,6 +283,21 @@ func ensureSchemaColumns(db *sql.DB) error {
 	if err := addRestoreColumn("fallback_decision", "TEXT"); err != nil {
 		return err
 	}
+	if err := addRestoreColumn("fallback_reason", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("fallback_backup_id", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("chain_depth", "INTEGER"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("chain_id", "TEXT"); err != nil {
+		return err
+	}
+	if err := addRestoreColumn("assembly_duration_ms", "INTEGER"); err != nil {
+		return err
+	}
 	if err := addRestoreColumn("recovery_timeline_id", "TEXT"); err != nil {
 		return err
 	}
@@ -310,6 +340,11 @@ CREATE TABLE restore_executions_new (
 	requested_pitr_time_utc DATETIME,
 	baseline_backup_id TEXT,
 	fallback_decision TEXT,
+	fallback_reason TEXT,
+	fallback_backup_id TEXT,
+	chain_depth INTEGER,
+	chain_id TEXT,
+	assembly_duration_ms INTEGER,
 	recovery_timeline_id TEXT,
 	source_type TEXT NOT NULL DEFAULT '',
 	conflict_strategy TEXT NOT NULL DEFAULT '',
@@ -339,7 +374,8 @@ CREATE TABLE restore_executions_new (
 		if _, err := tx.Exec(`
 INSERT INTO restore_executions_new (
 	id, restore_name, database_type, database_name, restore_mode, planning_status,
-	requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id,
+	requested_pitr_time_utc, baseline_backup_id, fallback_decision, fallback_reason, fallback_backup_id, recovery_timeline_id,
+	chain_depth, chain_id, assembly_duration_ms,
 	source_type, conflict_strategy,
 	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
 	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,
@@ -347,7 +383,8 @@ INSERT INTO restore_executions_new (
 )
 SELECT
 	id, restore_name, database_type, database_name, NULL, NULL,
-	NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL,
 	source_type, conflict_strategy,
 	timestamp, status, duration_ms, source_backup_path, staged_file_path, staged_file_retained,
 	bytes_restored, verification_passed, error_message, error_reason, reason, timeout_seconds,

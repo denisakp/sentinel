@@ -22,7 +22,7 @@ func (m *Monitor) ListExecutions(ctx context.Context, filter *Filter, limit int,
 
 	whereClause, args := buildFilter(filter)
 	query := `SELECT id, backup_name, database_type, timestamp, duration_ms, status, error_message,
-		storage_backend, file_path, file_size_bytes, checksum, created_at,
+		storage_backend, file_path, file_size_bytes, checksum, backup_type, chain_id, chain_index, delta_size_bytes, full_backup_size_bytes, created_at,
 		finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
 		FROM backup_executions ` + whereClause + ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
@@ -58,7 +58,7 @@ func (m *Monitor) GetExecution(ctx context.Context, id string) (*Execution, erro
 	}
 
 	query := `SELECT id, backup_name, database_type, timestamp, duration_ms, status, error_message,
-		storage_backend, file_path, file_size_bytes, checksum, created_at,
+		storage_backend, file_path, file_size_bytes, checksum, backup_type, chain_id, chain_index, delta_size_bytes, full_backup_size_bytes, created_at,
 		finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
 		FROM backup_executions WHERE id = ?`
 
@@ -84,7 +84,7 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 
 	whereClause, args := buildRestoreFilter(filter)
 	query := `SELECT id, restore_name, database_type, database_name, source_type, conflict_strategy,
-		restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id,
+		restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, fallback_reason, fallback_backup_id, chain_depth, chain_id, assembly_duration_ms, recovery_timeline_id,
 		timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path,
 		staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds,
 		created_at, finished_at
@@ -298,7 +298,7 @@ func (m *Monitor) GetStaleRunningExecutions(ctx context.Context) ([]Execution, e
 	}
 
 	query := `SELECT id, backup_name, database_type, timestamp, duration_ms, status, error_message,
-		storage_backend, file_path, file_size_bytes, checksum, created_at,
+		storage_backend, file_path, file_size_bytes, checksum, backup_type, chain_id, chain_index, delta_size_bytes, full_backup_size_bytes, created_at,
 		finished_at, cleanup_attempted, cleanup_succeeded, cleanup_error, updated_at
 		FROM backup_executions 
 		WHERE status IN (?, ?) 
@@ -335,6 +335,11 @@ func scanFullExecution(row rowScanner) (*Execution, error) {
 	var fileSize sql.NullInt64
 	var errorMessage sql.NullString
 	var checksum sql.NullString
+	var backupType sql.NullString
+	var chainID sql.NullString
+	var chainIndex sql.NullInt64
+	var deltaSize sql.NullInt64
+	var fullBackupSize sql.NullInt64
 	var finishedAt sql.NullTime
 	var cleanupSucceeded sql.NullBool
 	var cleanupError sql.NullString
@@ -351,6 +356,11 @@ func scanFullExecution(row rowScanner) (*Execution, error) {
 		&exec.FilePath,
 		&fileSize,
 		&checksum,
+		&backupType,
+		&chainID,
+		&chainIndex,
+		&deltaSize,
+		&fullBackupSize,
 		&createdAt,
 		&finishedAt,
 		&exec.CleanupAttempted,
@@ -376,6 +386,21 @@ func scanFullExecution(row rowScanner) (*Execution, error) {
 	}
 	if checksum.Valid {
 		exec.Checksum = checksum.String
+	}
+	if backupType.Valid {
+		exec.BackupType = backupType.String
+	}
+	if chainID.Valid {
+		exec.ChainID = chainID.String
+	}
+	if chainIndex.Valid {
+		exec.ChainIndex = int(chainIndex.Int64)
+	}
+	if deltaSize.Valid {
+		exec.DeltaSizeBytes = deltaSize.Int64
+	}
+	if fullBackupSize.Valid {
+		exec.FullBackupSizeBytes = fullBackupSize.Int64
 	}
 	if finishedAt.Valid {
 		exec.FinishedAt = &finishedAt.Time
@@ -404,6 +429,11 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 	var requestedPITRTime sql.NullTime
 	var baselineBackupID sql.NullString
 	var fallbackDecision sql.NullString
+	var fallbackReason sql.NullString
+	var fallbackBackupID sql.NullString
+	var chainDepth sql.NullInt64
+	var chainID sql.NullString
+	var assemblyDurationMs sql.NullInt64
 	var recoveryTimelineID sql.NullString
 	var stagedFilePath sql.NullString
 	var stagedRetained sql.NullBool
@@ -424,6 +454,11 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 		&requestedPITRTime,
 		&baselineBackupID,
 		&fallbackDecision,
+		&fallbackReason,
+		&fallbackBackupID,
+		&chainDepth,
+		&chainID,
+		&assemblyDurationMs,
 		&recoveryTimelineID,
 		&timestamp,
 		&durationMs,
@@ -460,6 +495,21 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 	}
 	if fallbackDecision.Valid {
 		exec.FallbackDecision = fallbackDecision.String
+	}
+	if fallbackReason.Valid {
+		exec.FallbackReason = fallbackReason.String
+	}
+	if fallbackBackupID.Valid {
+		exec.FallbackBackupID = fallbackBackupID.String
+	}
+	if chainDepth.Valid {
+		exec.ChainDepth = int(chainDepth.Int64)
+	}
+	if chainID.Valid {
+		exec.ChainID = chainID.String
+	}
+	if assemblyDurationMs.Valid {
+		exec.AssemblyDurationMs = assemblyDurationMs.Int64
 	}
 	if recoveryTimelineID.Valid {
 		exec.RecoveryTimelineID = recoveryTimelineID.String

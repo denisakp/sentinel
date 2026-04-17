@@ -14,6 +14,8 @@ import (
 	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
 )
 
+const reasonProtectedActiveBaseline = "protected active baseline"
+
 // DeleteCandidates removes backup files from storage for supported backends.
 func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storageType string, storageCfg config.StorageConfig) ([]DeletedBackup, []error) {
 	if len(candidates) == 0 {
@@ -26,6 +28,9 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 	switch storageType {
 	case "local":
 		for _, cand := range candidates {
+			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+				continue
+			}
 			if err := os.RemoveAll(cand.FilePath); err != nil {
 				errs = append(errs, fmt.Errorf("failed to delete %s: %w", cand.FilePath, err))
 				continue
@@ -41,6 +46,9 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 		}
 
 		for _, cand := range candidates {
+			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+				continue
+			}
 			_, object, err := parseBucketObjectRef(cand.FilePath, "s3", storageCfg.S3Bucket)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse s3 path %s: %w", cand.FilePath, err))
@@ -58,6 +66,9 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 
 	case "gcs":
 		for _, cand := range candidates {
+			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+				continue
+			}
 			bucket, object, err := parseBucketObjectRef(cand.FilePath, "gs", "")
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse gcs uri %s: %w", cand.FilePath, err))
@@ -90,6 +101,9 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 		}
 
 		for _, cand := range candidates {
+			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+				continue
+			}
 			_, object, err := parseBucketObjectRef(cand.FilePath, "azure", storageCfg.AzureContainer)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parse azure path %s: %w", cand.FilePath, err))

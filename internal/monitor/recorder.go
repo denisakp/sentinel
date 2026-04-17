@@ -27,8 +27,8 @@ func (m *Monitor) RecordExecution(ctx context.Context, exec *Execution) error {
 	}
 
 	query := `INSERT INTO backup_executions
-		(id, backup_name, database_type, timestamp, duration_ms, status, error_message, storage_backend, file_path, file_size_bytes, checksum, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(id, backup_name, database_type, timestamp, duration_ms, status, error_message, storage_backend, file_path, file_size_bytes, checksum, backup_type, chain_id, chain_index, delta_size_bytes, full_backup_size_bytes, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := m.db.ExecContext(ctx, query,
 		exec.ID,
@@ -42,6 +42,11 @@ func (m *Monitor) RecordExecution(ctx context.Context, exec *Execution) error {
 		exec.FilePath,
 		exec.FileSizeBytes,
 		exec.Checksum,
+		exec.BackupType,
+		exec.ChainID,
+		exec.ChainIndex,
+		exec.DeltaSizeBytes,
+		exec.FullBackupSizeBytes,
 		exec.CreatedAt,
 	)
 	if err != nil {
@@ -70,8 +75,8 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *RestoreExecu
 	}
 
 	query := `INSERT INTO restore_executions
-		(id, restore_name, database_type, database_name, restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, recovery_timeline_id, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(id, restore_name, database_type, database_name, restore_mode, planning_status, requested_pitr_time_utc, baseline_backup_id, fallback_decision, fallback_reason, fallback_backup_id, chain_depth, chain_id, assembly_duration_ms, recovery_timeline_id, source_type, conflict_strategy, timestamp, duration_ms, status, error_message, error_reason, reason, source_backup_path, staged_file_path, staged_file_retained, bytes_restored, verification_passed, timeout_seconds, created_at, finished_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := m.db.ExecContext(ctx, query,
 		exec.ID,
@@ -83,6 +88,11 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *RestoreExecu
 		exec.RequestedPITRTimeUTC,
 		exec.BaselineBackupID,
 		exec.FallbackDecision,
+		exec.FallbackReason,
+		exec.FallbackBackupID,
+		exec.ChainDepth,
+		exec.ChainID,
+		exec.AssemblyDurationMs,
 		exec.RecoveryTimelineID,
 		exec.SourceType,
 		exec.ConflictStrategy,
@@ -192,8 +202,8 @@ func (m *Monitor) RecordRunning(ctx context.Context, exec *Execution) error {
 	exec.Status = StatusRunning
 
 	query := `INSERT INTO backup_executions
-		(id, backup_name, database_type, timestamp, duration_ms, status, error_message, storage_backend, file_path, file_size_bytes, checksum, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		(id, backup_name, database_type, timestamp, duration_ms, status, error_message, storage_backend, file_path, file_size_bytes, checksum, backup_type, chain_id, chain_index, delta_size_bytes, full_backup_size_bytes, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := m.db.ExecContext(ctx, query,
 		exec.ID,
@@ -207,6 +217,11 @@ func (m *Monitor) RecordRunning(ctx context.Context, exec *Execution) error {
 		exec.FilePath,
 		exec.FileSizeBytes,
 		exec.Checksum,
+		exec.BackupType,
+		exec.ChainID,
+		exec.ChainIndex,
+		exec.DeltaSizeBytes,
+		exec.FullBackupSizeBytes,
 		exec.CreatedAt,
 	)
 	if err != nil {

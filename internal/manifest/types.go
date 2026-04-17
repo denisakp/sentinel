@@ -60,9 +60,26 @@ type PostgresRecoveryMetadata struct {
 
 // IncrementalLineageMetadata stores compatibility and dependency details for incremental planning.
 type IncrementalLineageMetadata struct {
+	Enabled                     bool     `json:"enabled,omitempty"`
+	ChainID                     string   `json:"chain_id,omitempty"`
+	ChainIndex                  int      `json:"chain_index,omitempty"`
+	MaxChainDepth               int      `json:"max_chain_depth,omitempty"`
 	BaselineBackupID            string   `json:"baseline_backup_id,omitempty"`
 	RequiredBackupIDs           []string `json:"required_backup_ids,omitempty"`
 	CompatibleTargetFingerprint string   `json:"compatible_target_fingerprint,omitempty"`
+	DeltaSizeBytes              int64    `json:"delta_size_bytes,omitempty"`
+	FullBackupSizeBytes         int64    `json:"full_backup_size_bytes,omitempty"`
+	CompressionRatio            float64  `json:"compression_ratio,omitempty"`
+	Engine                      string   `json:"engine,omitempty"`
+	TimelineID                  string   `json:"timeline_id,omitempty"`
+	BinlogStartFile             string   `json:"binlog_start_file,omitempty"`
+	BinlogStartPos              int64    `json:"binlog_start_pos,omitempty"`
+	BinlogEndFile               string   `json:"binlog_end_file,omitempty"`
+	BinlogEndPos                int64    `json:"binlog_end_pos,omitempty"`
+	BinlogArtifacts             []string `json:"binlog_artifacts,omitempty"`
+	OplogTSStart                string   `json:"oplog_ts_start,omitempty"`
+	OplogTSEnd                  string   `json:"oplog_ts_end,omitempty"`
+	OplogArtifactPath           string   `json:"oplog_artifact_path,omitempty"`
 	ChecksumState               string   `json:"checksum_state,omitempty"`
 	WALSummaryStartLSN          string   `json:"wal_summary_start_lsn,omitempty"`
 	WALSummaryEndLSN            string   `json:"wal_summary_end_lsn,omitempty"`

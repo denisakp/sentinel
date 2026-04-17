@@ -34,6 +34,7 @@ type AdvancedRestorePlan struct {
 	Status                      PlanStatus
 	ReasonCode                  string
 	ResolvedBackupIDs           []string
+	ChainDepth                  int
 	ResolvedTargetTimeUTC       *time.Time
 	RequestedInputPITRTimestamp string
 	RequestedTimeline           string
@@ -42,4 +43,7 @@ type AdvancedRestorePlan struct {
 	RequiresPhysicalRecovery    bool
 	RequiresIntegrityCheck      bool
 	Fallback                    FallbackCandidate
+	FallbackReason              string
+	FallbackBackupID            string
+	AssemblyDurationMs          int64
 }

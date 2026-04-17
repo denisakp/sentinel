@@ -56,6 +56,8 @@ var newGCSRestoreBackend = func(src config.RestoreBackupSource) (storage.Storage
 	})
 }
 
+var downloadRestoreSourceObject = downloadSourceObject
+
 func StageRestoreSource(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
 	if job.StagingDir == "" {
 		return nil, fmt.Errorf("staging_dir is required")
@@ -76,27 +78,105 @@ func StageRestoreSource(ctx context.Context, job config.RestoreJob) (*StagedArti
 	}
 
 	stagedPath := filepath.Join(job.StagingDir, stagedFileName(job.Name, backupObject))
-	if err := downloadSourceObject(ctx, job.BackupSource, backupObject, stagedPath); err != nil {
+	if err := downloadRestoreSourceObject(ctx, job.BackupSource, backupObject, stagedPath); err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(stagedPath, 0o600); err != nil {
-		return nil, fmt.Errorf("failed to secure staged file: %w", err)
-	}
-
 	artifact := &StagedArtifact{
 		Path:       stagedPath,
 		SourcePath: backupObject,
 		SizeBytes:  backupSize,
+	}
+	if err := os.Chmod(stagedPath, 0o600); err != nil {
+		_ = CleanupStagedArtifact(artifact)
+		return nil, fmt.Errorf("failed to secure staged file: %w", err)
 	}
 
 	manifestObject := backupObject + ".manifest.json"
 	manifestPath := stagedPath + ".manifest.json"
 	if err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath); err == nil {
 		artifact.ManifestPath = manifestPath
-		_ = os.Chmod(manifestPath, 0o600)
+		if chmodErr := os.Chmod(manifestPath, 0o600); chmodErr != nil {
+			_ = CleanupStagedArtifact(artifact)
+			return nil, fmt.Errorf("failed to secure staged manifest: %w", chmodErr)
+		}
+	} else if !errors.Is(err, ErrSourceObjectNotFound) {
+		artifact.ManifestPath = manifestPath
+		_ = CleanupStagedArtifact(artifact)
+		return nil, fmt.Errorf("failed to stage restore manifest: %w", err)
 	}
 
 	return artifact, nil
+}
+
+// StageChainArtifacts stages all resolved backup IDs into the restore staging directory.
+func StageChainArtifacts(ctx context.Context, job config.RestoreJob, backupIDs []string) ([]*StagedArtifact, error) {
+	if len(backupIDs) == 0 {
+		return nil, nil
+	}
+	if job.StagingDir == "" {
+		return nil, fmt.Errorf("staging_dir is required")
+	}
+	if err := os.MkdirAll(job.StagingDir, 0o700); err != nil {
+		return nil, fmt.Errorf("failed to create staging dir: %w", err)
+	}
+
+	objects, err := listSourceObjects(ctx, job.BackupSource)
+	if err != nil {
+		return nil, err
+	}
+
+	selected := make([]storage.StorageObject, 0, len(backupIDs))
+	sizes := make([]int64, 0, len(backupIDs))
+	for _, backupID := range backupIDs {
+		obj, err := resolveChainObject(backupID, objects)
+		if err != nil {
+			return nil, err
+		}
+		selected = append(selected, obj)
+		sizes = append(sizes, obj.SizeBytes)
+	}
+	if err := EnsureStagingCapacityForArtifacts(job.StagingDir, sizes); err != nil {
+		return nil, err
+	}
+
+	artifacts := make([]*StagedArtifact, 0, len(selected))
+	for _, obj := range selected {
+		stagedPath := filepath.Join(job.StagingDir, stagedFileName(job.Name, obj.Path))
+		if err := downloadRestoreSourceObject(ctx, job.BackupSource, obj.Path, stagedPath); err != nil {
+			_ = CleanupStagedArtifacts(artifacts)
+			return nil, err
+		}
+		artifact := &StagedArtifact{
+			Path:       stagedPath,
+			SourcePath: obj.Path,
+			SizeBytes:  obj.SizeBytes,
+		}
+		if err := os.Chmod(stagedPath, 0o600); err != nil {
+			_ = CleanupStagedArtifact(artifact)
+			_ = CleanupStagedArtifacts(artifacts)
+			return nil, fmt.Errorf("failed to secure staged file: %w", err)
+		}
+
+		manifestObject := obj.Path + ".manifest.json"
+		manifestPath := stagedPath + ".manifest.json"
+		if err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath); err == nil {
+			artifact.ManifestPath = manifestPath
+			if chmodErr := os.Chmod(manifestPath, 0o600); chmodErr != nil {
+				_ = CleanupStagedArtifact(artifact)
+				_ = CleanupStagedArtifacts(artifacts)
+				return nil, fmt.Errorf("failed to secure staged manifest: %w", chmodErr)
+			}
+		} else if !errors.Is(err, ErrSourceObjectNotFound) {
+			artifact.ManifestPath = manifestPath
+			_ = CleanupStagedArtifact(artifact)
+			_ = CleanupStagedArtifacts(artifacts)
+			return nil, fmt.Errorf("failed to stage chain manifest: %w", err)
+		}
+
+		artifacts = append(artifacts, artifact)
+	}
+
+	return artifacts, nil
 }
 
 func CleanupStagedArtifact(artifact *StagedArtifact) error {
@@ -111,6 +191,16 @@ func CleanupStagedArtifact(artifact *StagedArtifact) error {
 	}
 	if err := os.Remove(artifact.Path); err != nil && !os.IsNotExist(err) && cleanupErr == nil {
 		cleanupErr = err
+	}
+	return cleanupErr
+}
+
+func CleanupStagedArtifacts(artifacts []*StagedArtifact) error {
+	var cleanupErr error
+	for _, artifact := range artifacts {
+		if err := CleanupStagedArtifact(artifact); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		}
 	}
 	return cleanupErr
 }
@@ -179,7 +269,13 @@ func sourceObjectSize(ctx context.Context, source config.RestoreBackupSource, ob
 func downloadSourceObject(ctx context.Context, source config.RestoreBackupSource, object, dest string) error {
 	switch source.Type {
 	case "local":
-		return local.NewLocalBackend(source.LocalPath).Download(ctx, object, dest)
+		if err := local.NewLocalBackend(source.LocalPath).Download(ctx, object, dest); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("%w: %s", ErrSourceObjectNotFound, object)
+			}
+			return err
+		}
+		return nil
 	case "s3":
 		backend, err := newS3RestoreBackend(source)
 		if err != nil {
@@ -204,7 +300,7 @@ func downloadSourceObject(ctx context.Context, source config.RestoreBackupSource
 }
 
 func downloadOptionalSourceObject(ctx context.Context, source config.RestoreBackupSource, object, dest string) error {
-	if err := downloadSourceObject(ctx, source, object, dest); err != nil {
+	if err := downloadRestoreSourceObject(ctx, source, object, dest); err != nil {
 		if errors.Is(err, ErrSourceObjectNotFound) {
 			return err
 		}
@@ -226,6 +322,32 @@ func ensureStagingCapacity(dir string, required int64) error {
 		return fmt.Errorf("%w: need=%d available=%d", ErrInsufficientStagingSpace, required, available)
 	}
 	return nil
+}
+
+// EnsureStagingCapacityForArtifacts performs one capacity check for a list of artifact sizes.
+func EnsureStagingCapacityForArtifacts(dir string, artifactSizes []int64) error {
+	var total int64
+	for _, size := range artifactSizes {
+		if size > 0 {
+			total += size
+		}
+	}
+	return ensureStagingCapacity(dir, total)
+}
+
+func resolveChainObject(backupID string, objects []storage.StorageObject) (storage.StorageObject, error) {
+	for _, obj := range objects {
+		if obj.Path == backupID {
+			return obj, nil
+		}
+	}
+	for _, obj := range objects {
+		base := filepath.Base(obj.Path)
+		if strings.Contains(base, backupID) {
+			return obj, nil
+		}
+	}
+	return storage.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
 }
 
 func stagedFileName(jobName, sourcePath string) string {

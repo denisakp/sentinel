@@ -5,6 +5,24 @@ import (
 	"time"
 )
 
+// BinlogTargetPosition identifies a replay stop point in MySQL/MariaDB binlogs.
+type BinlogTargetPosition struct {
+	File string `yaml:"file"`
+	Pos  int64  `yaml:"pos"`
+}
+
+// MySQLRestoreConfig holds MySQL/MariaDB incremental replay selectors.
+type MySQLRestoreConfig struct {
+	BinlogTargetTime     string                `yaml:"binlog_target_time,omitempty"`
+	BinlogTargetPosition *BinlogTargetPosition `yaml:"binlog_target_position,omitempty"`
+}
+
+// MongoDBRestoreConfig holds MongoDB-specific restore options for oplog replay.
+type MongoDBRestoreConfig struct {
+	// OplogTargetTimestamp is an optional RFC3339 timestamp at which oplog replay stops.
+	OplogTargetTimestamp string `yaml:"oplog_target_timestamp,omitempty"`
+}
+
 // RestoreJob represents a scheduled restore operation in YAML config
 type RestoreJob struct {
 	// Unique identifier (derived from YAML map key)
@@ -84,6 +102,12 @@ type RestoreJob struct {
 	// KeepFile prevents the staged restore artifact from being deleted after the
 	// restore attempt.  Useful for debugging restore failures.
 	KeepFile bool `yaml:"keep_file,omitempty"`
+
+	// MySQL holds MySQL/MariaDB restore selectors for binlog-based replay.
+	MySQL MySQLRestoreConfig `yaml:"mysql,omitempty"`
+
+	// MongoDB holds MongoDB-specific restore options for oplog replay.
+	MongoDB MongoDBRestoreConfig `yaml:"mongodb,omitempty"`
 }
 
 // RestoreRetentionPolicy defines how long to keep restore backup files
@@ -166,6 +190,8 @@ type AdvancedRestoreRequest struct {
 	PITRTargetTimeline    string
 	IncrementalFromBackup string
 	ConfirmFullFallback   bool
+	BinlogTargetTime      string
+	BinlogTargetPosition  *BinlogTargetPosition
 }
 
 type RestoreDefaults struct {

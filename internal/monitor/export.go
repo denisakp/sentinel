@@ -49,7 +49,8 @@ func exportCSV(executions []Execution) ([]byte, error) {
 
 	headers := []string{
 		"id", "backup_name", "database_type", "timestamp", "duration_ms", "status",
-		"error_message", "storage_backend", "file_path", "file_size_bytes", "checksum", "created_at",
+		"error_message", "storage_backend", "file_path", "file_size_bytes", "checksum",
+		"backup_type", "chain_id", "chain_index", "delta_size_bytes", "full_backup_size_bytes", "created_at",
 	}
 	if err := writer.Write(headers); err != nil {
 		return nil, fmt.Errorf("failed to write csv headers: %w", err)
@@ -68,6 +69,11 @@ func exportCSV(executions []Execution) ([]byte, error) {
 			exec.FilePath,
 			fmt.Sprintf("%d", exec.FileSizeBytes),
 			exec.Checksum,
+			exec.BackupType,
+			exec.ChainID,
+			fmt.Sprintf("%d", exec.ChainIndex),
+			fmt.Sprintf("%d", exec.DeltaSizeBytes),
+			fmt.Sprintf("%d", exec.FullBackupSizeBytes),
 			exec.CreatedAt.Format("2006-01-02 15:04:05"),
 		}
 		if err := writer.Write(record); err != nil {
