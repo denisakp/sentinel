@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/spf13/cobra"
@@ -336,5 +338,198 @@ func TestHandleRestoreHistory_RendersAdvancedRestoreFields(t *testing.T) {
 	}
 	if !strings.Contains(out, "pitr") || !strings.Contains(out, "ready") {
 		t.Fatalf("expected advanced restore values in output, got: %s", out)
+	}
+}
+
+func TestHandleRestoreValidateChain_Succeeds(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+	tmpDir := t.TempDir()
+	backupPath := filepath.Join(tmpDir, "backup.sql")
+	if err := os.WriteFile(backupPath, []byte("dummy"), 0o644); err != nil {
+		t.Fatalf("WriteFile() backup error = %v", err)
+	}
+
+	m := &manifest.BackupManifest{
+		BackupID: "incr-003",
+		Hash:     manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			Capabilities: []string{"incremental"},
+			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+				BaselineBackupID:   "full-001",
+				RequiredBackupIDs:  []string{"incr-002"},
+				ExecutionSupported: true,
+			},
+		},
+	}
+	if err := manifest.WriteManifest(backupPath+".manifest.json", m); err != nil {
+		t.Fatalf("WriteManifest() error = %v", err)
+	}
+
+	cfgPath := filepath.Join(tmpDir, "restore-validate-chain.yaml")
+	cfg := "version: \"1.0\"\n" +
+		"defaults:\n" +
+		"  storage:\n" +
+		"    type: local\n" +
+		"    local_path: ./backups\n" +
+		"databases:\n" +
+		"  pg:\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"restores:\n" +
+		"  pg-restore:\n" +
+		"    enabled: true\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app_restore\n" +
+		"    schedule: \"0 2 * * *\"\n" +
+		"    restore_mode: incremental\n" +
+		"    incremental_from_backup: full-001\n" +
+		"    staging_dir: " + tmpDir + "\n" +
+		"    backup_source:\n" +
+		"      type: local\n" +
+		"      local_path: " + tmpDir + "\n" +
+		"      backup_path: backup.sql\n"
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
+		t.Fatalf("WriteFile() config error = %v", err)
+	}
+
+	prevCfg := restoreConfigFile
+	t.Cleanup(func() { restoreConfigFile = prevCfg })
+	restoreConfigFile = cfgPath
+
+	buf := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetContext(context.Background())
+
+	if err := handleRestoreValidateChain(cmd, []string{"pg-restore"}); err != nil {
+		t.Fatalf("handleRestoreValidateChain() error = %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Incremental chain is valid") {
+		t.Fatalf("expected success output, got: %s", out)
+	}
+}
+
+func TestHandleRestoreRun_ConfirmationRequiredMessage(t *testing.T) {
+	cfgPath := writeRestoreRunConfig(t, false)
+
+	prevCfg := restoreConfigFile
+	prevExecutor := runRestoreExecution
+	t.Cleanup(func() {
+		restoreConfigFile = prevCfg
+		runRestoreExecution = prevExecutor
+	})
+
+	restoreConfigFile = cfgPath
+	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		return &internalrestore.ExecutionResult{
+			Status:         monitor.StatusSkipped,
+			PlanningStatus: string(internalrestore.PlanStatusConfirmationRequired),
+			Reason:         internalrestore.ReasonCodeFullFallbackConfirmationRequired,
+		}, errors.New("fallback_required_confirmation")
+	}
+
+	err := handleRestoreRun(nil, []string{"pg-restore"})
+	if err == nil {
+		t.Fatal("expected confirmation-required error")
+	}
+	if !strings.Contains(err.Error(), "requires explicit fallback confirmation") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleRestoreHistory_IncludesFallbackReason(t *testing.T) {
+	t.Setenv("TEST_PG_PASSWORD", "secret")
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "history.db")
+	cfgPath := filepath.Join(tmpDir, "restore-history-fallback.yaml")
+
+	cfg := "version: \"1.0\"\n" +
+		"history_db_path: " + dbPath + "\n" +
+		"defaults:\n" +
+		"  storage:\n" +
+		"    type: local\n" +
+		"    local_path: ./backups\n" +
+		"databases:\n" +
+		"  pg:\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"restores:\n" +
+		"  pg-restore:\n" +
+		"    enabled: true\n" +
+		"    type: postgres\n" +
+		"    host: localhost\n" +
+		"    username: sentinel\n" +
+		"    password_env: TEST_PG_PASSWORD\n" +
+		"    database: app\n" +
+		"    schedule: \"0 2 * * *\"\n" +
+		"    staging_dir: /tmp/sentinel\n" +
+		"    backup_source:\n" +
+		"      type: local\n" +
+		"      local_path: /tmp\n" +
+		"      backup_path: backup.sql\n"
+
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	mon, err := monitor.NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := mon.RecordRestoreExecution(context.Background(), &monitor.RestoreExecution{
+		RestoreName:      "pg-restore",
+		DatabaseType:     "postgres",
+		DatabaseName:     "app",
+		RestoreMode:      "full",
+		PlanningStatus:   "ready",
+		FallbackDecision: "full_restore",
+		FallbackReason:   "incremental_capability_unavailable",
+		FallbackBackupID: "base-001",
+		SourceType:       "local",
+		ConflictStrategy: "error",
+		Timestamp:        now,
+		DurationMs:       1000,
+		Status:           monitor.StatusSuccess,
+		SourceBackupPath: "backup.sql",
+		CreatedAt:        now,
+		FinishedAt:       &now,
+	}); err != nil {
+		_ = mon.Close()
+		t.Fatalf("RecordRestoreExecution() error = %v", err)
+	}
+	if err := mon.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	prevCfg := restoreConfigFile
+	t.Cleanup(func() { restoreConfigFile = prevCfg })
+	restoreConfigFile = cfgPath
+
+	buf := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetContext(context.Background())
+
+	if err := handleRestoreHistory(cmd, []string{"pg-restore"}); err != nil {
+		t.Fatalf("handleRestoreHistory() error = %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "full_restore:incremental_capability_unavailable") {
+		t.Fatalf("expected fallback reason in history output, got: %s", out)
 	}
 }

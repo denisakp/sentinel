@@ -1,14 +1,18 @@
 package cli
 
 import (
+	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
@@ -36,7 +40,7 @@ func TestApplyBackupSecurity_PlaintextByDefaultWithAmbientKey(t *testing.T) {
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "plain-job", Type: "postgres", Database: "app"}
 
-	result, err := applyBackupSecurity(&config.Configuration{}, job, params)
+	result, err := applyBackupSecurity(&config.Configuration{}, job, params, false)
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -70,7 +74,7 @@ func TestApplyBackupSecurity_ExplicitEncryptionSuccess(t *testing.T) {
 	job := config.BackupJob{Name: "enc-job", Type: "postgres", Database: "app"}
 	cfg := &config.Configuration{EncryptionKeyEnv: "TEST_SENTINEL_MASTER_KEY"}
 
-	result, err := applyBackupSecurity(cfg, job, params)
+	result, err := applyBackupSecurity(cfg, job, params, false)
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -102,7 +106,7 @@ func TestApplyBackupSecurity_ExplicitEncryptionFailureIsFatal(t *testing.T) {
 	job := config.BackupJob{Name: "enc-fail-job", Type: "postgres", Database: "app"}
 	cfg := &config.Configuration{EncryptionKeyEnv: "MISSING_SENTINEL_KEY"}
 
-	result, err := applyBackupSecurity(cfg, job, params)
+	result, err := applyBackupSecurity(cfg, job, params, false)
 	if err == nil {
 		t.Fatal("applyBackupSecurity() error = nil, want error")
 	}
@@ -124,7 +128,7 @@ func TestApplyBackupSecurity_ImperativeFlowUnaffected(t *testing.T) {
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "imperative-job", Type: "postgres", Database: "app"}
 
-	result, err := applyBackupSecurity(nil, job, params)
+	result, err := applyBackupSecurity(nil, job, params, false)
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -133,5 +137,65 @@ func TestApplyBackupSecurity_ImperativeFlowUnaffected(t *testing.T) {
 	}
 	if result.encrypted {
 		t.Fatal("result.encrypted = true, want false")
+	}
+}
+
+func TestApplyBackupSecurity_IncrementalHashVerificationFailureIsFatal(t *testing.T) {
+	prevVerify := verifyIncrementalArtifactHash
+	verifyIncrementalArtifactHash = func(path, algorithm, expected string) error {
+		return fmt.Errorf("hash mismatch")
+	}
+	t.Cleanup(func() {
+		verifyIncrementalArtifactHash = prevVerify
+	})
+
+	backupPath := writeBackupFixture(t, "-- incremental backup payload\n")
+	params := &storage.Params{StorageType: "local", OutName: backupPath}
+
+	historyPath := filepath.Join(t.TempDir(), "history.db")
+	mon, err := monitor.NewMonitor(historyPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	t.Cleanup(func() { _ = mon.Close() })
+
+	now := time.Now().UTC()
+	if err := mon.RecordExecution(context.Background(), &monitor.Execution{
+		ID:           "prev-full-1",
+		BackupName:   "inc-job",
+		DatabaseType: "postgres",
+		Timestamp:    now,
+		DurationMs:   1,
+		Status:       monitor.StatusCompleted,
+		BackupType:   "full",
+		ChainID:      "chain-1",
+		ChainIndex:   0,
+		FilePath:     "baseline.dump",
+		CreatedAt:    now,
+	}); err != nil {
+		t.Fatalf("RecordExecution() error = %v", err)
+	}
+
+	job := config.BackupJob{
+		Name:     "inc-job",
+		Type:     "postgres",
+		Database: "app",
+		IncrementalBackup: &config.IncrementalBackupConfig{
+			Enabled: true,
+		},
+	}
+
+	result, err := applyBackupSecurity(&config.Configuration{HistoryDBPath: historyPath}, job, params, false)
+	if err == nil {
+		t.Fatal("applyBackupSecurity() error = nil, want hash verification error")
+	}
+	if !strings.Contains(err.Error(), "failed to verify incremental artifact hash") {
+		t.Fatalf("error = %q, want to contain incremental hash verification context", err.Error())
+	}
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+	if _, statErr := os.Stat(backupPath + ".manifest.json"); statErr == nil {
+		t.Fatal("unexpected manifest created after failed incremental hash verification")
 	}
 }

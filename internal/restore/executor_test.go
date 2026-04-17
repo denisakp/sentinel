@@ -11,6 +11,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/monitor"
 	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
 )
 
@@ -170,5 +171,202 @@ func TestExecuteRestoreRequiresVerificationForPITR(t *testing.T) {
 	}
 	if result == nil || result.Status != "failed" {
 		t.Fatalf("expected failed result, got %#v", result)
+	}
+}
+
+func TestExecuteRestoreFallbackConfirmationRequired(t *testing.T) {
+	t.Setenv("PGPASSWORD", "test-password")
+
+	originalStage := stageRestoreSource
+	originalPreflight := applyRestorePreflight
+	originalEngine := executeRestoreEngine
+	t.Cleanup(func() {
+		stageRestoreSource = originalStage
+		applyRestorePreflight = originalPreflight
+		executeRestoreEngine = originalEngine
+	})
+
+	tmpDir := t.TempDir()
+	backupPath := filepath.Join(tmpDir, "backup.sql")
+	if err := os.WriteFile(backupPath, []byte("backup"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manifestPath := filepath.Join(tmpDir, "backup.manifest.json")
+	if err := manifest.WriteManifest(manifestPath, &manifest.BackupManifest{
+		BackupID:     "incr-003",
+		Database:     "app",
+		DatabaseType: "postgres",
+		CreatedAt:    time.Now().UTC(),
+		SizeBytes:    6,
+		Hash: manifest.HashInfo{
+			Algorithm: "sha256",
+			Value:     "d045eb8a208bdba0a4a4dbd2cff08f7a2c12f00339e9d9ed9af08e717dfbd86c",
+		},
+		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			Capabilities: []string{"incremental"},
+			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+				BaselineBackupID:   "base-001",
+				ExecutionSupported: false,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("WriteManifest() error = %v", err)
+	}
+
+	stageRestoreSource = func(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
+		return &StagedArtifact{Path: backupPath, ManifestPath: manifestPath, SourcePath: "backup.sql", SizeBytes: 6}, nil
+	}
+	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+		return artifact.Path, nil
+	}
+	executeRestoreEngine = func(ctx context.Context, job config.RestoreJob, stagedPath string) error {
+		t.Fatal("executeRestoreEngine should not run when fallback confirmation is required")
+		return nil
+	}
+
+	result, err := ExecuteRestore(context.Background(), &ExecutionRequest{
+		JobName: "restore",
+		Job: config.RestoreJob{
+			Type:                  "postgres",
+			RestoreMode:           "incremental",
+			IncrementalFromBackup: "base-001",
+			ConfirmFullFallback:   false,
+			Host:                  "localhost",
+			Username:              "postgres",
+			PasswordEnv:           "PGPASSWORD",
+			Database:              "app",
+			Schedule:              "0 2 * * *",
+			StagingDir:            tmpDir,
+			BackupSource: config.RestoreBackupSource{
+				Type:       "local",
+				LocalPath:  tmpDir,
+				BackupPath: "backup.sql",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected confirmation-required error")
+	}
+	if !strings.Contains(err.Error(), "fallback_required_confirmation") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+	if result.Status != monitor.StatusSkipped {
+		t.Fatalf("Status = %q, want %q", result.Status, monitor.StatusSkipped)
+	}
+	if result.Reason != ReasonCodeFullFallbackConfirmationRequired {
+		t.Fatalf("Reason = %q", result.Reason)
+	}
+}
+
+func TestExecuteRestore_CleansAssembledArtifactsOnEngineFailure(t *testing.T) {
+	t.Setenv("PGPASSWORD", "test-password")
+
+	originalStage := stageRestoreSource
+	originalPreflight := applyRestorePreflight
+	originalStageChain := stageChainArtifacts
+	originalAssemble := assemblePostgresChain
+	originalEngine := executeRestoreEngine
+	t.Cleanup(func() {
+		stageRestoreSource = originalStage
+		applyRestorePreflight = originalPreflight
+		stageChainArtifacts = originalStageChain
+		assemblePostgresChain = originalAssemble
+		executeRestoreEngine = originalEngine
+	})
+
+	tmpDir := t.TempDir()
+	backupPath := filepath.Join(tmpDir, "incremental.dump")
+	if err := os.WriteFile(backupPath, []byte("backup"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	manifestPath := filepath.Join(tmpDir, "incremental.dump.manifest.json")
+	if err := manifest.WriteManifest(manifestPath, &manifest.BackupManifest{
+		BackupID:     "incr-002",
+		Database:     "app",
+		DatabaseType: "postgres",
+		CreatedAt:    time.Now().UTC(),
+		SizeBytes:    6,
+		Hash:         manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			Capabilities: []string{"incremental"},
+			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+				BaselineBackupID:   "base-001",
+				RequiredBackupIDs:  []string{"incr-001"},
+				ExecutionSupported: true,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("WriteManifest() error = %v", err)
+	}
+
+	stageRestoreSource = func(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
+		return &StagedArtifact{Path: backupPath, ManifestPath: manifestPath, SourcePath: "incremental.dump", SizeBytes: 6}, nil
+	}
+	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+		return artifact.Path, nil
+	}
+	var chainPaths []string
+	stageChainArtifacts = func(ctx context.Context, job config.RestoreJob, backupIDs []string) ([]*StagedArtifact, error) {
+		artifacts := make([]*StagedArtifact, 0, len(backupIDs))
+		for _, id := range backupIDs {
+			path := filepath.Join(tmpDir, id+".staged")
+			if err := os.WriteFile(path, []byte(id), 0o600); err != nil {
+				return nil, err
+			}
+			chainPaths = append(chainPaths, path)
+			artifacts = append(artifacts, &StagedArtifact{Path: path, SourcePath: id, SizeBytes: int64(len(id))})
+		}
+		return artifacts, nil
+	}
+	combinedPath := filepath.Join(tmpDir, "combined-dir")
+	assemblePostgresChain = func(ctx context.Context, stagingDir string, stagedSources []string, toolsPath string) (string, error) {
+		if err := os.MkdirAll(combinedPath, 0o700); err != nil {
+			return "", err
+		}
+		return combinedPath, nil
+	}
+	executeRestoreEngine = func(ctx context.Context, job config.RestoreJob, stagedPath string) error {
+		if stagedPath != combinedPath {
+			t.Fatalf("stagedPath = %q, want %q", stagedPath, combinedPath)
+		}
+		return errors.New("restore engine failed")
+	}
+
+	result, err := ExecuteRestore(context.Background(), &ExecutionRequest{
+		JobName: "restore",
+		Job: config.RestoreJob{
+			Type:                  "postgres",
+			RestoreMode:           "incremental",
+			IncrementalFromBackup: "base-001",
+			Host:                  "localhost",
+			Username:              "postgres",
+			PasswordEnv:           "PGPASSWORD",
+			Database:              "app",
+			Schedule:              "0 2 * * *",
+			StagingDir:            tmpDir,
+			BackupSource: config.RestoreBackupSource{
+				Type:       "local",
+				LocalPath:  tmpDir,
+				BackupPath: "incremental.dump",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected restore engine failure")
+	}
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+	if _, statErr := os.Stat(combinedPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected combined artifact cleaned up, stat err = %v", statErr)
+	}
+	for _, path := range append(chainPaths, backupPath) {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("expected staged artifact %q cleaned up, stat err = %v", path, statErr)
+		}
 	}
 }

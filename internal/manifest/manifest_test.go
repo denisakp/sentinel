@@ -1,6 +1,8 @@
 package manifest_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"testing"
@@ -235,5 +237,67 @@ func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
 	}
 	if got.AdvancedRestore.IncrementalLineage.BaselineBackupID != "base-001" {
 		t.Fatalf("BaselineBackupID = %q", got.AdvancedRestore.IncrementalLineage.BaselineBackupID)
+	}
+}
+
+func TestValidateIncrementalLineageContract(t *testing.T) {
+	m := &manifest.BackupManifest{
+		BackupID: "inc-001",
+		Hash:     manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+				ChainID:       "chain-1",
+				ChainIndex:    1,
+				MaxChainDepth: 6,
+			},
+		},
+	}
+
+	if err := manifest.ValidateIncrementalLineageContract(m); err != nil {
+		t.Fatalf("ValidateIncrementalLineageContract() unexpected error = %v", err)
+	}
+
+	m.AdvancedRestore.IncrementalLineage.ChainID = ""
+	if err := manifest.ValidateIncrementalLineageContract(m); err == nil {
+		t.Fatal("expected validation error for empty chain_id")
+	}
+}
+
+func TestVerifyBackupHash(t *testing.T) {
+	path := t.TempDir() + "/backup.dump"
+	content := []byte("incremental-payload")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("write backup file: %v", err)
+	}
+
+	sum := sha256.Sum256(content)
+	expected := hex.EncodeToString(sum[:])
+
+	if err := manifest.VerifyBackupHash(path, "sha256", expected); err != nil {
+		t.Fatalf("VerifyBackupHash() unexpected error = %v", err)
+	}
+}
+
+func TestVerifyBackupHash_Mismatch(t *testing.T) {
+	path := t.TempDir() + "/backup.dump"
+	if err := os.WriteFile(path, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write backup file: %v", err)
+	}
+
+	err := manifest.VerifyBackupHash(path, "sha256", "deadbeef")
+	if err == nil {
+		t.Fatal("expected mismatch error")
+	}
+}
+
+func TestVerifyBackupHash_UnsupportedAlgorithm(t *testing.T) {
+	path := t.TempDir() + "/backup.dump"
+	if err := os.WriteFile(path, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write backup file: %v", err)
+	}
+
+	err := manifest.VerifyBackupHash(path, "sha1", "deadbeef")
+	if err == nil {
+		t.Fatal("expected unsupported algorithm error")
 	}
 }
