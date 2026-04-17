@@ -22,6 +22,8 @@ var scheduleCmd = &cobra.Command{
 	Long:  "Start, stop, list, or view status of scheduled backups and restores defined in YAML configuration.\n\nExamples:\n  sentinel schedule start --config sentinel.yaml\n  sentinel schedule list --config sentinel.yaml",
 }
 
+var runScheduledRestoreExecution = scheduler.ExecuteScheduledRestoreWithRunner
+
 var scheduleStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the backup and restore scheduler",
@@ -66,7 +68,7 @@ var scheduleStartCmd = &cobra.Command{
 			}
 			jobCopy := job
 			if err := s.AddJob(job.Name, job.Schedule, func() error {
-				return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled)
+				return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
 			}); err != nil {
 				return err
 			}
@@ -288,7 +290,7 @@ func executeRestoreJob(
 		cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n", job.Name, job.Type, job.Database)
 	}
 
-	result, err := scheduler.ExecuteScheduledRestore(ctx, cfg, job.Name, job, mon, limiter)
+	result, err := runScheduledRestoreExecution(ctx, cfg, job.Name, job, mon, limiter, runRestoreExecution)
 	if err != nil {
 		return err
 	}
