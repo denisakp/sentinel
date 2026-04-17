@@ -1,5 +1,27 @@
 # Sentinel Release Notes
 
+## [v1.1.1] - March 20, 2026
+
+### Restore Observability
+
+- `sentinel restore history` now reads real restore execution records from monitor history instead of placeholder output.
+- Restore history status values are normalized for operators: `success`, `failed`, `timeout`, `skipped`.
+- Restore monitor query support now includes filtered restore execution listing with restore-specific fields.
+
+### Restore Notifications
+
+- Manual `sentinel restore run` now dispatches restore notifications using configured restore notification channels.
+- Restore execution statuses are mapped to notification events consistently:
+  - `success` -> `success`
+  - `failed` and `timeout` -> `failure`
+  - `skipped` -> `warning`
+
+### Tests
+
+- Added CLI coverage for restore notification dispatch across success, failed, timeout, and skipped outcomes.
+- Added CLI restore history observability coverage for status normalization.
+- Added integration coverage combining restore monitor history recording with restore notification delivery.
+
 ## [v1.1.0] - March 15, 2026
 
 ### Added
