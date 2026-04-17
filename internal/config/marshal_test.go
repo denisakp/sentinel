@@ -66,3 +66,92 @@ func TestBuildAdvancedRestoreRequest_InvalidPITRTimestamp(t *testing.T) {
 		t.Fatal("expected parse error for invalid pitr timestamp")
 	}
 }
+
+func TestBuildAdvancedRestoreRequest_MapsMySQLReplayTargets(t *testing.T) {
+	job := RestoreJob{
+		RestoreMode:           "incremental",
+		IncrementalFromBackup: "base-1",
+		MySQL: MySQLRestoreConfig{
+			BinlogTargetTime: "2026-03-20T23:59:00+00:00",
+		},
+	}
+
+	request, err := BuildAdvancedRestoreRequest(job)
+	if err != nil {
+		t.Fatalf("BuildAdvancedRestoreRequest() error = %v", err)
+	}
+	if request.BinlogTargetTime != "2026-03-20T23:59:00+00:00" {
+		t.Fatalf("BinlogTargetTime = %q", request.BinlogTargetTime)
+	}
+}
+
+func TestBuildMySQLBinlogReplayArgs_MapsTargetTime(t *testing.T) {
+	job := RestoreJob{
+		Type:     "mysql",
+		Host:     "127.0.0.1",
+		Port:     3306,
+		Username: "root",
+		Database: "app",
+		MySQL: MySQLRestoreConfig{
+			BinlogTargetTime: "2026-03-20T23:59:00+00:00",
+		},
+	}
+
+	args, err := BuildMySQLBinlogReplayArgs(job, "secret", []string{"/tmp/a.tar"})
+	if err != nil {
+		t.Fatalf("BuildMySQLBinlogReplayArgs() error = %v", err)
+	}
+	if args.Engine != "mysql" {
+		t.Fatalf("Engine = %q", args.Engine)
+	}
+	if args.TargetTime != "2026-03-20T23:59:00+00:00" {
+		t.Fatalf("TargetTime = %q", args.TargetTime)
+	}
+	if args.TargetPosition != nil {
+		t.Fatalf("TargetPosition = %#v, want nil", args.TargetPosition)
+	}
+}
+
+func TestBuildMySQLBinlogReplayArgs_MapsTargetPosition(t *testing.T) {
+	job := RestoreJob{
+		Type:     "mariadb",
+		Host:     "127.0.0.1",
+		Port:     3306,
+		Username: "root",
+		Database: "app",
+		MySQL: MySQLRestoreConfig{
+			BinlogTargetPosition: &BinlogTargetPosition{File: "mariadb-bin.000123", Pos: 2048},
+		},
+	}
+
+	args, err := BuildMySQLBinlogReplayArgs(job, "secret", []string{"/tmp/a.tar", "/tmp/b.tar"})
+	if err != nil {
+		t.Fatalf("BuildMySQLBinlogReplayArgs() error = %v", err)
+	}
+	if args.Engine != "mariadb" {
+		t.Fatalf("Engine = %q", args.Engine)
+	}
+	if args.TargetPosition == nil {
+		t.Fatal("TargetPosition is nil")
+	}
+	if args.TargetPosition.File != "mariadb-bin.000123" || args.TargetPosition.Pos != 2048 {
+		t.Fatalf("TargetPosition = %#v", args.TargetPosition)
+	}
+}
+
+func TestNormalizeIncrementalBackupConfig_Defaults(t *testing.T) {
+	job := BackupJob{
+		IncrementalBackup: &IncrementalBackupConfig{Enabled: true},
+	}
+
+	normalized := NormalizeIncrementalBackupConfig(job)
+	if normalized.IncrementalBackup == nil {
+		t.Fatal("IncrementalBackup is nil")
+	}
+	if normalized.IncrementalBackup.MaxChainDepth != 6 {
+		t.Fatalf("MaxChainDepth = %d, want 6", normalized.IncrementalBackup.MaxChainDepth)
+	}
+	if normalized.IncrementalBackup.OplogWindowWarnHours != 24 {
+		t.Fatalf("OplogWindowWarnHours = %d, want 24", normalized.IncrementalBackup.OplogWindowWarnHours)
+	}
+}

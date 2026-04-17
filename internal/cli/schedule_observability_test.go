@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/monitor"
+	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 )
@@ -160,5 +163,44 @@ func TestScheduleListJSONCompatibilityIncludesLastStatus(t *testing.T) {
 	payload := string(data)
 	if !strings.Contains(payload, "\"last_status\":\"failed\"") {
 		t.Fatalf("expected last_status in json payload, got %s", payload)
+	}
+}
+
+func TestExecuteRestoreJob_UsesCLIRestoreRunner(t *testing.T) {
+	prevScheduled := runScheduledRestoreExecution
+	prevRunner := runRestoreExecution
+	t.Cleanup(func() {
+		runScheduledRestoreExecution = prevScheduled
+		runRestoreExecution = prevRunner
+	})
+
+	runnerInvoked := false
+	runRestoreExecution = func(ctx context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		runnerInvoked = true
+		return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+	}
+
+	runScheduledRestoreExecution = func(
+		ctx context.Context,
+		cfg *config.Configuration,
+		jobName string,
+		job config.RestoreJob,
+		mon *monitor.Monitor,
+		limiter chan struct{},
+		runner scheduler.SharedRestoreRunner,
+	) (*internalrestore.ExecutionResult, error) {
+		_, err := runner(ctx, &internalrestore.ExecutionRequest{})
+		if err != nil {
+			return nil, err
+		}
+		return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+	}
+
+	err := executeRestoreJob(nil, &config.Configuration{}, nil, config.RestoreJob{Name: "restore-job"}, nil)
+	if err != nil {
+		t.Fatalf("executeRestoreJob() error = %v, want nil", err)
+	}
+	if !runnerInvoked {
+		t.Fatal("expected runRestoreExecution to be used by scheduled restore path")
 	}
 }

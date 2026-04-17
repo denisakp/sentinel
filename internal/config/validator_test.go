@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -67,6 +69,64 @@ func TestValidateConfig_AdvancedRestoreRules(t *testing.T) {
 			wantErrPart: "incremental_from_backup is required",
 		},
 		{
+			name: "incremental mysql allowed",
+			mutate: func(job *RestoreJob) {
+				job.Type = "mysql"
+				job.RestoreMode = "incremental"
+				job.IncrementalFromBackup = "baseline-1"
+			},
+			wantErrPart: "",
+		},
+		{
+			name: "binlog selectors mutually exclusive",
+			mutate: func(job *RestoreJob) {
+				job.Type = "mysql"
+				job.RestoreMode = "incremental"
+				job.IncrementalFromBackup = "baseline-1"
+				job.MySQL.BinlogTargetTime = "2026-03-20T23:59:00+00:00"
+				job.MySQL.BinlogTargetPosition = &BinlogTargetPosition{File: "mysql-bin.000001", Pos: 100}
+			},
+			wantErrPart: "mutually exclusive",
+		},
+		{
+			name: "binlog selector only for mysql",
+			mutate: func(job *RestoreJob) {
+				job.Type = "postgres"
+				job.MySQL.BinlogTargetTime = "2026-03-20T23:59:00+00:00"
+			},
+			wantErrPart: "only valid for mysql or mariadb",
+		},
+		{
+			name: "mariadb binlog target position accepted",
+			mutate: func(job *RestoreJob) {
+				job.Type = "mariadb"
+				job.RestoreMode = "incremental"
+				job.IncrementalFromBackup = "baseline-1"
+				job.MySQL.BinlogTargetPosition = &BinlogTargetPosition{File: "mariadb-bin.000101", Pos: 1234}
+			},
+			wantErrPart: "",
+		},
+		{
+			name: "binlog target position requires file and pos",
+			mutate: func(job *RestoreJob) {
+				job.Type = "mysql"
+				job.RestoreMode = "incremental"
+				job.IncrementalFromBackup = "baseline-1"
+				job.MySQL.BinlogTargetPosition = &BinlogTargetPosition{File: "", Pos: 0}
+			},
+			wantErrPart: "requires both file and pos > 0",
+		},
+		{
+			name: "binlog target time requires RFC3339 timezone",
+			mutate: func(job *RestoreJob) {
+				job.Type = "mysql"
+				job.RestoreMode = "incremental"
+				job.IncrementalFromBackup = "baseline-1"
+				job.MySQL.BinlogTargetTime = "2026-03-20 23:59:00"
+			},
+			wantErrPart: "RFC3339 with timezone",
+		},
+		{
 			name: "invalid mode rejected",
 			mutate: func(job *RestoreJob) {
 				job.RestoreMode = "snapshot"
@@ -112,6 +172,106 @@ func TestValidateConfig_AdvancedRestoreRules(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", tt.wantErrPart, err)
 			}
 		})
+	}
+}
+
+func TestValidateConfig_IncrementalBackupPolicyRules(t *testing.T) {
+	enabled := true
+	cfg := &Configuration{
+		Version:              "1.0",
+		MaxConcurrentBackups: 1,
+		Databases: map[string]BackupJob{
+			"mysql_job": {
+				Name:        "mysql_job",
+				Type:        "mysql",
+				Enabled:     &enabled,
+				Host:        "localhost",
+				Username:    "sentinel",
+				PasswordEnv: "MYSQL_PASSWORD",
+				Database:    "appdb",
+				Storage:     StorageConfig{Type: "local", LocalPath: "/tmp"},
+				Schedule:    "0 1 * * *",
+				IncrementalBackup: &IncrementalBackupConfig{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "mysql.binlog_path is required") {
+		t.Fatalf("expected binlog_path validation error, got %v", err)
+	}
+}
+
+func TestValidateConfig_IncrementalBackupPolicyRequiresMountedBinlogPath(t *testing.T) {
+	enabled := true
+	cfg := &Configuration{
+		Version:              "1.0",
+		MaxConcurrentBackups: 1,
+		Databases: map[string]BackupJob{
+			"mysql_job": {
+				Name:        "mysql_job",
+				Type:        "mysql",
+				Enabled:     &enabled,
+				Host:        "localhost",
+				Username:    "sentinel",
+				PasswordEnv: "MYSQL_PASSWORD",
+				Database:    "appdb",
+				Storage:     StorageConfig{Type: "local", LocalPath: "/tmp"},
+				Schedule:    "0 1 * * *",
+				MySQL:       MySQLConfig{BinlogPath: filepath.Join(t.TempDir(), "missing-binlogs")},
+				IncrementalBackup: &IncrementalBackupConfig{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "must exist and be locally mounted") {
+		t.Fatalf("expected mounted binlog_path validation error, got %v", err)
+	}
+}
+
+func TestValidateConfig_IncrementalBackupPolicyAcceptsMountedBinlogPath(t *testing.T) {
+	enabled := true
+	binlogDir := filepath.Join(t.TempDir(), "binlogs")
+	if err := os.MkdirAll(binlogDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	cfg := &Configuration{
+		Version:              "1.0",
+		MaxConcurrentBackups: 1,
+		Databases: map[string]BackupJob{
+			"mysql_job": {
+				Name:        "mysql_job",
+				Type:        "mysql",
+				Enabled:     &enabled,
+				Host:        "localhost",
+				Username:    "sentinel",
+				PasswordEnv: "MYSQL_PASSWORD",
+				Database:    "appdb",
+				Storage:     StorageConfig{Type: "local", LocalPath: "/tmp"},
+				Schedule:    "0 1 * * *",
+				MySQL:       MySQLConfig{BinlogPath: binlogDir},
+				IncrementalBackup: &IncrementalBackupConfig{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err != nil {
+		t.Fatalf("ValidateConfig() unexpected error: %v", err)
 	}
 }
 

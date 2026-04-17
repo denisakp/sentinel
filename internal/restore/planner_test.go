@@ -83,6 +83,27 @@ func TestPlanAdvancedRestore(t *testing.T) {
 			wantReason: ReasonCodeFullFallbackConfirmationRequired,
 			wantMode:   AdvancedRestoreModeIncremental,
 		},
+		{
+			name: "incremental fallback approved with confirmation",
+			job:  config.RestoreJob{Type: "postgres"},
+			request: &config.AdvancedRestoreRequest{
+				RestoreMode:           "incremental",
+				IncrementalFromBackup: "base-001",
+				ConfirmFullFallback:   true,
+			},
+			manifest: &manifest.BackupManifest{
+				AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+					Capabilities: []string{"incremental"},
+					IncrementalLineage: &manifest.IncrementalLineageMetadata{
+						BaselineBackupID:   "base-001",
+						ExecutionSupported: false,
+					},
+				},
+			},
+			wantStatus: PlanStatusReady,
+			wantReason: ReasonCodeFullFallbackApproved,
+			wantMode:   AdvancedRestoreModeFull,
+		},
 	}
 
 	for _, tt := range tests {
@@ -99,6 +120,30 @@ func TestPlanAdvancedRestore(t *testing.T) {
 			}
 			if plan.Mode != tt.wantMode {
 				t.Fatalf("Mode = %q, want %q", plan.Mode, tt.wantMode)
+			}
+
+			if tt.name == "incremental fallback confirmation required" {
+				if plan.Fallback != FallbackCandidateFullRestore {
+					t.Fatalf("Fallback = %q, want %q", plan.Fallback, FallbackCandidateFullRestore)
+				}
+				if plan.FallbackReason != ReasonCodeIncrementalCapabilityUnavailable {
+					t.Fatalf("FallbackReason = %q, want %q", plan.FallbackReason, ReasonCodeIncrementalCapabilityUnavailable)
+				}
+				if plan.FallbackBackupID != "base-001" {
+					t.Fatalf("FallbackBackupID = %q, want base-001", plan.FallbackBackupID)
+				}
+			}
+
+			if tt.name == "incremental fallback approved with confirmation" {
+				if plan.Fallback != FallbackCandidateFullRestore {
+					t.Fatalf("Fallback = %q, want %q", plan.Fallback, FallbackCandidateFullRestore)
+				}
+				if plan.FallbackReason != ReasonCodeIncrementalCapabilityUnavailable {
+					t.Fatalf("FallbackReason = %q, want %q", plan.FallbackReason, ReasonCodeIncrementalCapabilityUnavailable)
+				}
+				if plan.FallbackBackupID != "base-001" {
+					t.Fatalf("FallbackBackupID = %q, want base-001", plan.FallbackBackupID)
+				}
 			}
 		})
 	}

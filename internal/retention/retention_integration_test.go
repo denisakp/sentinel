@@ -2,6 +2,8 @@ package retention
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -99,5 +101,88 @@ func TestManagerApplyGCSDeletesRecordsAfterArtifactDelete(t *testing.T) {
 	}
 	if records[0].FilePath != "gs://bucket-a/new.sql" {
 		t.Fatalf("remaining file = %q", records[0].FilePath)
+	}
+}
+
+func TestManagerApplyPreservesActiveChainBaseline(t *testing.T) {
+	historyPath := t.TempDir() + "/history.db"
+	backupDir := t.TempDir()
+	fullPath := filepath.Join(backupDir, "full.sql")
+	incrementalPath := filepath.Join(backupDir, "incremental.sql")
+	if err := os.WriteFile(fullPath, []byte("full"), 0o644); err != nil {
+		t.Fatalf("WriteFile(full) error = %v", err)
+	}
+	if err := os.WriteFile(incrementalPath, []byte("incremental"), 0o644); err != nil {
+		t.Fatalf("WriteFile(incremental) error = %v", err)
+	}
+
+	cfg := &config.Configuration{
+		Version:       "1.0",
+		HistoryDBPath: historyPath,
+		Databases: map[string]config.BackupJob{
+			"pg-job": {
+				Name: "pg-job",
+				Type: "postgres",
+				Storage: config.StorageConfig{
+					Type: "local",
+				},
+				Retention: config.RetentionPolicy{KeepLast: 1},
+			},
+		},
+	}
+
+	mon, err := monitor.NewMonitor(historyPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+
+	now := time.Now().UTC()
+	fixtures := []*monitor.Execution{
+		{
+			BackupName:    "pg-job",
+			DatabaseType:  "postgres",
+			Timestamp:     now.Add(-2 * time.Hour),
+			Status:        "success",
+			FilePath:      fullPath,
+			FileSizeBytes: 4,
+			BackupType:    "full",
+			ChainID:       "chain-a",
+			ChainIndex:    0,
+		},
+		{
+			BackupName:    "pg-job",
+			DatabaseType:  "postgres",
+			Timestamp:     now.Add(-1 * time.Hour),
+			Status:        "success",
+			FilePath:      incrementalPath,
+			FileSizeBytes: 11,
+			BackupType:    "incremental",
+			ChainID:       "chain-a",
+			ChainIndex:    1,
+		},
+	}
+	for _, e := range fixtures {
+		if err := mon.RecordExecution(context.Background(), e); err != nil {
+			t.Fatalf("RecordExecution() error = %v", err)
+		}
+	}
+	_ = mon.Close()
+
+	manager, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	deleted, err := manager.Apply(context.Background(), "pg-job", false)
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("deleted = %d, want 0", len(deleted))
+	}
+
+	if _, err := os.Stat(fullPath); err != nil {
+		t.Fatalf("expected baseline to remain, stat err = %v", err)
 	}
 }

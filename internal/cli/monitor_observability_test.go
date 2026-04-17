@@ -17,12 +17,16 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	timestamp := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
 	executions := []monitor.Execution{
 		{
-			ID:           "exec-001",
-			BackupName:   "prod-postgres",
-			Status:       "failed",
-			Timestamp:    timestamp,
-			DurationMs:   1500,
-			ErrorMessage: "dial tcp 10.0.0.1:5432: connect: connection refused after multiple retries",
+			ID:             "exec-001",
+			BackupName:     "prod-postgres",
+			BackupType:     "incremental",
+			ChainID:        "chain-001",
+			ChainIndex:     2,
+			DeltaSizeBytes: 2048,
+			Status:         "failed",
+			Timestamp:      timestamp,
+			DurationMs:     1500,
+			ErrorMessage:   "dial tcp 10.0.0.1:5432: connect: connection refused after multiple retries",
 		},
 	}
 
@@ -42,7 +46,7 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	}
 
 	headers := strings.Fields(lines[0])
-	expected := []string{"ID", "JOB", "STATUS", "TIMESTAMP", "DURATION", "ERROR"}
+	expected := []string{"ID", "JOB", "TYPE", "CHAIN", "STATUS", "TIMESTAMP", "DURATION", "DELTA", "ERROR"}
 	if strings.Join(headers, "|") != strings.Join(expected, "|") {
 		t.Fatalf("unexpected headers: got %v want %v", headers, expected)
 	}
@@ -60,6 +64,11 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 
 	if !strings.Contains(showBuf.String(), "ID: exec-001") {
 		t.Fatalf("monitor show output should include handed-off id, got:\n%s", showBuf.String())
+	}
+	for _, expected := range []string{"Backup Type: incremental", "Chain ID: chain-001", "Chain Index: 2", "Delta Size: 2048"} {
+		if !strings.Contains(showBuf.String(), expected) {
+			t.Fatalf("monitor show output missing %q, got:\n%s", expected, showBuf.String())
+		}
 	}
 }
 

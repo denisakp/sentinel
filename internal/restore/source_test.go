@@ -2,6 +2,7 @@ package restore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,5 +69,90 @@ func TestCleanupStagedArtifactRemovesFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(artifact.Path); !os.IsNotExist(err) {
 		t.Fatalf("expected staged file removed, stat err = %v", err)
+	}
+}
+
+func TestStageRestoreSource_CleansStagedFileOnManifestDownloadError(t *testing.T) {
+	originalDownload := downloadRestoreSourceObject
+	t.Cleanup(func() { downloadRestoreSourceObject = originalDownload })
+
+	root := t.TempDir()
+	sourceDir := filepath.Join(root, "source")
+	stagingDir := filepath.Join(root, "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "backup.sql"), []byte("select 1;"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	downloadRestoreSourceObject = func(ctx context.Context, source config.RestoreBackupSource, object, dest string) error {
+		if object == "backup.sql.manifest.json" {
+			return errors.New("backend timeout")
+		}
+		return downloadSourceObject(ctx, source, object, dest)
+	}
+
+	_, err := StageRestoreSource(context.Background(), config.RestoreJob{
+		Name:       "test-job",
+		StagingDir: stagingDir,
+		BackupSource: config.RestoreBackupSource{
+			Type:       "local",
+			LocalPath:  sourceDir,
+			BackupPath: "backup.sql",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected manifest download error")
+	}
+	matches, globErr := filepath.Glob(filepath.Join(stagingDir, "*backup.sql*"))
+	if globErr != nil {
+		t.Fatalf("Glob() error = %v", globErr)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("expected staged files cleaned up, found %v", matches)
+	}
+}
+
+func TestStageChainArtifacts_CleansPartialDownloadsOnError(t *testing.T) {
+	originalDownload := downloadRestoreSourceObject
+	t.Cleanup(func() { downloadRestoreSourceObject = originalDownload })
+
+	root := t.TempDir()
+	sourceDir := filepath.Join(root, "source")
+	stagingDir := filepath.Join(root, "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	for _, name := range []string{"base-001.dump", "incr-001.dump"} {
+		if err := os.WriteFile(filepath.Join(sourceDir, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+
+	downloadRestoreSourceObject = func(ctx context.Context, source config.RestoreBackupSource, object, dest string) error {
+		if object == "incr-001.dump" {
+			return errors.New("simulated download failure")
+		}
+		return downloadSourceObject(ctx, source, object, dest)
+	}
+
+	_, err := StageChainArtifacts(context.Background(), config.RestoreJob{
+		Name:       "restore-job",
+		StagingDir: stagingDir,
+		BackupSource: config.RestoreBackupSource{
+			Type:      "local",
+			LocalPath: sourceDir,
+		},
+	}, []string{"base-001.dump", "incr-001.dump"})
+	if err == nil {
+		t.Fatal("expected chain staging error")
+	}
+	matches, globErr := filepath.Glob(filepath.Join(stagingDir, "*"))
+	if globErr != nil {
+		t.Fatalf("Glob() error = %v", globErr)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("expected partial staged chain cleaned up, found %v", matches)
 	}
 }

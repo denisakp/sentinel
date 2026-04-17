@@ -57,6 +57,8 @@ func TestNewMonitor_AcceptsAdvancedRestoreFields(t *testing.T) {
 		RequestedPITRTimeUTC: &target,
 		BaselineBackupID:     "base-001",
 		FallbackDecision:     "none",
+		FallbackReason:       "",
+		FallbackBackupID:     "",
 		RecoveryTimelineID:   "1",
 		SourceType:           "local",
 		ConflictStrategy:     "error",
@@ -66,6 +68,108 @@ func TestNewMonitor_AcceptsAdvancedRestoreFields(t *testing.T) {
 		CreatedAt:            now,
 	}
 	if err := mon.RecordRestoreExecution(context.Background(), rec); err != nil {
+		t.Fatalf("RecordRestoreExecution() error = %v", err)
+	}
+
+	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-advanced"}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListRestoreExecutions() error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+}
+
+func TestNewMonitor_PersistsFallbackReasonFields(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "history.db")
+	mon, err := NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	rec := &RestoreExecution{
+		RestoreName:      "restore-fallback",
+		DatabaseType:     "postgres",
+		DatabaseName:     "db",
+		RestoreMode:      "full",
+		PlanningStatus:   "ready",
+		FallbackDecision: "full_restore",
+		FallbackReason:   "incremental_capability_unavailable",
+		FallbackBackupID: "base-001",
+		SourceType:       "local",
+		ConflictStrategy: "error",
+		Timestamp:        now,
+		Status:           StatusSuccess,
+		SourceBackupPath: "backup.sql",
+		CreatedAt:        now,
+	}
+	if err := mon.RecordRestoreExecution(context.Background(), rec); err != nil {
+		t.Fatalf("RecordRestoreExecution() error = %v", err)
+	}
+
+	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-fallback"}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListRestoreExecutions() error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].FallbackReason != "incremental_capability_unavailable" {
+		t.Fatalf("FallbackReason = %q", rows[0].FallbackReason)
+	}
+	if rows[0].FallbackBackupID != "base-001" {
+		t.Fatalf("FallbackBackupID = %q", rows[0].FallbackBackupID)
+	}
+}
+
+func TestNewMonitor_AcceptsIncrementalObservabilityFields(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "history.db")
+	mon, err := NewMonitor(dbPath)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	backupRec := &Execution{
+		BackupName:          "backup-incremental",
+		DatabaseType:        "postgres",
+		Timestamp:           now,
+		Status:              StatusCompleted,
+		StorageBackend:      "local",
+		FilePath:            "backup.sql",
+		BackupType:          "incremental",
+		ChainID:             "chain-001",
+		ChainIndex:          2,
+		DeltaSizeBytes:      1024,
+		FullBackupSizeBytes: 8192,
+		CreatedAt:           now,
+	}
+	if err := mon.RecordExecution(context.Background(), backupRec); err != nil {
+		t.Fatalf("RecordExecution() error = %v", err)
+	}
+
+	restoreRec := &RestoreExecution{
+		RestoreName:        "restore-incremental",
+		DatabaseType:       "postgres",
+		DatabaseName:       "db",
+		RestoreMode:        "incremental",
+		PlanningStatus:     "ready",
+		BaselineBackupID:   "base-001",
+		FallbackDecision:   "none",
+		ChainDepth:         3,
+		ChainID:            "chain-001",
+		AssemblyDurationMs: 250,
+		SourceType:         "local",
+		ConflictStrategy:   "error",
+		Timestamp:          now,
+		Status:             StatusCompleted,
+		SourceBackupPath:   "backup.sql",
+		CreatedAt:          now,
+	}
+	if err := mon.RecordRestoreExecution(context.Background(), restoreRec); err != nil {
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 }
