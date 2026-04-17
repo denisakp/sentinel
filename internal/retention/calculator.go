@@ -83,5 +83,8 @@ func addCandidate(candidateMap map[string]*BackupCandidate, rec BackupRecord, re
 		FileSize:      rec.FileSize,
 		Status:        rec.Status,
 		ReasonDeleted: reason,
+		BackupType:    rec.BackupType,
+		ChainID:       rec.ChainID,
+		ChainIndex:    rec.ChainIndex,
 	}
 }

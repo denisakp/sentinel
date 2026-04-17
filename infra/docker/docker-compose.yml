@@ -9,6 +9,7 @@ volumes:
 
 networks:
   sentinel:
+    external: true
 
 services:
   mysql:

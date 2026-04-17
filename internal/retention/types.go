@@ -11,10 +11,13 @@ type Policy struct {
 
 // BackupRecord represents a backup execution record used for retention evaluation.
 type BackupRecord struct {
-	FilePath  string
-	Timestamp time.Time
-	FileSize  int64
-	Status    string
+	FilePath   string
+	Timestamp  time.Time
+	FileSize   int64
+	Status     string
+	BackupType string
+	ChainID    string
+	ChainIndex int
 }
 
 // BackupCandidate represents a retention deletion candidate.
@@ -24,6 +27,9 @@ type BackupCandidate struct {
 	FileSize      int64
 	Status        string
 	ReasonDeleted string
+	BackupType    string
+	ChainID       string
+	ChainIndex    int
 }
 
 // DeletedBackup represents a deletion result.

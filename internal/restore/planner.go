@@ -8,6 +8,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
+	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
 
 const (
@@ -131,8 +132,11 @@ func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreReque
 
 	plan.BaselineCompatible = true
 	if !lineage.ExecutionSupported {
+		decision := restoreincremental.EvaluateFallback(request.ConfirmFullFallback, lineage.BaselineBackupID, ReasonCodeIncrementalCapabilityUnavailable)
 		plan.Fallback = FallbackCandidateFullRestore
-		if request.ConfirmFullFallback {
+		plan.FallbackReason = decision.Reason
+		plan.FallbackBackupID = decision.FallbackBackupID
+		if decision.Proceed {
 			plan.Status = PlanStatusReady
 			plan.Mode = AdvancedRestoreModeFull
 			plan.ReasonCode = ReasonCodeFullFallbackApproved
@@ -145,10 +149,14 @@ func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreReque
 
 	plan.Status = PlanStatusReady
 	plan.ReasonCode = ReasonCodeReady
-	plan.ResolvedBackupIDs = append([]string{}, lineage.RequiredBackupIDs...)
-	if len(plan.ResolvedBackupIDs) == 0 && m.BackupID != "" {
-		plan.ResolvedBackupIDs = []string{m.BackupID}
+	plan.ResolvedBackupIDs = appendUniqueID(plan.ResolvedBackupIDs, lineage.BaselineBackupID)
+	for _, id := range lineage.RequiredBackupIDs {
+		plan.ResolvedBackupIDs = appendUniqueID(plan.ResolvedBackupIDs, id)
 	}
+	if m.BackupID != "" {
+		plan.ResolvedBackupIDs = appendUniqueID(plan.ResolvedBackupIDs, m.BackupID)
+	}
+	plan.ChainDepth = len(plan.ResolvedBackupIDs)
 
 	return plan
 }
@@ -177,4 +185,17 @@ func containsCapability(capabilities []string, target string) bool {
 func timePtr(value time.Time) *time.Time {
 	copy := value
 	return &copy
+}
+
+func appendUniqueID(ids []string, candidate string) []string {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return ids
+	}
+	for _, id := range ids {
+		if id == candidate {
+			return ids
+		}
+	}
+	return append(ids, candidate)
 }

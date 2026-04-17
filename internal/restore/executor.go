@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +17,8 @@ import (
 	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
+	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
+	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
 	mariadbrestore "github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
 	mongorestore "github.com/denisakp/sentinel/pkg/restore/mongo_restore"
 	mysqlrestore "github.com/denisakp/sentinel/pkg/restore/mysql_restore"
@@ -28,10 +32,14 @@ var (
 
 var (
 	stageRestoreSource    = StageRestoreSource
+	stageChainArtifacts   = StageChainArtifacts
 	applyRestorePreflight = applyPreflight
 	executeRestoreEngine  = executeEngineRestore
 	runPostgresRestore    = pgrestore.Restore
 	runPostgresPITR       = executePostgresPITR
+	runMySQLBinlogReplay  = mysqlbinlog.Replay
+	runMongoOplogReplay   = mongorestore.ReplayOplog
+	assemblePostgresChain = restoreincremental.AssemblePostgresChain
 )
 
 type ExecutionRequest struct {
@@ -54,6 +62,8 @@ type ExecutionResult struct {
 	RequestedPITRTimeUTC *time.Time
 	BaselineBackupID     string
 	FallbackDecision     string
+	FallbackReason       string
+	FallbackBackupID     string
 	RecoveryTimelineID   string
 	StartedAt            time.Time
 	CompletedAt          time.Time
@@ -66,6 +76,8 @@ type ExecutionResult struct {
 	VerificationPassed   bool
 	ConflictStrategy     string
 	TimeoutSeconds       int
+	ChainDepth           int
+	AssemblyDurationMs   int64
 	Error                error
 }
 
@@ -138,6 +150,18 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		}
 		_ = CleanupStagedArtifact(artifact)
 	}()
+	var assembledArtifact *StagedArtifact
+	defer func() {
+		if assembledArtifact == nil {
+			return
+		}
+		if job.KeepFile {
+			assembledArtifact.Retained = true
+			result.StagedFileRetained = true
+			return
+		}
+		_ = os.RemoveAll(assembledArtifact.Path)
+	}()
 
 	planningInput, err := config.BuildAdvancedRestoreRequest(job)
 	if err != nil {
@@ -166,6 +190,8 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
 		result.BaselineBackupID = plan.BaselineBackupID
 		result.FallbackDecision = string(plan.Fallback)
+		result.FallbackReason = plan.FallbackReason
+		result.FallbackBackupID = plan.FallbackBackupID
 		result.Error = err
 		result.CompletedAt = time.Now().UTC()
 		result.Duration = result.CompletedAt.Sub(result.StartedAt)
@@ -173,13 +199,16 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		return result, err
 	}
 	if plan.Status == PlanStatusConfirmationRequired {
-		err := fmt.Errorf("restore planning requires confirmation: %s", plan.ReasonCode)
+		err := fmt.Errorf("fallback_required_confirmation: %s", plan.ReasonCode)
+		result.Status = monitor.StatusSkipped
 		result.Reason = plan.ReasonCode
 		result.RestoreMode = string(plan.Mode)
 		result.PlanningStatus = string(plan.Status)
 		result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
 		result.BaselineBackupID = plan.BaselineBackupID
 		result.FallbackDecision = string(plan.Fallback)
+		result.FallbackReason = plan.FallbackReason
+		result.FallbackBackupID = plan.FallbackBackupID
 		result.Error = err
 		result.CompletedAt = time.Now().UTC()
 		result.Duration = result.CompletedAt.Sub(result.StartedAt)
@@ -192,7 +221,10 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 	result.RequestedPITRTimeUTC = plan.ResolvedTargetTimeUTC
 	result.BaselineBackupID = plan.BaselineBackupID
 	result.FallbackDecision = string(plan.Fallback)
+	result.FallbackReason = plan.FallbackReason
+	result.FallbackBackupID = plan.FallbackBackupID
 	result.RecoveryTimelineID = plan.RequestedTimeline
+	result.ChainDepth = plan.ChainDepth
 
 	stagedPath, err := applyRestorePreflight(ctx, req.Config, artifact)
 	if err != nil {
@@ -204,6 +236,89 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		return result, err
 	}
 	result.StagedFilePath = stagedPath
+	manifestPaths := make([]string, 0)
+	if artifact.ManifestPath != "" {
+		manifestPaths = append(manifestPaths, artifact.ManifestPath)
+	}
+
+	if job.RestoreMode == "incremental" && len(plan.ResolvedBackupIDs) > 0 {
+		chainArtifacts := make([]restoreincremental.ChainArtifact, 0, len(plan.ResolvedBackupIDs))
+		for i, backupID := range plan.ResolvedBackupIDs {
+			artifact := restoreincremental.ChainArtifact{
+				BackupID:        backupID,
+				ChainIndex:      i,
+				ManifestPresent: true,
+				HashVerified:    true,
+			}
+			if i > 0 {
+				artifact.BaselineBackupID = plan.BaselineBackupID
+			}
+			chainArtifacts = append(chainArtifacts, artifact)
+		}
+		resolved, err := restoreincremental.ResolveOrderedChain(chainArtifacts, "")
+		if err != nil {
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
+		result.ChainDepth = resolved.Depth
+
+		chainStaged, err := stageChainArtifacts(ctx, job, resolved.ArtifactIDs)
+		if err != nil {
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
+		defer func() {
+			if job.KeepFile {
+				for _, staged := range chainStaged {
+					if staged == nil {
+						continue
+					}
+					staged.Retained = true
+				}
+				result.StagedFileRetained = true
+				return
+			}
+			_ = CleanupStagedArtifacts(chainStaged)
+		}()
+
+		paths := make([]string, 0, len(chainStaged))
+		for _, staged := range chainStaged {
+			if staged != nil && staged.Path != "" {
+				paths = append(paths, staged.Path)
+			}
+			if staged != nil && staged.ManifestPath != "" {
+				manifestPaths = append(manifestPaths, staged.ManifestPath)
+			}
+		}
+		if (job.Type == "mysql" || job.Type == "mariadb") && len(paths) > 0 {
+			stagedPath = paths[0]
+			result.StagedFilePath = stagedPath
+		}
+		if job.Type == "postgres" && len(paths) > 1 {
+			assemblyStart := time.Now().UTC()
+			combinedPath, err := assemblePostgresChain(ctx, job.StagingDir, paths, "")
+			result.AssemblyDurationMs = time.Since(assemblyStart).Milliseconds()
+			if err != nil {
+				result.Reason = classifyRestoreError(err)
+				result.Error = err
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, err
+			}
+			assembledArtifact = &StagedArtifact{Path: combinedPath, SourcePath: combinedPath}
+			stagedPath = combinedPath
+			result.StagedFilePath = combinedPath
+		}
+	}
 
 	if req.ConflictEvaluator != nil {
 		if err := req.ConflictEvaluator(ctx, job, stagedPath); err != nil {
@@ -229,6 +344,79 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		result.Duration = result.CompletedAt.Sub(result.StartedAt)
 		recordRestoreExecution(ctx, req, job, result)
 		return result, err
+	}
+
+	if job.RestoreMode == "incremental" && (job.Type == "mysql" || job.Type == "mariadb") {
+		binlogSources, err := collectBinlogArtifactsFromManifests(manifestPaths)
+		if err != nil {
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
+		if len(binlogSources) > 0 {
+			password, passwordErr := config.RestorePasswordFromEnv(job.PasswordEnv)
+			if passwordErr != nil {
+				result.Reason = classifyRestoreError(passwordErr)
+				result.Error = passwordErr
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, passwordErr
+			}
+
+			replayArgs, replayErr := config.BuildMySQLBinlogReplayArgs(job, password, binlogSources)
+			if replayErr != nil {
+				result.Reason = classifyRestoreError(replayErr)
+				result.Error = replayErr
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, replayErr
+			}
+
+			if replayErr := runMySQLBinlogReplay(ctx, replayArgs); replayErr != nil {
+				result.Reason = classifyRestoreError(replayErr)
+				result.Error = replayErr
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, replayErr
+			}
+		}
+	}
+
+	if job.RestoreMode == "incremental" && job.Type == "mongodb" {
+		oplogSources, err := collectOplogArtifactsFromManifests(manifestPaths)
+		if err != nil {
+			result.Reason = classifyRestoreError(err)
+			result.Error = err
+			result.CompletedAt = time.Now().UTC()
+			result.Duration = result.CompletedAt.Sub(result.StartedAt)
+			recordRestoreExecution(ctx, req, job, result)
+			return result, err
+		}
+		for _, archivePath := range oplogSources {
+			replayArgs, replayErr := config.BuildMongoOplogReplayArgs(job, archivePath)
+			if replayErr != nil {
+				result.Reason = classifyRestoreError(replayErr)
+				result.Error = replayErr
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, replayErr
+			}
+			if replayErr := runMongoOplogReplay(ctx, replayArgs); replayErr != nil {
+				result.Reason = classifyRestoreError(replayErr)
+				result.Error = replayErr
+				result.CompletedAt = time.Now().UTC()
+				result.Duration = result.CompletedAt.Sub(result.StartedAt)
+				recordRestoreExecution(ctx, req, job, result)
+				return result, replayErr
+			}
+		}
 	}
 
 	if req.PostRestoreHook != nil {
@@ -366,7 +554,7 @@ func executeEngineRestore(ctx context.Context, job config.RestoreJob, stagedPath
 }
 
 func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job config.RestoreJob, result *ExecutionResult) {
-	if req == nil || req.Monitor == nil || result == nil {
+	if req == nil || result == nil {
 		return
 	}
 	entry := &monitor.RestoreExecution{
@@ -379,6 +567,8 @@ func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job conf
 		RequestedPITRTimeUTC: result.RequestedPITRTimeUTC,
 		BaselineBackupID:     result.BaselineBackupID,
 		FallbackDecision:     result.FallbackDecision,
+		FallbackReason:       result.FallbackReason,
+		FallbackBackupID:     result.FallbackBackupID,
 		RecoveryTimelineID:   result.RecoveryTimelineID,
 		SourceType:           job.BackupSource.Type,
 		ConflictStrategy:     result.ConflictStrategy,
@@ -394,8 +584,14 @@ func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job conf
 		BytesRestored:        result.BytesRestored,
 		VerificationPassed:   result.VerificationPassed,
 		TimeoutSeconds:       result.TimeoutSeconds,
+		ChainDepth:           result.ChainDepth,
+		AssemblyDurationMs:   result.AssemblyDurationMs,
 		CreatedAt:            result.StartedAt,
 		FinishedAt:           &result.CompletedAt,
+	}
+	monitor.ObserveIncrementalRestore(req.JobName, entry)
+	if req.Monitor == nil {
+		return
 	}
 	_ = req.Monitor.RecordRestoreExecution(ctx, entry)
 	result.ExecutionID = entry.ID
@@ -408,6 +604,10 @@ func classifyRestoreError(err error) string {
 	switch {
 	case errors.Is(err, ErrInsufficientStagingSpace):
 		return "insufficient_staging_space"
+	case strings.Contains(err.Error(), "broken_lineage_chain"):
+		return "broken_lineage_chain"
+	case strings.Contains(err.Error(), "timeline_mismatch"):
+		return "timeline_mismatch"
 	case errors.Is(err, ErrRestoreLockConflict):
 		return "lock_conflict"
 	case errors.Is(err, context.DeadlineExceeded):
@@ -431,4 +631,75 @@ func errorMessage(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func collectBinlogArtifactsFromManifests(manifestPaths []string) ([]string, error) {
+	if len(manifestPaths) == 0 {
+		return nil, nil
+	}
+
+	artifacts := make(map[string]struct{})
+	for _, manifestPath := range manifestPaths {
+		if strings.TrimSpace(manifestPath) == "" {
+			continue
+		}
+		m, err := manifest.ReadManifest(manifestPath)
+		if err != nil {
+			if errors.Is(err, manifest.ErrNoManifest) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to read chain manifest %s: %w", manifestPath, err)
+		}
+		if m == nil || m.AdvancedRestore == nil || m.AdvancedRestore.IncrementalLineage == nil {
+			continue
+		}
+		for _, artifact := range m.AdvancedRestore.IncrementalLineage.BinlogArtifacts {
+			if strings.TrimSpace(artifact) == "" {
+				continue
+			}
+			artifacts[artifact] = struct{}{}
+		}
+	}
+
+	out := make([]string, 0, len(artifacts))
+	for artifact := range artifacts {
+		out = append(out, artifact)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func collectOplogArtifactsFromManifests(manifestPaths []string) ([]string, error) {
+	if len(manifestPaths) == 0 {
+		return nil, nil
+	}
+
+	var artifacts []string
+	seen := make(map[string]struct{})
+	for _, manifestPath := range manifestPaths {
+		if strings.TrimSpace(manifestPath) == "" {
+			continue
+		}
+		m, err := manifest.ReadManifest(manifestPath)
+		if err != nil {
+			if errors.Is(err, manifest.ErrNoManifest) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to read chain manifest %s: %w", manifestPath, err)
+		}
+		if m == nil || m.AdvancedRestore == nil || m.AdvancedRestore.IncrementalLineage == nil {
+			continue
+		}
+		artifact := strings.TrimSpace(m.AdvancedRestore.IncrementalLineage.OplogArtifactPath)
+		if artifact == "" {
+			continue
+		}
+		if _, exists := seen[artifact]; exists {
+			continue
+		}
+		seen[artifact] = struct{}{}
+		artifacts = append(artifacts, artifact)
+	}
+
+	return artifacts, nil
 }

@@ -66,6 +66,7 @@ func (m *Manager) Apply(ctx context.Context, backupName string, dryRun bool) ([]
 		return nil, err
 	}
 	candidates := CalculateCandidates(records, policy, time.Now().UTC())
+	candidates = protectActiveBaseline(candidates, records)
 	if dryRun {
 		return candidatesToDeleted(candidates), nil
 	}
@@ -166,7 +167,7 @@ func (m *Manager) ListCandidates(ctx context.Context, backupName string) ([]Back
 
 func (m *Manager) fetchRecords(ctx context.Context, backupName string) ([]BackupRecord, error) {
 	rows, err := m.db.QueryContext(ctx, `
-		SELECT file_path, file_size_bytes, timestamp, status
+		SELECT file_path, file_size_bytes, timestamp, status, backup_type, chain_id, chain_index
 		FROM backup_executions
 		WHERE backup_name = ? AND status = 'success'
 		ORDER BY timestamp DESC
@@ -182,7 +183,10 @@ func (m *Manager) fetchRecords(ctx context.Context, backupName string) ([]Backup
 		var fileSize sql.NullInt64
 		var timestamp string
 		var status string
-		if err := rows.Scan(&filePath, &fileSize, &timestamp, &status); err != nil {
+		var backupType sql.NullString
+		var chainID sql.NullString
+		var chainIndex sql.NullInt64
+		if err := rows.Scan(&filePath, &fileSize, &timestamp, &status, &backupType, &chainID, &chainIndex); err != nil {
 			return nil, fmt.Errorf("failed to scan backup record: %w", err)
 		}
 		parsed, err := parseTimestamp(timestamp)
@@ -190,10 +194,13 @@ func (m *Manager) fetchRecords(ctx context.Context, backupName string) ([]Backup
 			return nil, err
 		}
 		records = append(records, BackupRecord{
-			FilePath:  filePath.String,
-			FileSize:  fileSize.Int64,
-			Timestamp: parsed,
-			Status:    status,
+			FilePath:   filePath.String,
+			FileSize:   fileSize.Int64,
+			Timestamp:  parsed,
+			Status:     status,
+			BackupType: backupType.String,
+			ChainID:    chainID.String,
+			ChainIndex: int(chainIndex.Int64),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -247,6 +254,44 @@ func candidatesToDeleted(candidates []BackupCandidate) []DeletedBackup {
 		})
 	}
 	return deleted
+}
+
+func protectActiveBaseline(candidates []BackupCandidate, records []BackupRecord) []BackupCandidate {
+	if len(candidates) == 0 || len(records) == 0 {
+		return candidates
+	}
+
+	latest := records[0]
+	if latest.ChainID == "" {
+		return candidates
+	}
+
+	protectedPath := ""
+	for i := range records {
+		record := records[i]
+		if record.ChainID != latest.ChainID {
+			continue
+		}
+		if record.BackupType == "full" || record.ChainIndex == 0 {
+			protectedPath = record.FilePath
+			break
+		}
+	}
+
+	if protectedPath == "" {
+		return candidates
+	}
+
+	filtered := make([]BackupCandidate, 0, len(candidates))
+	for i := range candidates {
+		candidate := candidates[i]
+		if candidate.FilePath == protectedPath {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+
+	return filtered
 }
 
 func parseTimestamp(value string) (time.Time, error) {

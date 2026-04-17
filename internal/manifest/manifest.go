@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
+
+	"github.com/denisakp/sentinel/internal/crypto"
 )
 
 // ErrNoManifest is returned when a manifest file does not exist.
@@ -75,4 +79,69 @@ func LoadRestoreManifest(path string) (*BackupManifest, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// ValidateIncrementalLineageContract verifies required lineage fields when incremental metadata is present.
+func ValidateIncrementalLineageContract(m *BackupManifest) error {
+	if m == nil || m.AdvancedRestore == nil || m.AdvancedRestore.IncrementalLineage == nil {
+		return nil
+	}
+
+	lineage := m.AdvancedRestore.IncrementalLineage
+	if lineage.ChainID == "" {
+		return fmt.Errorf("invalid manifest: incremental_lineage.chain_id is empty")
+	}
+	if lineage.ChainIndex < 0 {
+		return fmt.Errorf("invalid manifest: incremental_lineage.chain_index must be >= 0")
+	}
+	if lineage.MaxChainDepth < 0 {
+		return fmt.Errorf("invalid manifest: incremental_lineage.max_chain_depth must be >= 0")
+	}
+
+	return nil
+}
+
+// VerifyBackupHash verifies a backup file against the expected hash value.
+// Only SHA-256 is supported.
+func VerifyBackupHash(path, algorithm, expected string) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("backup path is empty")
+	}
+	if strings.TrimSpace(expected) == "" {
+		return fmt.Errorf("expected hash is empty")
+	}
+
+	algo := strings.ToLower(strings.TrimSpace(algorithm))
+	if algo == "" {
+		algo = "sha256"
+	}
+	if algo != "sha256" {
+		return fmt.Errorf("unsupported hash algorithm %q", algorithm)
+	}
+
+	computed, err := computeSHA256(path)
+	if err != nil {
+		return fmt.Errorf("failed to compute hash for %q: %w", path, err)
+	}
+
+	if !strings.EqualFold(computed, strings.TrimSpace(expected)) {
+		return fmt.Errorf("hash mismatch: expected=%s computed=%s", expected, computed)
+	}
+
+	return nil
+}
+
+func computeSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	hw := crypto.NewHashingWriter(io.Discard)
+	if _, err := io.Copy(hw, f); err != nil {
+		return "", err
+	}
+
+	return hw.Sum(), nil
 }

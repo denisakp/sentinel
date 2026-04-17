@@ -49,6 +49,30 @@ type RestoreRuntimeConfig struct {
 	KeepFile bool `yaml:"keep_file,omitempty"`
 }
 
+// IncrementalBackupConfig holds chain policy and engine pre-check settings.
+type IncrementalBackupConfig struct {
+	Enabled bool `yaml:"enabled"`
+
+	// MaxChainDepth controls when a chain is reset by producing a new full backup.
+	// Default is 6 when omitted.
+	MaxChainDepth int `yaml:"max_chain_depth,omitempty"`
+
+	// WalSummaryCheck verifies PostgreSQL wal_summary=on before incremental backup.
+	WalSummaryCheck bool `yaml:"wal_summary_check,omitempty"`
+
+	// BinlogCheck verifies MySQL/MariaDB log_bin=ON before incremental backup.
+	BinlogCheck bool `yaml:"binlog_check,omitempty"`
+
+	// OplogWindowWarnHours emits a warning when MongoDB oplog window is below threshold.
+	OplogWindowWarnHours int `yaml:"oplog_window_warn_hours,omitempty"`
+}
+
+// MySQLConfig holds MySQL/MariaDB-specific options.
+type MySQLConfig struct {
+	// BinlogPath is a local or mounted path readable by Sentinel.
+	BinlogPath string `yaml:"binlog_path,omitempty"`
+}
+
 // AzureAuthConfig specifies authentication method for Azure Blob Storage.
 type AzureAuthConfig struct {
 	// Type is one of: managed_identity, connection_string, sas_token
@@ -195,6 +219,12 @@ type BackupJob struct {
 
 	// IncrementalMetadataEnabled enables lineage metadata capture for future incremental restores.
 	IncrementalMetadataEnabled bool `yaml:"incremental_metadata_enabled,omitempty"`
+
+	// IncrementalBackup enables chain-based incremental backup behavior.
+	IncrementalBackup *IncrementalBackupConfig `yaml:"incremental_backup,omitempty"`
+
+	// MySQL holds MySQL/MariaDB engine-specific options.
+	MySQL MySQLConfig `yaml:"mysql,omitempty"`
 
 	// Cron expression for scheduling (5-field format)
 	Schedule string `yaml:"schedule,omitempty"`
