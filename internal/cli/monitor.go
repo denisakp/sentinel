@@ -322,15 +322,31 @@ func printTable(cmd *cobra.Command, executions []monitor.Execution) error {
 	}
 
 	headers := []string{"ID", "JOB", "STATUS", "TIMESTAMP", "DURATION", "ERROR"}
+	headers = []string{"ID", "JOB", "TYPE", "CHAIN", "STATUS", "TIMESTAMP", "DURATION", "DELTA", "ERROR"}
 	rows := make([][]string, 0, len(executions))
 	for _, exec := range executions {
 		duration := utils.FmtDuration(time.Duration(exec.DurationMs) * time.Millisecond)
+		chain := "-"
+		if exec.ChainID != "" {
+			chain = fmt.Sprintf("%s#%d", exec.ChainID, exec.ChainIndex)
+		}
+		delta := "-"
+		if exec.DeltaSizeBytes > 0 {
+			delta = fmt.Sprintf("%d", exec.DeltaSizeBytes)
+		}
+		backupType := exec.BackupType
+		if backupType == "" {
+			backupType = "full"
+		}
 		rows = append(rows, []string{
 			exec.ID,
 			exec.BackupName,
+			backupType,
+			chain,
 			exec.Status,
 			utils.FmtTimestamp(exec.Timestamp),
 			duration,
+			delta,
 			truncatePreview(exec.ErrorMessage, defaultErrorPreviewLen),
 		})
 	}
@@ -383,8 +399,21 @@ func printExecution(cmd *cobra.Command, exec *monitor.Execution) {
 	cmd.Printf("Started: %s\n", utils.FmtTimestamp(exec.Timestamp))
 	cmd.Printf("Duration: %s\n\n", utils.FmtDuration(time.Duration(exec.DurationMs)*time.Millisecond))
 	cmd.Printf("Status: %s\n", exec.Status)
+	if exec.BackupType != "" {
+		cmd.Printf("Backup Type: %s\n", exec.BackupType)
+	}
+	if exec.ChainID != "" {
+		cmd.Printf("Chain ID: %s\n", exec.ChainID)
+		cmd.Printf("Chain Index: %d\n", exec.ChainIndex)
+	}
 	cmd.Printf("File: %s\n", exec.FilePath)
 	cmd.Printf("Size: %d\n", exec.FileSizeBytes)
+	if exec.DeltaSizeBytes > 0 {
+		cmd.Printf("Delta Size: %d\n", exec.DeltaSizeBytes)
+	}
+	if exec.FullBackupSizeBytes > 0 {
+		cmd.Printf("Full Backup Size: %d\n", exec.FullBackupSizeBytes)
+	}
 	if exec.Checksum != "" {
 		cmd.Printf("Checksum: %s\n", exec.Checksum)
 	}

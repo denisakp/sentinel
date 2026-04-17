@@ -4,8 +4,110 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 )
+
+type MetricDefinition struct {
+	Name string
+	Help string
+	Type string
+}
+
+var IncrementalMetricDefinitions = []MetricDefinition{
+	{Name: "sentinel_incremental_backup_chain_depth", Help: "Latest observed incremental backup chain depth by job.", Type: "gauge"},
+	{Name: "sentinel_incremental_backup_delta_size_bytes", Help: "Latest observed incremental backup delta size in bytes by job.", Type: "gauge"},
+	{Name: "sentinel_incremental_restore_chain_depth", Help: "Latest observed incremental restore chain depth by job.", Type: "gauge"},
+	{Name: "sentinel_incremental_restore_assembly_duration_ms", Help: "Latest observed incremental restore assembly duration in milliseconds by job.", Type: "gauge"},
+	{Name: "sentinel_incremental_restore_fallback_total", Help: "Total incremental restore fallback decisions by decision and reason.", Type: "counter"},
+}
+
+type IncrementalMetricsSnapshot struct {
+	BackupChainDepth          map[string]int   `json:"backup_chain_depth"`
+	BackupDeltaSizeBytes      map[string]int64 `json:"backup_delta_size_bytes"`
+	RestoreChainDepth         map[string]int   `json:"restore_chain_depth"`
+	RestoreAssemblyDurationMs map[string]int64 `json:"restore_assembly_duration_ms"`
+	RestoreFallbackTotal      map[string]int64 `json:"restore_fallback_total"`
+}
+
+var incrementalMetricsState = struct {
+	sync.Mutex
+	snapshot IncrementalMetricsSnapshot
+}{
+	snapshot: IncrementalMetricsSnapshot{
+		BackupChainDepth:          make(map[string]int),
+		BackupDeltaSizeBytes:      make(map[string]int64),
+		RestoreChainDepth:         make(map[string]int),
+		RestoreAssemblyDurationMs: make(map[string]int64),
+		RestoreFallbackTotal:      make(map[string]int64),
+	},
+}
+
+func ResetIncrementalMetrics() {
+	incrementalMetricsState.Lock()
+	defer incrementalMetricsState.Unlock()
+	incrementalMetricsState.snapshot = IncrementalMetricsSnapshot{
+		BackupChainDepth:          make(map[string]int),
+		BackupDeltaSizeBytes:      make(map[string]int64),
+		RestoreChainDepth:         make(map[string]int),
+		RestoreAssemblyDurationMs: make(map[string]int64),
+		RestoreFallbackTotal:      make(map[string]int64),
+	}
+}
+
+func SnapshotIncrementalMetrics() IncrementalMetricsSnapshot {
+	incrementalMetricsState.Lock()
+	defer incrementalMetricsState.Unlock()
+	return IncrementalMetricsSnapshot{
+		BackupChainDepth:          copyIntMap(incrementalMetricsState.snapshot.BackupChainDepth),
+		BackupDeltaSizeBytes:      copyInt64Map(incrementalMetricsState.snapshot.BackupDeltaSizeBytes),
+		RestoreChainDepth:         copyIntMap(incrementalMetricsState.snapshot.RestoreChainDepth),
+		RestoreAssemblyDurationMs: copyInt64Map(incrementalMetricsState.snapshot.RestoreAssemblyDurationMs),
+		RestoreFallbackTotal:      copyInt64Map(incrementalMetricsState.snapshot.RestoreFallbackTotal),
+	}
+}
+
+func ObserveIncrementalBackup(job string, exec *Execution) {
+	if exec == nil || job == "" || exec.BackupType != "incremental" {
+		return
+	}
+	incrementalMetricsState.Lock()
+	defer incrementalMetricsState.Unlock()
+	incrementalMetricsState.snapshot.BackupChainDepth[job] = exec.ChainIndex
+	incrementalMetricsState.snapshot.BackupDeltaSizeBytes[job] = exec.DeltaSizeBytes
+}
+
+func ObserveIncrementalRestore(job string, exec *RestoreExecution) {
+	if exec == nil || job == "" {
+		return
+	}
+	incrementalMetricsState.Lock()
+	defer incrementalMetricsState.Unlock()
+	if exec.RestoreMode == "incremental" {
+		incrementalMetricsState.snapshot.RestoreChainDepth[job] = exec.ChainDepth
+		incrementalMetricsState.snapshot.RestoreAssemblyDurationMs[job] = exec.AssemblyDurationMs
+	}
+	if exec.FallbackDecision != "" && exec.FallbackDecision != "none" {
+		key := exec.FallbackDecision + "|" + exec.FallbackReason
+		incrementalMetricsState.snapshot.RestoreFallbackTotal[key]++
+	}
+}
+
+func copyIntMap(src map[string]int) map[string]int {
+	dst := make(map[string]int, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func copyInt64Map(src map[string]int64) map[string]int64 {
+	dst := make(map[string]int64, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
 
 // GetStatistics computes aggregate stats for a backup job.
 func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int) (*Statistics, error) {

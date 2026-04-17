@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
 
 var runRestoreExecution = internalrestore.ExecuteRestore
@@ -66,6 +68,14 @@ var (
 		RunE:  handleRestoreRun,
 	}
 
+	restoreValidateChainCmd = &cobra.Command{
+		Use:   "validate-chain <job-name>",
+		Short: "Validate incremental restore chain",
+		Long:  `Validate incremental restore lineage and planner readiness without executing restore operations.`,
+		Args:  cobra.ExactArgs(1),
+		RunE:  handleRestoreValidateChain,
+	}
+
 	restoreHistoryCmd = &cobra.Command{
 		Use:   "history [job-name]",
 		Short: "View restore execution history",
@@ -107,6 +117,7 @@ func init() {
 		restoreEnableCmd,
 		restoreDisableCmd,
 		restoreDryRunCmd,
+		restoreValidateChainCmd,
 		restoreRunCmd,
 		restoreHistoryCmd,
 		restorePauseCmd,
@@ -300,6 +311,9 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		notifyRestoreResult(ctx, jobName, job, result, err)
+		if result != nil && result.PlanningStatus == string(internalrestore.PlanStatusConfirmationRequired) {
+			return fmt.Errorf("restore execution requires explicit fallback confirmation; set confirm_full_fallback: true for job %q", jobName)
+		}
 		if result != nil && result.Status == monitor.StatusSkipped {
 			return fmt.Errorf("restore execution skipped: %s", result.Reason)
 		}
@@ -309,12 +323,86 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	notifyRestoreResult(ctx, jobName, job, result, nil)
 
 	if result != nil && result.StagedFileRetained {
+		if result.FallbackDecision == string(internalrestore.FallbackCandidateFullRestore) {
+			fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
+		}
 		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, result.StagedFilePath)
 		return nil
 	}
 
+	if result != nil && result.FallbackDecision == string(internalrestore.FallbackCandidateFullRestore) {
+		fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
+	}
+
 	fmt.Printf("Restore job %q completed successfully\n", jobName)
 	return nil
+}
+
+func handleRestoreValidateChain(cmd *cobra.Command, args []string) error {
+	jobName := args[0]
+
+	cfg, err := loadRestoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	job, ok := cfg.Restores[jobName]
+	if !ok {
+		return fmt.Errorf("restore job %q not found", jobName)
+	}
+
+	if effectiveRestoreMode(job) != "incremental" {
+		return fmt.Errorf("restore job %q is not configured for incremental mode", jobName)
+	}
+
+	request, err := config.BuildAdvancedRestoreRequest(job)
+	if err != nil {
+		return fmt.Errorf("failed to build restore request: %w", err)
+	}
+
+	manifestPath := resolveRestoreManifestPath(job)
+	plan, err := internalrestore.PlanAdvancedRestoreFromManifestPath(job, request, manifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to plan incremental restore: %w", err)
+	}
+	if plan.Status != internalrestore.PlanStatusReady {
+		return fmt.Errorf("chain validation failed: status=%s reason=%s", plan.Status, plan.ReasonCode)
+	}
+
+	artifacts := make([]restoreincremental.ChainArtifact, 0, len(plan.ResolvedBackupIDs))
+	for i, backupID := range plan.ResolvedBackupIDs {
+		artifacts = append(artifacts, restoreincremental.ChainArtifact{
+			BackupID:         backupID,
+			BaselineBackupID: plan.BaselineBackupID,
+			ChainIndex:       i,
+			ManifestPresent:  true,
+			HashVerified:     true,
+		})
+	}
+
+	resolved, err := restoreincremental.ResolveOrderedChain(artifacts, "")
+	if err != nil {
+		return fmt.Errorf("chain validation failed: %w", err)
+	}
+
+	cmd.Printf("Incremental chain is valid for restore job %q\n", jobName)
+	cmd.Printf("  Baseline: %s\n", resolved.BaselineBackupID)
+	cmd.Printf("  Target: %s\n", resolved.TargetBackupID)
+	cmd.Printf("  Depth: %d\n", resolved.Depth)
+	cmd.Printf("  Artifacts: %s\n", strings.Join(resolved.ArtifactIDs, ", "))
+
+	return nil
+}
+
+func resolveRestoreManifestPath(job config.RestoreJob) string {
+	path := strings.TrimSpace(job.BackupSource.BackupPath)
+	if path == "" {
+		return ""
+	}
+	if job.BackupSource.Type == "local" && job.BackupSource.LocalPath != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(job.BackupSource.LocalPath, path)
+	}
+	return path + ".manifest.json"
 }
 
 func applyRestoreRunOverrides(job *config.RestoreJob) {
@@ -350,7 +438,12 @@ func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 		filter = &monitor.RestoreFilter{RestoreName: args[0]}
 	}
 
-	records, err := mon.ListRestoreExecutions(cmd.Context(), filter, 50, 0)
+	ctx := context.Background()
+	if cmd != nil && cmd.Context() != nil {
+		ctx = cmd.Context()
+	}
+
+	records, err := mon.ListRestoreExecutions(ctx, filter, 50, 0)
 	if err != nil {
 		return fmt.Errorf("failed to read restore history: %w", err)
 	}
@@ -376,6 +469,9 @@ func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 			plan = "-"
 		}
 		fallback := rec.FallbackDecision
+		if rec.FallbackReason != "" {
+			fallback = rec.FallbackDecision + ":" + rec.FallbackReason
+		}
 		if fallback == "" {
 			fallback = "-"
 		}
