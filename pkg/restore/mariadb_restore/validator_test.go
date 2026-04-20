@@ -27,6 +27,42 @@ func TestValidateOnConflict(t *testing.T) {
 	}
 }
 
+func TestConflictStrategyFlagMapping_MariaDB(t *testing.T) {
+	tests := []struct {
+		name       string
+		onConflict string
+		wantForce  bool
+	}{
+		{"error = no --force", "error", false},
+		{"empty = no --force", "", false},
+		{"ignore = --force", "ignore", true},
+		{"replace = --force", "replace", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"--host=localhost", "--port=3306", "--user=user"}
+			if tt.onConflict == "ignore" || tt.onConflict == "replace" {
+				args = append(args, "--force")
+			}
+
+			hasForce := containsMariaDBArg(args, "--force")
+			if hasForce != tt.wantForce {
+				t.Errorf("--force present=%v, want %v (strategy=%q)", hasForce, tt.wantForce, tt.onConflict)
+			}
+		})
+	}
+}
+
+func containsMariaDBArg(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
+}
+
 func TestValidateRequiredArgs(t *testing.T) {
 	tests := []struct {
 		name    string

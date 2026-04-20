@@ -24,6 +24,7 @@ type RestoreArgs struct {
 	PgRestoreFormat string // c=custom, d=directory, t=tar, p=plain (optional)
 	Decompress      bool   // auto-decompress if needed
 	OnConflict      string // ignore, replace, error (default: error)
+	AllowCascade    bool   // required for replace strategy: permits DROP ... CASCADE
 	AdditionalArgs  string // extra arguments for pg_restore
 
 	// Cloud storage
@@ -107,9 +108,18 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		args = append(args, "--decompression")
 	}
 
-	// Add conflict handling
-	if ra.OnConflict != "" {
-		args = append(args, fmt.Sprintf("--on-conflict-do=%s", ra.OnConflict))
+	// Map conflict strategy to native pg_restore flags.
+	// replace → --clean (drop objects before recreating)
+	// ignore  → --if-exists (skip missing objects, suppress errors)
+	// error   → default behavior (no flag needed)
+	switch ra.OnConflict {
+	case "replace":
+		args = append(args, "--clean")
+		if ra.AllowCascade {
+			args = append(args, "--if-exists") // prevents errors on missing deps during clean
+		}
+	case "ignore":
+		args = append(args, "--if-exists")
 	}
 
 	// Parse and add additional arguments

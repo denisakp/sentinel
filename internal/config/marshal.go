@@ -268,6 +268,7 @@ func BuildPgRestoreArgs(job RestoreJob, password, stagedPath string) (*pg_restor
 		Database:       job.Database,
 		BackupPath:     stagedPath,
 		OnConflict:     effectiveRestoreConflict(job),
+		AllowCascade:   job.AllowCascade,
 		AdditionalArgs: BuildRestoreAdditionalArgs(job),
 	}, nil
 }

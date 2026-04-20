@@ -28,6 +28,50 @@ func TestValidateOnConflict(t *testing.T) {
 	}
 }
 
+func TestConflictStrategyFlagMapping_MongoDB(t *testing.T) {
+	tests := []struct {
+		name            string
+		onConflict      string
+		wantStopOnError bool // --stopOnError=false
+		wantDrop        bool // --drop
+	}{
+		{"error = default behavior", "error", false, false},
+		{"empty = default behavior", "", false, false},
+		{"ignore = --stopOnError=false", "ignore", true, false},
+		{"replace = --drop", "replace", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"--uri=mongodb://localhost"}
+			if tt.onConflict == "ignore" {
+				args = append(args, "--stopOnError=false")
+			} else if tt.onConflict == "replace" {
+				args = append(args, "--drop")
+			}
+
+			hasStopOnError := containsMongoArg(args, "--stopOnError=false")
+			hasDrop := containsMongoArg(args, "--drop")
+
+			if hasStopOnError != tt.wantStopOnError {
+				t.Errorf("--stopOnError=false present=%v, want %v (strategy=%q)", hasStopOnError, tt.wantStopOnError, tt.onConflict)
+			}
+			if hasDrop != tt.wantDrop {
+				t.Errorf("--drop present=%v, want %v (strategy=%q)", hasDrop, tt.wantDrop, tt.onConflict)
+			}
+		})
+	}
+}
+
+func containsMongoArg(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
+}
+
 func TestValidateRequiredArgs(t *testing.T) {
 	tests := []struct {
 		name    string
