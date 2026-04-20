@@ -279,6 +279,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	if job.AllowCascade && job.Type != "postgres" {
 		return fmt.Errorf("allow_cascade is only supported for postgres restores")
 	}
+	if job.Type == "postgres" && job.ConflictStrategy == "replace" && !job.AllowCascade {
+		return fmt.Errorf("conflict_strategy=replace for postgres requires allow_cascade: true (DROP ... CASCADE may remove dependent objects)")
+	}
 
 	// Validate retention policy
 	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {

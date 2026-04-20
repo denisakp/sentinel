@@ -87,12 +87,13 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		fmt.Sprintf("--user=%s", ra.Username),
 	}
 
-	// Add conflict handling (MariaDB-specific syntax)
-	if ra.OnConflict == "ignore" {
-		// For MariaDB, insert ignore or replace into
-		// This would be handled at the SQL level, not command line
-	} else if ra.OnConflict == "replace" {
-		// Replace existing records
+	// Map conflict strategy to native mariadb CLI flags.
+	// ignore  → --force (continue on duplicate key errors instead of aborting)
+	// replace → --force (mariadb CLI has no native REPLACE INTO flag; --force
+	//           continues past duplicate errors, which is the closest safe option)
+	// error   → default behavior (abort on first error)
+	if ra.OnConflict == "ignore" || ra.OnConflict == "replace" {
+		args = append(args, "--force")
 	}
 
 	// Parse and add additional arguments
