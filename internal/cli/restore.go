@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -17,6 +18,20 @@ import (
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
+
+func mapRestoreSourceError(job config.RestoreJob, err error) error {
+	src := job.BackupSource
+	switch {
+	case errors.Is(err, internalrestore.ErrUnsupportedRestoreSource):
+		return fmt.Errorf("source type %q is not supported for restore; supported types: local, s3, gcs", src.Type)
+	case errors.Is(err, internalrestore.ErrSourceObjectNotFound):
+		return fmt.Errorf("backup %q not found in %s source: %w", src.BackupPath, src.Type, err)
+	case errors.Is(err, internalrestore.ErrInsufficientStagingSpace):
+		return fmt.Errorf("not enough disk space in staging directory %q: %w", job.StagingDir, err)
+	default:
+		return fmt.Errorf("restore execution failed: %w", err)
+	}
+}
 
 var runRestoreExecution = internalrestore.ExecuteRestore
 
@@ -317,7 +332,7 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 		if result != nil && result.Status == monitor.StatusSkipped {
 			return fmt.Errorf("restore execution skipped: %s", result.Reason)
 		}
-		return fmt.Errorf("restore execution failed: %w", err)
+		return mapRestoreSourceError(job, err)
 	}
 
 	notifyRestoreResult(ctx, jobName, job, result, nil)
