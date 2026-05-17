@@ -5,6 +5,7 @@
 ### Fixed
 
 - **scheduler**: bounded executor no longer leaks slots on worker panic; panics now appear in monitor history with a `worker panic: ` error-message prefix and are fed through the retry policy as ordinary failures (PRD 09, ADR 0008 promoted to Accepted).
+- **lock**: closed the TOCTOU window in stale-lock detection. Acquisition now layers a kernel-enforced advisory `flock(2)` over the PID file and enforces the dual stale criterion (PID-dead AND age > threshold) inside the package. New typed errors (`ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`) plus three acquisition modes (non-blocking, blocking-with-context, bounded-wait); on-disk v1 lock file format unchanged. POSIX-only (Linux + macOS) — non-POSIX targets return a clear "unsupported platform" error at first call. PRD 10, ADR 0007 promoted to Accepted.
 
 ### Security Advisory — Envelope v2
 

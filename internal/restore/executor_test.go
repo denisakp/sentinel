@@ -2,6 +2,7 @@ package restore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
@@ -21,8 +23,16 @@ func TestExecuteRestoreReturnsLockConflict(t *testing.T) {
 	if err := os.MkdirAll(lockDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
+	host, _ := os.Hostname()
+	jl := lock.JobLock{
+		PID:       os.Getpid(),
+		JobName:   "restore",
+		StartTime: time.Now(),
+		Hostname:  host,
+	}
+	body, _ := json.Marshal(jl)
 	lockPath := filepath.Join(lockDir, "restore.lock")
-	if err := os.WriteFile(lockPath, []byte("locked"), 0o600); err != nil {
+	if err := os.WriteFile(lockPath, body, 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
