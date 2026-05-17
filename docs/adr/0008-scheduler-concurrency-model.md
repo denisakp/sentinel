@@ -1,6 +1,6 @@
 # ADR 0008 — Scheduler concurrency model: bounded global semaphore + per-job file lock
 
-- **Status**: Accepted (semaphore leak under panic resolved by feature `009-scheduler-semaphore-leak`; "leak-free under panic" assumption now holds, verified by `TestExecute_StressMixed`, `TestExecuteBackupWithCleanup_RecordsPanic`, and `go test -race ./internal/scheduler/...`)
+- **Status**: Accepted (2026-05-17) — semaphore leak under panic resolved by feature `009-scheduler-semaphore-leak`; "leak-free under panic" assumption now holds, verified by `TestExecute_StressMixed`, `TestExecuteBackupWithCleanup_RecordsPanic`, and `go test -race ./internal/scheduler/...`. Per-job lock contract (ADR 0007) hardened by PRD 10 with no scheduler-side change required.
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: scheduler, concurrency, lock
@@ -108,10 +108,10 @@ The scheduler package is a driving adapter under ADR 0001. It depends on `intern
 
 ## Implementation checklist
 
+- [x] Semaphore-leak-under-panic regression covered by `TestExecute_StressMixed` and `TestExecuteBackupWithCleanup_RecordsPanic` (`internal/scheduler/panic_*_test.go`); `-race` clean (feature `009-scheduler-semaphore-leak`).
+- [x] Per-job lock acquisition now goes through the hardened `internal/lock` package (PRD 10): `ErrLockHeld` short-circuits to a `skipped` outcome without consuming a semaphore slot for any wait.
+- [ ] Add a package doc comment on `internal/scheduler/executor.go` summarising the acquire/release order (semaphore-then-lock, reverse defer release) from this ADR.
 - [ ] Once ADR 0001's migration completes, `internal/scheduler/executor.go` depends on `internal/ports/lock` and `internal/ports/recorder` rather than concrete packages.
-- [ ] Add a package doc comment on `internal/scheduler/executor.go` summarising the acquire/release order from this ADR.
-- [ ] Add a regression test that asserts: a second invocation of the same job, fired while the first is running, is recorded as `skipped` and does not block the semaphore.
-- [ ] Add a regression test that asserts: cancellation of the parent context releases both the semaphore slot and the file lock within one tick.
 - [ ] Cross-reference this ADR from `docs/testing-guide.md` (scheduler section) and `README.md` (the `max_concurrent` knob).
 
 ## References

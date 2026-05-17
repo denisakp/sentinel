@@ -1,6 +1,6 @@
 # ADR 0007 — Lock file format v1 (per-job JSON, O_EXCL, PID-based stale detection)
 
-- **Status**: Accepted (TOCTOU window closed by PRD 10 / `specs/010-lock-toctou/`; v1 stale-detection contract now matches the implementation)
+- **Status**: Accepted (2026-05-17) — TOCTOU window closed by PRD 10 (`specs/010-lock-toctou/`); v1 stale-detection contract now matches the implementation
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: lock, concurrency, format
@@ -106,10 +106,13 @@ The package moves to `internal/adapters/lock/`. The interface (port) lives at `i
 
 ## Implementation checklist
 
-- [ ] Move `internal/lock/` to `internal/adapters/lock/`.
-- [ ] Create `internal/ports/lock.go` exposing `Locker`, `RunWithLock`, `RunWithTimeout`.
-- [ ] Add the empty-lock / malformed-lock branch to the startup reaper if not already covered, so a crashed empty lock is removed automatically.
-- [ ] Add a package doc comment in `internal/adapters/lock/lock.go` summarising the v1 contract.
+- [x] Kernel-enforced advisory lock layered over the v1 PID file via `syscall.Flock(LOCK_EX|LOCK_NB)` (`internal/lock/flock_unix.go`); non-POSIX builds fail fast (`flock_other.go`).
+- [x] Dual stale criterion (PID-dead AND age > threshold) enforced inside `internal/lock` via `EvaluateLockState` (`state.go`); callers no longer re-implement it.
+- [x] Atomic claim via temp-file + `os.Rename`; body write is a single `Write([]byte)` under flock, bounded by `maxBodyBytes = 4096` (≤ PIPE_BUF) — no observer sees a half-written file and empty/malformed lock files are reaped.
+- [x] Typed errors `ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`, `ErrUnsupportedPlatform` (`errors.go`); `ErrLockExists` retained as deprecated alias.
+- [x] On-disk v1 JSON shape pinned by golden test `TestJobLock_JSONShape_v1Stable` (`internal/lock/types_test.go`).
+- [x] Package doc comment on `Manager` summarises the v1 contract (`internal/lock/lock.go`).
+- [ ] Move `internal/lock/` to `internal/adapters/lock/` and create `internal/ports/lock.go` exposing `Locker`, `RunWithLock`, `RunWithTimeout`. Deferred to ADR 0001's hexagonal migration per PRD 10 plan §Structure Decision.
 - [ ] Cross-reference this ADR from `docs/runbooks/` once an incident-response runbook exists.
 
 ## Implementation (PRD 10)
