@@ -2,12 +2,10 @@ version: "1.0"
 log_format: text
 history_db_path: ./tmp/history.db
 encryption_key_env: TEST_SENTINEL_MASTER_KEY
-
 defaults:
   storage:
     type: local
     local_path: ./tmp/backups
-
 databases:
   pg-encrypted:
     type: postgres

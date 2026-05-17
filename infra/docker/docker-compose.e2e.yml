@@ -1,0 +1,39 @@
+name: sentinel-e2e
+networks:
+  sentinel:
+    external: true
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    networks:
+      - sentinel
+    ports:
+      - "10000:10000"
+    command:
+      - azurite-blob
+      - --blobHost
+      - "0.0.0.0"
+      - --loose
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get({host:'localhost',port:10000,path:'/'}, r=>{process.exit(0)}).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  fake-gcs:
+    image: fsouza/fake-gcs-server:latest
+    networks:
+      - sentinel
+    ports:
+      - "4443:4443"
+    command:
+      - -scheme
+      - http
+      - -port
+      - "4443"
+      - -public-host
+      - "fake-gcs:4443"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4443/storage/v1/b"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

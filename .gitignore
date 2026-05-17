@@ -28,3 +28,4 @@ docs/roadmap/
 prds/
 infra/dataset
 infra/docker/Dockerfile.dev
+.e2e/

@@ -260,8 +260,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 		}
 	}
 
-	// Validate schedule
-	if job.Schedule == "" {
+	// Validate schedule — only required for enabled jobs
+	enabled := job.Enabled == nil || *job.Enabled
+	if enabled && job.Schedule == "" {
 		return fmt.Errorf("restore schedule (cron) is required")
 	}
 
