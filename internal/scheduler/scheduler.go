@@ -197,7 +197,15 @@ func (s *Scheduler) runJob(state *jobState) {
 	s.mu.Unlock()
 
 	start := s.clock.Now()
-	err := state.fn()
+	var err error
+	func() {
+		defer func() {
+			if pErr, _ := handlePanic(recover()); pErr != nil {
+				err = pErr
+			}
+		}()
+		err = state.fn()
+	}()
 	duration := s.clock.Now().Sub(start)
 
 	s.mu.Lock()

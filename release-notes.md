@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **scheduler**: bounded executor no longer leaks slots on worker panic; panics now appear in monitor history with a `worker panic: ` error-message prefix and are fed through the retry policy as ordinary failures (PRD 09, ADR 0008 promoted to Accepted).
+
 ### Security Advisory — Envelope v2
 
 - **Scope**: All encrypted backups produced before this version (Sentinel ≤ v1.1.1) used the v1 envelope, which lacked an on-disk version byte and relied on a streaming nonce scheme whose contract was not enforced by code-level guards.

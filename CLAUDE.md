@@ -80,5 +80,5 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-Active plan: `specs/008-decrypt-oom-cap/plan.md`
+Active plan: `specs/009-scheduler-semaphore-leak/plan.md`
 <!-- SPECKIT END -->
