@@ -135,10 +135,11 @@ A future ADR introducing a v2 envelope must:
 
 ## Implementation checklist
 
-- [ ] Move `internal/crypto/` to `internal/adapters/crypto/`.
-- [ ] Create `internal/ports/crypto.go` with `Encrypter` and `Decrypter` interfaces consumed by `internal/domain/backup` and `internal/domain/restore`.
-- [ ] Add a defensive assertion in `flushChunk` that panics if `chunkIdx` would overflow (operationally unreachable; documents the invariant).
-- [ ] Add a package doc comment in `internal/adapters/crypto/encrypt.go` summarising the v1 contract from this ADR.
+- [x] Defensive assertion in `flushChunk` errors on `chunkIdx == math.MaxUint64` rather than wrapping (`internal/crypto/encrypt.go:135`).
+- [x] Package doc comment in `internal/crypto/encrypt.go` summarises the v1/v2 envelope contract and cross-references this ADR.
+- [x] Decrypt bound enforced (`maxChunkSize = chunkSize + 16`) with typed `ErrChunkTooLarge` / `ErrAuthTagFailed` and CLI mapping (`FriendlyDecryptError`).
+- [x] Envelope v2 header bump shipped with `--allow-legacy-envelope` dual-decoder (see Amendments + `specs/007-crypto-nonce-xor-fix/`).
+- [ ] Move `internal/crypto/` to `internal/adapters/crypto/` and add `internal/ports/crypto.go` (`Encrypter`, `Decrypter`). Deferred to ADR 0001's hexagonal migration; not blocking this ADR.
 - [ ] Cross-reference this ADR from `docs/testing-guide.md` in the encryption section.
 
 ## Enforcement
