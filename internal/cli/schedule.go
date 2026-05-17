@@ -68,7 +68,17 @@ var scheduleStartCmd = &cobra.Command{
 			}
 			jobCopy := job
 			if err := s.AddJob(job.Name, job.Schedule, func() error {
-				return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+				return scheduler.RunBackupWithRetry(ctx, jobCopy.Name, jobCopy.Database, func() (err error) {
+					// Per-attempt panic recovery so a panicking worker
+					// consumes a retry attempt rather than aborting the
+					// retry loop (FR-008).
+					defer func() {
+						if pErr, _ := scheduler.HandlePanic(recover()); pErr != nil {
+							err = pErr
+						}
+					}()
+					return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+				})
 			}); err != nil {
 				return err
 			}

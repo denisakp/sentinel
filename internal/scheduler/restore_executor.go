@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
@@ -186,8 +187,8 @@ func ExecuteRestoreWithCleanup(
 	store storage.Storage,
 	mon *monitor.Monitor,
 	restoreFn func(context.Context) error,
-) *RestoreExecutionResult {
-	result := &RestoreExecutionResult{
+) (result *RestoreExecutionResult) {
+	result = &RestoreExecutionResult{
 		ExecutionID: executionID,
 		BackupPath:  backupPath,
 	}
@@ -197,39 +198,51 @@ func ExecuteRestoreWithCleanup(
 	var cleanupSucceeded *bool
 	var cleanupError string
 
-	// Defer cleanup handler - executes regardless of success/failure
+	// Cleanup defer — declared first, runs LAST. Wrapped in inner recover so a
+	// panic during monitor recording itself is best-effort logged.
 	defer func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("scheduler: panic during restore cleanup recording",
+					"error", fmt.Sprintf("%v", r),
+				)
+			}
+		}()
+		execID := result.ExecutionID
 		if result.Error != nil && backupPath != "" {
-			// Restore failed - attempt cleanup of partial restore artifacts
 			cleanupAttempted = true
 			if cleanupErr := store.DeleteBackup(ctx, backupPath); cleanupErr != nil {
-				// Cleanup failed (backup file might be on remote storage, cleanup may not apply)
 				succeeded := false
 				cleanupSucceeded = &succeeded
 				cleanupError = cleanupErr.Error()
 			} else {
-				// Cleanup succeeded or not needed
 				succeeded := true
 				cleanupSucceeded = &succeeded
 			}
-
-			// Record failure with cleanup outcome
-			if mon != nil && executionID != "" {
-				errorMsg := result.Error.Error()
-				if recordErr := mon.RecordFailure(ctx, executionID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
-					// Log but don't override original error
-					fmt.Printf("Warning: failed to record restore failure: %v\n", recordErr)
-				}
+		}
+		if result.Error != nil && mon != nil && execID != "" {
+			errorMsg := result.Error.Error()
+			if recordErr := mon.RecordFailure(ctx, execID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
+				slog.Default().Warn("failed to record restore failure", "error", recordErr)
 			}
-		} else if result.Success && mon != nil && executionID != "" {
-			// Restore succeeded - record success
-			if recordErr := mon.RecordSuccess(ctx, executionID); recordErr != nil {
-				fmt.Printf("Warning: failed to record restore success: %v\n", recordErr)
+		} else if result.Success && mon != nil && execID != "" {
+			if recordErr := mon.RecordSuccess(ctx, execID); recordErr != nil {
+				slog.Default().Warn("failed to record restore success", "error", recordErr)
 			}
 		}
 	}()
 
-	// Execute the restore
+	// Inner-recover — declared second, runs FIRST. Converts panic → result.Error.
+	defer func() {
+		if pErr, stack := handlePanic(recover()); pErr != nil {
+			result.Error = pErr
+			slog.Default().Error("scheduler: restore worker panic",
+				"error", pErr,
+				"stack", string(stack),
+			)
+		}
+	}()
+
 	if err := restoreFn(ctx); err != nil {
 		result.Error = err
 		result.CleanupNeeded = true

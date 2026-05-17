@@ -1,6 +1,6 @@
 # ADR 0008 — Scheduler concurrency model: bounded global semaphore + per-job file lock
 
-- **Status**: Proposed (blocked by `.prds/09-scheduler-executor-semaphore.md`; promote to Accepted after the semaphore leak under panic is fixed and the model's "leak-free under panic" assumption holds)
+- **Status**: Accepted (semaphore leak under panic resolved by feature `009-scheduler-semaphore-leak`; "leak-free under panic" assumption now holds, verified by `TestExecute_StressMixed`, `TestExecuteBackupWithCleanup_RecordsPanic`, and `go test -race ./internal/scheduler/...`)
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: scheduler, concurrency, lock
