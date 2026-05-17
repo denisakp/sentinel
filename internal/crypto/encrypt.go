@@ -1,12 +1,24 @@
+// Package crypto implements Sentinel's streaming AES-256-GCM encryption envelope.
+//
+// On-disk format (envelope v2): a fixed 5-byte header `"SENC" || 0x02` precedes
+// the existing v1 chunk stream of `[uint32-le length][ciphertext+16B tag]` records.
+// Each chunk's nonce is derived by XOR-ing the base nonce with a per-chunk uint64
+// counter into the trailing 8 bytes. Per-key safe stream length is bounded by the
+// uint64 counter (2^64 chunks ≈ 2^80 bytes at 64 KB chunks — operationally
+// unreachable). The writer errors on counter overflow rather than wrapping. See
+// ADR docs/adr/0006-encryption-envelope-v1.md for the governing contract.
 package crypto
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
+	"math"
 )
 
 const chunkSize = 64 * 1024 // 64KB chunks
@@ -20,13 +32,14 @@ const chunkSize = 64 * 1024 // 64KB chunks
 // The backup ID is used as Additional Authenticated Data (AAD), binding
 // the ciphertext to the specific backup record.
 type ChunkEncryptWriter struct {
-	w         io.Writer
-	gcm       cipher.AEAD
-	baseNonce []byte
-	aad       []byte
-	chunkIdx  uint64
-	buf       []byte
-	lastTag   []byte
+	w             io.Writer
+	gcm           cipher.AEAD
+	baseNonce     []byte
+	aad           []byte
+	chunkIdx      uint64
+	buf           []byte
+	lastTag       []byte
+	headerWritten bool
 }
 
 // NewChunkEncryptWriter returns a ChunkEncryptWriter that encrypts data to w.
@@ -40,6 +53,10 @@ func NewChunkEncryptWriter(w io.Writer, key []byte, backupID string) (*ChunkEncr
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("crypto: failed to create GCM: %w", err)
+	}
+
+	if gcm.NonceSize() < 8 {
+		return nil, fmt.Errorf("crypto: AEAD nonce size %d insufficient: %w", gcm.NonceSize(), ErrShortNonce)
 	}
 
 	baseNonce := make([]byte, gcm.NonceSize())
@@ -86,16 +103,43 @@ func (e *ChunkEncryptWriter) Write(p []byte) (int, error) {
 	return total, nil
 }
 
-// Flush encrypts and writes any remaining buffered data.
+// Flush encrypts and writes any remaining buffered data. The v2 envelope header
+// is emitted on the first flush even when the buffer is empty, so a zero-byte
+// stream still produces a valid (header-only) artifact.
 // Must be called after all Write calls complete.
 func (e *ChunkEncryptWriter) Flush() error {
+	if err := e.ensureHeader(); err != nil {
+		return err
+	}
 	if len(e.buf) > 0 {
 		return e.flushChunk()
 	}
 	return nil
 }
 
+func (e *ChunkEncryptWriter) ensureHeader() error {
+	if e.headerWritten {
+		return nil
+	}
+	if err := writeHeader(e.w); err != nil {
+		return err
+	}
+	e.headerWritten = true
+	return nil
+}
+
 func (e *ChunkEncryptWriter) flushChunk() error {
+	if err := e.ensureHeader(); err != nil {
+		return err
+	}
+	if e.chunkIdx == math.MaxUint64 {
+		logCryptoEvent(context.Background(), EventNonceCounterOverflow,
+			slog.String("backup_id", string(e.aad)),
+			slog.Uint64("chunk_count", e.chunkIdx),
+		)
+		return ErrChunkCounterOverflow
+	}
+
 	nonce := e.chunkNonce(e.chunkIdx)
 	ciphertext := e.gcm.Seal(nil, nonce, e.buf, e.aad)
 

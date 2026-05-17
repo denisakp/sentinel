@@ -24,12 +24,13 @@ type HashInfo struct {
 
 // EncryptionInfo holds encryption metadata (present only when backup is encrypted).
 type EncryptionInfo struct {
-	Algorithm     string `json:"algorithm"`
-	KeyDerivation string `json:"key_derivation"`
-	Iterations    int    `json:"iterations"`
-	Salt          string `json:"salt"`
-	IV            string `json:"iv"`
-	AuthTag       string `json:"auth_tag"`
+	Algorithm       string `json:"algorithm"`
+	KeyDerivation   string `json:"key_derivation"`
+	Iterations      int    `json:"iterations"`
+	Salt            string `json:"salt"`
+	IV              string `json:"iv"`
+	AuthTag         string `json:"auth_tag"`
+	EnvelopeVersion int    `json:"envelope_version,omitempty"`
 }
 
 // AdvancedRestoreMetadata advertises advanced restore capabilities for a backup.

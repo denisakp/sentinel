@@ -32,6 +32,18 @@ func PreRestoreVerifyAndDecrypt(
 	filePath string,
 	keyProvider crypto.KeyProvider,
 ) (io.Reader, error) {
+	return PreRestoreVerifyAndDecryptWithOptions(ctx, m, filePath, keyProvider, crypto.DecryptOptions{})
+}
+
+// PreRestoreVerifyAndDecryptWithOptions is the explicit form that lets callers pass
+// envelope-version policy (e.g. AllowLegacy for pre-v2 artifacts).
+func PreRestoreVerifyAndDecryptWithOptions(
+	ctx context.Context,
+	m *manifest.BackupManifest,
+	filePath string,
+	keyProvider crypto.KeyProvider,
+	decryptOpts crypto.DecryptOptions,
+) (io.Reader, error) {
 	// Verify hash
 	computed, err := computeHash(filePath)
 	if err != nil {
@@ -86,7 +98,11 @@ func PreRestoreVerifyAndDecrypt(
 	// Derive the same per-backup key used during encryption
 	derivedKey := crypto.DeriveKey(masterKey, salt)
 
-	dec, err := crypto.NewChunkDecryptReader(f, derivedKey, iv, m.BackupID)
+	decryptOpts.BackupID = m.BackupID
+	if decryptOpts.Source == "" {
+		decryptOpts.Source = filePath
+	}
+	dec, err := crypto.NewChunkDecryptReaderWithOptions(f, derivedKey, iv, decryptOpts)
 	if err != nil {
 		f.Close()
 		return nil, fmt.Errorf("restore: failed to initialise decryptor: %w", err)

@@ -1,6 +1,6 @@
 # ADR 0006 — Encryption envelope v1 (AES-256-GCM, 64 KB chunks, counter-XOR nonce)
 
-- **Status**: Proposed (blocked by `.prds/01-crypto-nonce-xor-fix.md` and `.prds/07-decrypt-oom-cap.md`; promote to Accepted after both land and the implementation matches the v1 contract documented below)
+- **Status**: Accepted (2026-05-17)
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: crypto, format, security
@@ -140,6 +140,10 @@ A future ADR introducing a v2 envelope must:
 - [ ] Add a defensive assertion in `flushChunk` that panics if `chunkIdx` would overflow (operationally unreachable; documents the invariant).
 - [ ] Add a package doc comment in `internal/adapters/crypto/encrypt.go` summarising the v1 contract from this ADR.
 - [ ] Cross-reference this ADR from `docs/testing-guide.md` in the encryption section.
+
+## Amendments
+
+- **2026-05-17 — Envelope v2 header bump.** Feature 007 (`specs/007-crypto-nonce-xor-fix/`) adds a fixed 5-byte on-disk header (`"SENC" || 0x02`) before the first chunk record, plus an explicit `--allow-legacy-envelope` opt-in for decrypting pre-bump artifacts. The chunk-stream contract below is unchanged. See `specs/007-crypto-nonce-xor-fix/contracts/envelope-v2-format.md`.
 
 ## References
 
