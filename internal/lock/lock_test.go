@@ -1,8 +1,13 @@
 package lock_test
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"os"
+	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -195,5 +200,281 @@ func TestAcquireRelease_FullCycle(t *testing.T) {
 	}
 	if jl != nil {
 		t.Error("ReadLock() after Release should return nil")
+	}
+}
+
+// --- US1: concurrent acquirers must produce exactly one winner ---
+
+func TestAcquire_ConcurrentSingleWinner(t *testing.T) {
+	const trials = 100
+	const goroutines = 50
+	for trial := 0; trial < trials; trial++ {
+		dir := t.TempDir()
+		m := sentlock.NewManager(dir)
+		var wins int64
+		var wg sync.WaitGroup
+		var heldCount int64
+		for i := 0; i < goroutines; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := m.TryAcquire("race", 0)
+				if err == nil {
+					atomic.AddInt64(&wins, 1)
+					return
+				}
+				if errors.Is(err, sentlock.ErrLockHeld) {
+					atomic.AddInt64(&heldCount, 1)
+				} else {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}()
+		}
+		wg.Wait()
+		if wins != 1 {
+			t.Fatalf("trial %d: wins=%d, want 1", trial, wins)
+		}
+		if wins+heldCount != int64(goroutines) {
+			t.Fatalf("trial %d: wins+held=%d, want %d", trial, wins+heldCount, goroutines)
+		}
+		_ = m.Release("race")
+	}
+}
+
+// --- US1: release idempotent + safe vs racing acquirer ---
+
+func TestRelease_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("idem", 0); err != nil {
+		t.Fatalf("TryAcquire: %v", err)
+	}
+	if err := m.Release("idem"); err != nil {
+		t.Fatalf("Release #1: %v", err)
+	}
+	if err := m.Release("idem"); err != nil {
+		t.Errorf("Release #2 (idempotent): %v", err)
+	}
+}
+
+func TestRelease_OrderingSafeAgainstRacingAcquirer(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("ord", 0); err != nil {
+		t.Fatalf("TryAcquire: %v", err)
+	}
+
+	var racerErr error
+	var jl *sentlock.JobLock
+	done := make(chan struct{})
+	m2 := sentlock.NewManager(dir)
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		jl, racerErr = m2.AcquireContext(ctx, "ord", 0)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	if err := m.Release("ord"); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+	<-done
+	if racerErr != nil {
+		t.Fatalf("racer error: %v", racerErr)
+	}
+	if jl == nil {
+		t.Fatal("racer got nil JobLock")
+	}
+	_ = m2.Release("ord")
+}
+
+// --- US1: typed errors distinguishable via errors.Is/As ---
+
+func TestErrorsAreDistinguishable(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("typed", 0); err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+	defer m.Release("typed")
+
+	_, err := m.TryAcquire("typed", 0)
+	if err == nil {
+		t.Fatal("second acquire: expected error")
+	}
+	if !errors.Is(err, sentlock.ErrLockHeld) {
+		t.Errorf("errors.Is(err, ErrLockHeld) = false")
+	}
+	if !errors.Is(err, sentlock.ErrLockExists) {
+		t.Errorf("errors.Is(err, ErrLockExists) = false (alias broken)")
+	}
+	var he *sentlock.HeldError
+	if !errors.As(err, &he) {
+		t.Errorf("errors.As(err, *HeldError) = false")
+	}
+}
+
+// --- US2: PID reuse does not cause lock theft ---
+
+func TestAcquire_DoesNotStealOnRecycledPID(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	host, _ := os.Hostname()
+	jl := sentlock.JobLock{
+		PID:       os.Getpid(),
+		JobName:   "recycled",
+		StartTime: time.Now().Add(-10 * time.Second),
+		Hostname:  host,
+	}
+	body, _ := json.Marshal(jl)
+	path := filepath.Join(dir, "recycled.lock")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	original, _ := os.ReadFile(path)
+
+	_, err := m.TryAcquire("recycled", time.Minute)
+	if err == nil {
+		t.Fatal("TryAcquire: expected HeldError, got success")
+	}
+	var he *sentlock.HeldError
+	if !errors.As(err, &he) {
+		t.Errorf("not HeldError: %v", err)
+	}
+	after, _ := os.ReadFile(path)
+	if string(after) != string(original) {
+		t.Errorf("lock file mutated:\n before=%s\n after=%s", original, after)
+	}
+}
+
+// --- US2: stale lock replaced atomically ---
+
+func TestAcquire_StaleLockReplacedAtomically(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	host, _ := os.Hostname()
+	jl := sentlock.JobLock{
+		PID:       999999999,
+		JobName:   "stale",
+		StartTime: time.Now().Add(-2 * time.Hour),
+		Hostname:  host,
+	}
+	body, _ := json.Marshal(jl)
+	path := filepath.Join(dir, "stale.lock")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	got, err := m.TryAcquire("stale", time.Hour)
+	if err != nil {
+		t.Fatalf("TryAcquire: %v", err)
+	}
+	defer m.Release("stale")
+	if got.PID != os.Getpid() {
+		t.Errorf("PID after replace = %d, want %d", got.PID, os.Getpid())
+	}
+}
+
+// --- US1 cont. (T034): blocking Acquire waits for release ---
+
+func TestAcquire_BlockingWaitsForRelease(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("blk", 0); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+
+	m2 := sentlock.NewManager(dir)
+	done := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err := m2.AcquireContext(ctx, "blk", 0)
+		done <- err
+	}()
+
+	time.Sleep(150 * time.Millisecond)
+	if err := m.Release("blk"); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("blocked acquire: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocked acquire did not return after release")
+	}
+	_ = m2.Release("blk")
+}
+
+// --- T035: context cancel returns ctx.Err, not ErrLockHeld ---
+
+func TestAcquire_ContextCancelReturnsCtxErr(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("ctxc", 0); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+	defer m.Release("ctxc")
+
+	m2 := sentlock.NewManager(dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+	_, err := m2.AcquireContext(ctx, "ctxc", 0)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	if errors.Is(err, sentlock.ErrLockHeld) {
+		t.Errorf("err also matches ErrLockHeld; want only context.Canceled")
+	}
+}
+
+// --- T036: AcquireWithTimeout respects deadline ---
+
+func TestAcquireWithTimeoutRespectsDeadline(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("dl", 0); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+	defer m.Release("dl")
+
+	m2 := sentlock.NewManager(dir)
+	start := time.Now()
+	_, err := m2.AcquireWithTimeout(context.Background(), "dl", 0, 150*time.Millisecond)
+	elapsed := time.Since(start)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want DeadlineExceeded", err)
+	}
+	if elapsed < 150*time.Millisecond || elapsed > 600*time.Millisecond {
+		t.Errorf("elapsed = %s, want roughly 150-600ms", elapsed)
+	}
+}
+
+// --- T039: Inspect returns LockState without holding ---
+
+func TestInspect_ReturnsLockStateWithoutHolding(t *testing.T) {
+	dir := t.TempDir()
+	m := sentlock.NewManager(dir)
+	if _, err := m.TryAcquire("insp", 0); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer m.Release("insp")
+
+	m2 := sentlock.NewManager(dir)
+	state, err := m2.Inspect("insp", time.Minute)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if state == nil {
+		t.Fatal("Inspect returned nil state for existing lock")
+	}
+	if state.PID != os.Getpid() {
+		t.Errorf("state.PID = %d, want %d", state.PID, os.Getpid())
 	}
 }

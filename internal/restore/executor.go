@@ -106,8 +106,8 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 
 	if req.LockDir != "" {
 		lockMgr := lock.NewManager(req.LockDir)
-		if _, err := lockMgr.Acquire(req.JobName); err != nil {
-			if errors.Is(err, lock.ErrLockExists) {
+		if _, err := lockMgr.TryAcquire(req.JobName, time.Hour); err != nil {
+			if errors.Is(err, lock.ErrLockHeld) {
 				result.Status = monitor.StatusSkipped
 				result.Reason = "lock_conflict"
 				result.CompletedAt = time.Now().UTC()

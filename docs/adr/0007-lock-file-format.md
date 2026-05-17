@@ -1,6 +1,6 @@
 # ADR 0007 — Lock file format v1 (per-job JSON, O_EXCL, PID-based stale detection)
 
-- **Status**: Proposed (blocked by `.prds/10-lock-toctou.md`; promote to Accepted after the TOCTOU window is closed and the v1 stale-detection contract matches reality)
+- **Status**: Accepted (TOCTOU window closed by PRD 10 / `specs/010-lock-toctou/`; v1 stale-detection contract now matches the implementation)
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: lock, concurrency, format
@@ -112,8 +112,21 @@ The package moves to `internal/adapters/lock/`. The interface (port) lives at `i
 - [ ] Add a package doc comment in `internal/adapters/lock/lock.go` summarising the v1 contract.
 - [ ] Cross-reference this ADR from `docs/runbooks/` once an incident-response runbook exists.
 
+## Implementation (PRD 10)
+
+Promoted to Accepted on completion of `specs/010-lock-toctou/`. Key changes that close the gap between the contract above and the code:
+
+- Mutual exclusion is now backed by `syscall.Flock(LOCK_EX|LOCK_NB)` on the lock file fd (kernel-enforced); `O_CREATE|O_EXCL` is no longer the sole gate.
+- The dual stale criterion (PID-dead AND age > threshold) is enforced inside `internal/lock` itself via `EvaluateLockState`; callers no longer re-implement it.
+- Body writes go through a single `Write([]byte)` under the held flock (< 4 KiB / PIPE_BUF), so no observer sees a half-written file.
+- Typed errors `ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`, `ErrUnsupportedPlatform` (plus `ErrLockExists` as a deprecated alias of `ErrLockHeld`) make failure modes distinguishable via `errors.Is`.
+- Three acquisition modes (`TryAcquire`, `AcquireContext`, `AcquireWithTimeout`) share one core path.
+- Build target restricted to `linux || darwin`; non-POSIX targets return `ErrUnsupportedPlatform` at first call.
+
+The on-disk v1 JSON shape (`PID`, `JobName`, `StartTime`, `Hostname`) is unchanged and pinned by a golden test (`TestJobLock_JSONShape_v1Stable`).
+
 ## References
 
 - ADR 0001 — Adopt hexagonal architecture (port location).
 - `internal/lock/lock.go`, `internal/lock/types.go` — current implementation.
-- `.prds/10-lock-toctou.md` — historical fix that established the current acquisition shape.
+- `.prds/10-lock-toctou.md`, `specs/010-lock-toctou/` — the fix that promoted this ADR to Accepted.

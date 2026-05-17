@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/restore"
 )
@@ -116,10 +118,18 @@ func TestFailurePaths_LockConflict_ReturnsSkippedStatus(t *testing.T) {
 	stagingDir := t.TempDir()
 	lockDir := t.TempDir()
 
-	// Pre-create the lock file to simulate an existing lock holder.
-	// Lock file path matches lock.Manager convention: <lockDir>/<jobName>.lock
+	// Pre-create a lock file owned by a live PID (this test process) so the
+	// dual-criterion evaluator treats it as held rather than stale.
 	lockFilePath := filepath.Join(lockDir, "test-lock-conflict.lock")
-	if err := os.WriteFile(lockFilePath, []byte(`{"pid":999999,"job":"test-lock-conflict"}`), 0o600); err != nil {
+	host, _ := os.Hostname()
+	jl := lock.JobLock{
+		PID:       os.Getpid(),
+		JobName:   "test-lock-conflict",
+		StartTime: time.Now(),
+		Hostname:  host,
+	}
+	body, _ := json.Marshal(jl)
+	if err := os.WriteFile(lockFilePath, body, 0o600); err != nil {
 		t.Fatalf("failed to create fake lock file: %v", err)
 	}
 
