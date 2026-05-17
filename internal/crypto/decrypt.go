@@ -108,7 +108,7 @@ func (d *ChunkDecryptReader) chunkNonce(idx uint64) []byte {
 	var idxBuf [8]byte
 	binary.LittleEndian.PutUint64(idxBuf[:], idx)
 	offset := len(nonce) - 8
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		nonce[offset+i] ^= idxBuf[i]
 	}
 	return nonce
