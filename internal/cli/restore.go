@@ -25,6 +25,8 @@ func mapRestoreSourceError(job config.RestoreJob, err error) error {
 	switch {
 	case errors.Is(err, crypto.ErrLegacyEnvelope):
 		return fmt.Errorf(LegacyEnvelopeRefusalMsg, job.Name, src.BackupPath)
+	case errors.Is(err, crypto.ErrChunkTooLarge), errors.Is(err, crypto.ErrAuthTagFailed):
+		return fmt.Errorf("%s: %w", friendlyDecryptMessage, err)
 	case errors.Is(err, internalrestore.ErrUnsupportedRestoreSource):
 		return fmt.Errorf("source type %q is not supported for restore; supported types: local, s3, gcs", src.Type)
 	case errors.Is(err, internalrestore.ErrSourceObjectNotFound):

@@ -141,6 +141,10 @@ A future ADR introducing a v2 envelope must:
 - [ ] Add a package doc comment in `internal/adapters/crypto/encrypt.go` summarising the v1 contract from this ADR.
 - [ ] Cross-reference this ADR from `docs/testing-guide.md` in the encryption section.
 
+## Enforcement
+
+The chunk-length-prefix invariant is enforced at the read site by `maxChunkSize = chunkSize + 16` and the bound check in `(*ChunkDecryptReader).readChunk` (`internal/crypto/decrypt.go`). Violations return the sentinel `crypto.ErrChunkTooLarge`; auth-tag failures return `crypto.ErrAuthTagFailed`. CLI surfaces map both to the operator-facing message `file corrupt or wrong key` via `internal/cli.FriendlyDecryptError`. See `specs/008-decrypt-oom-cap/`.
+
 ## Amendments
 
 - **2026-05-17 — Envelope v2 header bump.** Feature 007 (`specs/007-crypto-nonce-xor-fix/`) adds a fixed 5-byte on-disk header (`"SENC" || 0x02`) before the first chunk record, plus an explicit `--allow-legacy-envelope` opt-in for decrypting pre-bump artifacts. The chunk-stream contract below is unchanged. See `specs/007-crypto-nonce-xor-fix/contracts/envelope-v2-format.md`.
