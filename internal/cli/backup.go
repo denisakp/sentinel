@@ -1463,12 +1463,13 @@ func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bo
 	}
 
 	encInfo := &manifest.EncryptionInfo{
-		Algorithm:     "AES-256-GCM",
-		KeyDerivation: "PBKDF2-HMAC-SHA256",
-		Iterations:    100_000,
-		Salt:          base64.StdEncoding.EncodeToString(salt),
-		IV:            hex.EncodeToString(nonce),
-		AuthTag:       hex.EncodeToString(authTag),
+		Algorithm:       "AES-256-GCM",
+		KeyDerivation:   "PBKDF2-HMAC-SHA256",
+		Iterations:      100_000,
+		Salt:            base64.StdEncoding.EncodeToString(salt),
+		IV:              hex.EncodeToString(nonce),
+		AuthTag:         hex.EncodeToString(authTag),
+		EnvelopeVersion: 2,
 	}
 
 	return true, encInfo, encHash, nil

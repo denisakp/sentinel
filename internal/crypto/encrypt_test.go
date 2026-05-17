@@ -78,12 +78,13 @@ func TestChunkEncryptWriter_EmptyFlush(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewChunkEncryptWriter() error = %v", err)
 	}
-	// Flush with nothing written should be a no-op
+	// Empty Flush emits the v2 envelope header (5 bytes) and no chunk records.
 	if err := enc.Flush(); err != nil {
 		t.Errorf("Flush() on empty buffer error = %v", err)
 	}
-	if buf.Len() != 0 {
-		t.Errorf("empty Flush() wrote %d bytes, want 0", buf.Len())
+	want := []byte{'S', 'E', 'N', 'C', 0x02}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Errorf("empty Flush() wrote %x, want %x", buf.Bytes(), want)
 	}
 }
 

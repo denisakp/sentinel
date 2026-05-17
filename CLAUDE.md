@@ -80,6 +80,5 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+Active plan: `specs/007-crypto-nonce-xor-fix/plan.md`
 <!-- SPECKIT END -->

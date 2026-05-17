@@ -33,7 +33,7 @@ var (
 var (
 	stageRestoreSource    = StageRestoreSource
 	stageChainArtifacts   = StageChainArtifacts
-	applyRestorePreflight = applyPreflight
+	applyRestorePreflight = applyPreflight //nolint:unused // wired via var for test override
 	executeRestoreEngine  = executeEngineRestore
 	runPostgresRestore    = pgrestore.Restore
 	runPostgresPITR       = executePostgresPITR
@@ -51,6 +51,8 @@ type ExecutionRequest struct {
 	VerifyAfterRun    func(context.Context, config.RestoreJob) (bool, error)
 	PostRestoreHook   func(context.Context, config.RestoreJob, string) error
 	ConflictEvaluator func(context.Context, config.RestoreJob, string) error
+	// AllowLegacyEnvelope opt-in for decrypting pre-v2 artifacts. Off by default.
+	AllowLegacyEnvelope bool
 }
 
 type ExecutionResult struct {
@@ -226,7 +228,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 	result.RecoveryTimelineID = plan.RequestedTimeline
 	result.ChainDepth = plan.ChainDepth
 
-	stagedPath, err := applyRestorePreflight(ctx, req.Config, artifact)
+	stagedPath, err := applyRestorePreflight(ctx, req.Config, artifact, req.AllowLegacyEnvelope)
 	if err != nil {
 		result.Reason = classifyRestoreError(err)
 		result.Error = err
@@ -469,7 +471,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 	return result, nil
 }
 
-func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, allowLegacyEnvelope bool) (string, error) {
 	if artifact == nil {
 		return "", fmt.Errorf("staged artifact is required")
 	}
@@ -490,7 +492,11 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 		keyProvider = &crypto.FileKeyProvider{EnvVar: cfg.EncryptionKeyEnv, FilePath: cfg.EncryptionKeyFile}
 	}
 
-	reader, err := PreRestoreVerifyAndDecrypt(ctx, m, artifact.Path, keyProvider)
+	reader, err := PreRestoreVerifyAndDecryptWithOptions(ctx, m, artifact.Path, keyProvider, crypto.DecryptOptions{
+		AllowLegacy: allowLegacyEnvelope,
+		Source:      artifact.Path,
+		BackupID:    m.BackupID,
+	})
 	if err != nil {
 		if errors.Is(err, ErrHashMismatch) {
 			return "", fmt.Errorf("integrity_check_failed: %w", err)

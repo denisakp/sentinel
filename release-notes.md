@@ -1,5 +1,16 @@
 # Sentinel Release Notes
 
+## [Unreleased]
+
+### Security Advisory — Envelope v2
+
+- **Scope**: All encrypted backups produced before this version (Sentinel ≤ v1.1.1) used the v1 envelope, which lacked an on-disk version byte and relied on a streaming nonce scheme whose contract was not enforced by code-level guards.
+- **Impact**: The nonce-reuse risk class affects AES-GCM confidentiality. Operators MUST treat pre-v2 ciphertexts as potentially-weakened.
+- **Default behavior**: From this version on, `sentinel restore` and `sentinel backup verify` refuse pre-v2 (legacy) artifacts. New encrypted backups carry the v2 envelope header (`SENC` + version byte `0x02`) on disk and `encryption.envelope_version = 2` in the manifest.
+- **Opt-in flag**: `--allow-legacy-envelope` (env: `SENTINEL_ALLOW_LEGACY_ENVELOPE=1`) lets operators decrypt legacy artifacts at their own risk. A loud WARNING is printed to stderr and a structured `crypto.legacy_envelope_decrypt` log line is emitted per opt-in decryption.
+- **Recommended remediation**: Re-encrypt prior backups from source. A dedicated `sentinel security reencrypt` helper is tracked under a separate PRD.
+- **Inspecting an artifact**: `xxd -l 5 backup.enc` — v2 starts with `53 45 4E 43 02`; anything else is legacy.
+
 ## [v1.1.1] - March 20, 2026
 
 ### Restore Observability

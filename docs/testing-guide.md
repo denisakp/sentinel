@@ -1088,4 +1088,29 @@ sentinel security init-key --force
 
 ---
 
+## Envelope versions (v1 legacy vs v2)
+
+Encrypted backups produced from this release onward carry a 5-byte envelope header on disk: ASCII `SENC` + version byte `0x02`. The manifest mirrors this as `encryption.envelope_version = 2`.
+
+### Identify the version of an artifact
+
+```bash
+xxd -l 5 /path/to/backup.enc
+# v2 → 00000000: 5345 4e43 02
+# legacy → anything else (typically a small uint32-le length such as 1000 1000)
+```
+
+### Recovering a legacy (pre-v2) artifact
+
+`sentinel restore` and `sentinel backup verify` refuse legacy artifacts by default. To recover plaintext for one-shot re-encryption:
+
+```bash
+SENTINEL_ALLOW_LEGACY_ENVELOPE=1 ./sentinel restore run <job> --allow-legacy-envelope
+# Emits a WARNING line to stderr and a `crypto.legacy_envelope_decrypt` log record.
+```
+
+Treat the recovered plaintext as **recovered, not safe to keep** — re-encrypt from source with the current Sentinel build.
+
+---
+
 *For questions or issues, open a ticket at the project repository.*

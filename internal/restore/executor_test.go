@@ -134,7 +134,7 @@ func TestExecuteRestoreRequiresVerificationForPITR(t *testing.T) {
 	stageRestoreSource = func(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
 		return &StagedArtifact{Path: backupPath, ManifestPath: manifestPath, SourcePath: "backup.sql", SizeBytes: 6}, nil
 	}
-	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, _ bool) (string, error) {
 		return artifact.Path, nil
 	}
 	executeRestoreEngine = func(ctx context.Context, job config.RestoreJob, stagedPath string) error {
@@ -217,7 +217,7 @@ func TestExecuteRestoreFallbackConfirmationRequired(t *testing.T) {
 	stageRestoreSource = func(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
 		return &StagedArtifact{Path: backupPath, ManifestPath: manifestPath, SourcePath: "backup.sql", SizeBytes: 6}, nil
 	}
-	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, _ bool) (string, error) {
 		return artifact.Path, nil
 	}
 	executeRestoreEngine = func(ctx context.Context, job config.RestoreJob, stagedPath string) error {
@@ -306,7 +306,7 @@ func TestExecuteRestore_CleansAssembledArtifactsOnEngineFailure(t *testing.T) {
 	stageRestoreSource = func(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
 		return &StagedArtifact{Path: backupPath, ManifestPath: manifestPath, SourcePath: "incremental.dump", SizeBytes: 6}, nil
 	}
-	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact) (string, error) {
+	applyRestorePreflight = func(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, _ bool) (string, error) {
 		return artifact.Path, nil
 	}
 	var chainPaths []string

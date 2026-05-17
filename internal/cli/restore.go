@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/crypto"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
@@ -22,6 +23,8 @@ import (
 func mapRestoreSourceError(job config.RestoreJob, err error) error {
 	src := job.BackupSource
 	switch {
+	case errors.Is(err, crypto.ErrLegacyEnvelope):
+		return fmt.Errorf(LegacyEnvelopeRefusalMsg, job.Name, src.BackupPath)
 	case errors.Is(err, internalrestore.ErrUnsupportedRestoreSource):
 		return fmt.Errorf("source type %q is not supported for restore; supported types: local, s3, gcs", src.Type)
 	case errors.Is(err, internalrestore.ErrSourceObjectNotFound):
@@ -115,8 +118,9 @@ var (
 	}
 
 	// Global flags for restore commands.
-	restoreConfigFile string
-	restoreLogLevel   string
+	restoreConfigFile          string
+	restoreLogLevel            string
+	restoreAllowLegacyEnvelope bool
 
 	// One-off restore override flags.
 	restoreGCSBucket          string
@@ -141,6 +145,8 @@ func init() {
 
 	restoreCmd.PersistentFlags().StringVar(&restoreConfigFile, "config", "", "Path to restore config file")
 	restoreCmd.PersistentFlags().StringVar(&restoreLogLevel, "log-level", "info", "Log level: debug, info, warn, error")
+	restoreCmd.PersistentFlags().BoolVar(&restoreAllowLegacyEnvelope, "allow-legacy-envelope", legacyEnvelopeEnvDefault(),
+		"Decrypt artifacts produced before the v2 envelope fix. UNSAFE: pre-v2 streams used a flawed nonce scheme. Use only to recover plaintext for re-encryption.")
 
 	restoreRunCmd.Flags().StringVar(&restoreGCSBucket, "gcs-bucket", "", "Google Cloud Storage bucket name")
 	restoreRunCmd.Flags().StringVar(&restoreGCSProjectID, "gcs-project-id", "", "Google Cloud project ID (optional)")
@@ -318,11 +324,12 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	}
 
 	result, err := runRestoreExecution(ctx, &internalrestore.ExecutionRequest{
-		JobName: jobName,
-		Job:     job,
-		Config:  cfg,
-		LockDir: cfg.Scheduler.LockDir,
-		Monitor: mon,
+		JobName:             jobName,
+		Job:                 job,
+		Config:              cfg,
+		LockDir:             cfg.Scheduler.LockDir,
+		Monitor:             mon,
+		AllowLegacyEnvelope: restoreAllowLegacyEnvelope,
 	})
 	if err != nil {
 		notifyRestoreResult(ctx, jobName, job, result, err)
