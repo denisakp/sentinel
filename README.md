@@ -212,7 +212,7 @@ sentinel restore validate-chain mysql-incremental-recovery --config sentinel.yam
 sentinel restore history postgres-incident-recovery --config sentinel.yaml
 ```
 
-> For full operator notes on PITR, incremental chain rules, and fallback confirmation, see [docs/testing-guide.md](docs/testing-guide.md).
+> For full operator notes on PITR, incremental chain rules, and fallback confirmation, see [docs/runbooks/restore-pitr-and-incremental.md](docs/runbooks/restore-pitr-and-incremental.md).
 
 ---
 
@@ -230,7 +230,7 @@ export SENTINEL_MASTER_KEY=<key>
 sentinel backup --config sentinel.yaml
 ```
 
-Plaintext is the default when no encryption config is present. See [docs/testing-guide.md](docs/testing-guide.md#10-backup-security-encryption) for full security semantics.
+Plaintext is the default when no encryption config is present. See [docs/runbooks/enable-encryption.md](docs/runbooks/enable-encryption.md) for full security semantics.
 
 ---
 
