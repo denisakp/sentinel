@@ -4,7 +4,6 @@ defaults:
   storage:
     type: local
     local_path: ./backups
-
 databases:
   inherited-job:
     type: postgres

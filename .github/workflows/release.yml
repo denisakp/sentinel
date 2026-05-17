@@ -1,5 +1,4 @@
 name: Release
-
 on:
   push:
     tags:
@@ -10,12 +9,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-        
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: '1.24'
-      
       - name: build binary
         run: |
           go build \
@@ -27,6 +24,5 @@ jobs:
         with:
           files: sentinel-*.tar.gz
           body: |
-              See `release-notes.md` for changes summary.
+            See `release-notes.md` for changes summary.
           draft: false
-             

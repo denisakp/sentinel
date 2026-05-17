@@ -122,11 +122,10 @@ func ValidateConfig(cfg *Configuration) error {
 		if err := ValidateRestoreJob(&job); err != nil {
 			return fmt.Errorf("restore '%s': %w", name, err)
 		}
-		if strings.TrimSpace(job.Schedule) == "" {
-			return fmt.Errorf("restore '%s': invalid cron expression '%s': schedule cannot be whitespace-only", name, job.Schedule)
-		}
-		if _, err := parser.Parse(job.Schedule); err != nil {
-			return fmt.Errorf("restore '%s': invalid cron expression '%s': %w", name, job.Schedule, err)
+		if strings.TrimSpace(job.Schedule) != "" {
+			if _, err := parser.Parse(job.Schedule); err != nil {
+				return fmt.Errorf("restore '%s': invalid cron expression '%s': %w", name, job.Schedule, err)
+			}
 		}
 		if job.TimeoutSeconds < 0 {
 			return fmt.Errorf("restore '%s': timeout_seconds must be non-negative", name)

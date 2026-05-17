@@ -17,6 +17,8 @@ import (
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 )
 
+const gcsEmulatorHostEnv = "STORAGE_EMULATOR_HOST"
+
 // ErrObjectNotFound is returned when a requested GCS object does not exist.
 // Callers can use errors.Is(err, gcs.ErrObjectNotFound) to distinguish
 // missing-object errors from other download failures.
@@ -56,8 +58,11 @@ var newGCSBucketClient = func(ctx context.Context, cfg Config) (gcsBucketClient,
 		return nil, fmt.Errorf("gcs: bucket is required")
 	}
 
-	opts := make([]option.ClientOption, 0, 2)
-	if strings.TrimSpace(cfg.CredentialsFile) != "" {
+	opts := make([]option.ClientOption, 0, 3)
+	if ep := os.Getenv(gcsEmulatorHostEnv); ep != "" {
+		opts = append(opts, option.WithEndpoint(ep+"/storage/v1/"))
+		opts = append(opts, option.WithoutAuthentication())
+	} else if strings.TrimSpace(cfg.CredentialsFile) != "" {
 		opts = append(opts, option.WithCredentialsFile(cfg.CredentialsFile))
 	}
 
