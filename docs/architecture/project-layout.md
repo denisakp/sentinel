@@ -156,8 +156,8 @@ docs/
 │   ├── 0000-template.md
 │   └── NNNN-<slug>.md        # one per architectural decision
 ├── roadmap/
-├── runbooks/
-└── testing-guide.md
+├── runbooks/                # operational procedures (index in runbooks/README.md)
+└── testing-guide.md         # thin stub redirecting to runbooks/
 ```
 
 ADRs are required for: new external dependency, new layering rule, new on-disk format (manifest, encryption envelope, lock file), new storage backend, new DB engine, and any deviation from the rules in §3.

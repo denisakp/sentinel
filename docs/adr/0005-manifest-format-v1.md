@@ -118,11 +118,11 @@ A future ADR introducing manifest v2 must:
 - [ ] Update every importer (`internal/cli/backup_verify.go`, `internal/cli/backup.go`, `internal/cli/restore.go`, `internal/scheduler/restore_executor.go`).
 - [ ] Add a `Format` package doc comment in `internal/domain/manifest/manifest.go` summarising the v1 contract from this ADR.
 - [ ] Add a regression test that reads a v1.1 manifest fixture and asserts every field of `BackupManifest` is parsed (catches accidental field renames).
-- [ ] Cross-reference this ADR from `docs/testing-guide.md` in the integrity section.
+- [x] Cross-reference this ADR from `docs/runbooks/verify-backup-integrity.md`.
 
 ## References
 
 - ADR 0001 — Adopt hexagonal architecture.
 - ADR 0006 — Encryption envelope v1 (companion: encryption parameters live inside the manifest's `encryption` block).
 - `internal/manifest/types.go`, `internal/manifest/manifest.go` (source of the v1 shape).
-- `docs/testing-guide.md` — integrity, encryption sections.
+- `docs/runbooks/verify-backup-integrity.md` — integrity verification runbook.

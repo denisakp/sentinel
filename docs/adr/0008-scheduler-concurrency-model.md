@@ -91,7 +91,7 @@ The scheduler package is a driving adapter under ADR 0001. It depends on `intern
 - Skipped runs are visible in monitor history; operators can detect lock contention from the data.
 
 ### Negative
-- Operators must reason about two knobs: `max_concurrent` and the per-job lock dir. Documented in `docs/testing-guide.md` and `README.md`.
+- Operators must reason about two knobs: `max_concurrent` and the per-job lock dir. Documented in `docs/runbooks/start-scheduler.md` and `README.md`.
 - A misconfigured `max_concurrent = 1` serialises everything globally; operators must size it for the host.
 - Skipped runs may hide an underlying scheduling problem. Mitigated by the monitor recording the outcome with a reason.
 
@@ -112,7 +112,7 @@ The scheduler package is a driving adapter under ADR 0001. It depends on `intern
 - [x] Per-job lock acquisition now goes through the hardened `internal/lock` package (PRD 10): `ErrLockHeld` short-circuits to a `skipped` outcome without consuming a semaphore slot for any wait.
 - [ ] Add a package doc comment on `internal/scheduler/executor.go` summarising the acquire/release order (semaphore-then-lock, reverse defer release) from this ADR.
 - [ ] Once ADR 0001's migration completes, `internal/scheduler/executor.go` depends on `internal/ports/lock` and `internal/ports/recorder` rather than concrete packages.
-- [ ] Cross-reference this ADR from `docs/testing-guide.md` (scheduler section) and `README.md` (the `max_concurrent` knob).
+- [x] Cross-reference this ADR from `docs/runbooks/start-scheduler.md` and `docs/runbooks/scheduler-crash-recovery.md`.
 
 ## References
 

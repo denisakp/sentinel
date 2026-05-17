@@ -76,7 +76,7 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 
 ## Docs
 - `README.md` — user-facing usage, config examples
-- `docs/testing-guide.md` — operator notes for PITR, incremental chains, encryption semantics
+- `docs/runbooks/` — operational procedures (PITR, incremental chains, encryption, stale-lock recovery, etc.). See `docs/runbooks/README.md` for the index.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->

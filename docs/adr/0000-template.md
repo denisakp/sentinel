@@ -80,7 +80,7 @@ Description.
 
 - [ ] Concrete step 1 (reference real paths, e.g. `internal/storage/storage.go`)
 - [ ] Concrete step 2 (tests, e.g. `internal/storage/types/` or `scripts/e2e.sh`)
-- [ ] Concrete step 3 (docs, e.g. `README.md`, `docs/testing-guide.md`, `release-notes.md`)
+- [ ] Concrete step 3 (docs, e.g. `README.md`, `docs/runbooks/<runbook>.md`, `release-notes.md`)
 
 ## References
 

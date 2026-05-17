@@ -140,7 +140,7 @@ A future ADR introducing a v2 envelope must:
 - [x] Decrypt bound enforced (`maxChunkSize = chunkSize + 16`) with typed `ErrChunkTooLarge` / `ErrAuthTagFailed` and CLI mapping (`FriendlyDecryptError`).
 - [x] Envelope v2 header bump shipped with `--allow-legacy-envelope` dual-decoder (see Amendments + `specs/007-crypto-nonce-xor-fix/`).
 - [ ] Move `internal/crypto/` to `internal/adapters/crypto/` and add `internal/ports/crypto.go` (`Encrypter`, `Decrypter`). Deferred to ADR 0001's hexagonal migration; not blocking this ADR.
-- [ ] Cross-reference this ADR from `docs/testing-guide.md` in the encryption section.
+- [x] Cross-reference this ADR from `docs/runbooks/enable-encryption.md` and `docs/runbooks/recover-legacy-envelope.md`.
 
 ## Enforcement
 
