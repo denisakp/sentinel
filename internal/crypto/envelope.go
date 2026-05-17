@@ -24,6 +24,12 @@ var ErrChunkCounterOverflow = errors.New("crypto: chunk counter would overflow u
 // ErrLegacyEnvelope indicates a stream lacks the v2 magic header and the caller did not opt in.
 var ErrLegacyEnvelope = errors.New("crypto: legacy (pre-v2) envelope detected — re-encrypt from source, or pass --allow-legacy-envelope to proceed at your own risk")
 
+// ErrChunkTooLarge indicates a chunk-length prefix is outside the legal range [1, maxChunkSize].
+var ErrChunkTooLarge = errors.New("crypto: chunk length out of bounds")
+
+// ErrAuthTagFailed indicates AES-GCM authentication-tag verification failed for a chunk (wrong key, tampered ciphertext, or tampered tag).
+var ErrAuthTagFailed = errors.New("crypto: authentication tag verification failed")
+
 // ErrUnsupportedEnvelopeVersion indicates the stream header carries an unknown version byte.
 type ErrUnsupportedEnvelopeVersion struct {
 	Version uint8

@@ -38,7 +38,7 @@ type RestoreExecutionConfig struct {
 	BackupSource string // "local", "s3", "gdrive", "azure"
 
 	// Database-specific restore options
-	Options map[string]interface{}
+	Options map[string]any
 
 	// Restore strategy
 	OnConflict string // "ignore", "replace", "error"

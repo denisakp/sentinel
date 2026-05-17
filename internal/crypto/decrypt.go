@@ -11,6 +11,12 @@ import (
 	"log/slog"
 )
 
+// maxChunkSize is the largest legal value for a per-chunk length prefix in the v1
+// encryption envelope: plaintext chunk size + AES-GCM tag overhead (16). Matches
+// ADR 0006's stated invariant: chunkSize + gcm.Overhead(). Reads exceeding this
+// fail fast with ErrChunkTooLarge before any allocation is sized by the prefix.
+const maxChunkSize = chunkSize + 16
+
 // DecryptOptions controls how the decrypt path handles envelope versioning.
 type DecryptOptions struct {
 	// AllowLegacy permits decrypting pre-v2 (unversioned) artifacts. Off by default.
@@ -109,8 +115,9 @@ func (d *ChunkDecryptReader) readChunk() error {
 	}
 
 	chunkLen := binary.LittleEndian.Uint32(lenBuf[:])
-	if chunkLen == 0 {
-		return io.EOF
+	if chunkLen == 0 || chunkLen > maxChunkSize {
+		return fmt.Errorf("crypto: chunk %d length %d out of bounds [1, %d]: %w",
+			d.chunkIdx, chunkLen, maxChunkSize, ErrChunkTooLarge)
 	}
 
 	// Read ciphertext+tag
@@ -123,7 +130,8 @@ func (d *ChunkDecryptReader) readChunk() error {
 	nonce := d.chunkNonce(d.chunkIdx)
 	plaintext, err := d.gcm.Open(nil, nonce, ciphertext, d.aad)
 	if err != nil {
-		return fmt.Errorf("crypto: authentication tag verification failed (chunk %d): %w", d.chunkIdx, err)
+		return fmt.Errorf("crypto: authentication tag verification failed (chunk %d): %w: %w",
+			d.chunkIdx, ErrAuthTagFailed, err)
 	}
 
 	d.chunkIdx++

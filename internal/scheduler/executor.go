@@ -121,7 +121,7 @@ func ExecuteBackupWithCleanup(
 // Non-retriable errors (config errors, cert errors) cause immediate failure without retry.
 func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error {
 	var lastErr error
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := range maxAttempts {
 		lastErr = fn()
 		if lastErr == nil {
 			return nil
