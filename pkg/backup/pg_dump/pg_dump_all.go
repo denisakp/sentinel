@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/denisakp/sentinel/internal/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -55,7 +56,8 @@ func BackupAll(pda *PgDumpAllArgs) error {
 	cmd.Stdout = &stdOut
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to execute pg_dumpall command - %w, %s", err, stdErr.String())
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		return fmt.Errorf("failed to execute pg_dumpall command - %w, %s", err, redacted)
 	}
 
 	pda.Storage.OutName = utils.FinalOutName(pda.Storage.OutName)

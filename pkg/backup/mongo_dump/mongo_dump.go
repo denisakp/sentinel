@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/denisakp/sentinel/internal/backup/mongo"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
@@ -47,7 +48,8 @@ func Backup(da *DumpMongoArgs) error {
 	// run the command
 	err = cmd.Run()
 	if err != nil {
-		stderr := strings.TrimSpace(stdErr.String())
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		stderr := strings.TrimSpace(redacted)
 		if stderr != "" {
 			return fmt.Errorf("failed to run mongo_dump: %w: %s", err, stderr)
 		}

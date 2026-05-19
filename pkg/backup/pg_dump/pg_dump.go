@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/denisakp/sentinel/internal/backup/sql"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
@@ -53,7 +54,8 @@ func Backup(pda *PgDumpArgs) error {
 
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute pg_dump command - %w, %s", err, stdErr.String())
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		return fmt.Errorf("failed to execute pg_dump command - %w, %s", err, redacted)
 	}
 
 	// write the backup to the storage

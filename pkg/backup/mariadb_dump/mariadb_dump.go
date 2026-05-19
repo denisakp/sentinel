@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
@@ -34,7 +35,8 @@ func Backup(mda *MariaDBDumpArgs) error {
 
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, stdErr.String())
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		return fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
 	}
 
 	// get the storage handler

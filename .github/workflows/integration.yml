@@ -52,6 +52,10 @@ jobs:
             ${{ runner.os }}-go-
       - name: Install dependencies
         run: go mod download
+      - name: go vet
+        run: go vet ./...
+      - name: lint-redact-stderr (forbid raw dump stderr in error formatters)
+        run: make lint-redact-stderr
       - name: Run integration tests
         run: go test -v -tags integration ./tests/integration/...
         env:

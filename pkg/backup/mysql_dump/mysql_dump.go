@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
+	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
@@ -37,7 +38,8 @@ func Backup(mda *MySqlDumpArgs) error {
 
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute mysqldump command - %w, %s", err, stdErr.String())
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		return fmt.Errorf("failed to execute mysqldump command - %w, %s", err, redacted)
 	}
 
 	// get storage handler

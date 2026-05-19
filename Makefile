@@ -5,7 +5,7 @@ NETWORK     := sentinel
 IMAGE       := sentinel-dev:local
 MONGO_NAME  := sentinel-mongo
 
-.PHONY: e2e e2e-quick infra-up infra-down build-image clean help
+.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr
 
 help:
 	@echo "Targets:"
@@ -44,6 +44,23 @@ build-image:
 
 clean: infra-down
 	@rm -rf .e2e
+
+## Forbid raw dump-tool stderr inside error formatters in dump-adapter packages.
+## Banned: fmt.Errorf / errors.New / fmt.Sprintf taking stdErr.String() (or stderr.String()).
+## Use sanitize.RedactStderr(stdErr.Bytes()) upstream instead. (FR-006)
+lint-redact-stderr:
+	@set -e; \
+	SCAN_DIRS=""; \
+	[ -d pkg/backup ] && SCAN_DIRS="$$SCAN_DIRS pkg/backup"; \
+	[ -d internal/adapters/dump ] && SCAN_DIRS="$$SCAN_DIRS internal/adapters/dump"; \
+	if [ -z "$$SCAN_DIRS" ]; then echo "[lint-redact-stderr] no scan dirs found, skipping"; exit 0; fi; \
+	MATCHES=$$(grep -rEn '(fmt\.Errorf|errors\.New|fmt\.Sprintf)\([^)]*std[Ee]rr\.String\(\)' $$SCAN_DIRS --include='*.go' 2>/dev/null || true); \
+	if [ -n "$$MATCHES" ]; then \
+		echo "[lint-redact-stderr] FAIL: raw stderr embedded in error formatter — use sanitize.RedactStderr(stdErr.Bytes()) instead"; \
+		echo "$$MATCHES"; \
+		exit 1; \
+	fi; \
+	echo "[lint-redact-stderr] OK"
 
 # ---------------------------------------------------------------------------
 # Internal targets
