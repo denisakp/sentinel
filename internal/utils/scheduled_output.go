@@ -47,9 +47,11 @@ func NormalizeScheduledOutputPrefix(rawOutput, canonicalExt string) string {
 	if rawOutput == "" || canonicalExt == "" {
 		return rawOutput
 	}
-	if strings.HasSuffix(rawOutput, canonicalExt) {
-		return strings.TrimSuffix(rawOutput, canonicalExt)
+
+	if trimmed, ok := strings.CutSuffix(rawOutput, canonicalExt); ok {
+		return trimmed
 	}
+
 	return rawOutput
 }
 

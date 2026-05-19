@@ -94,7 +94,7 @@ func probe(spec externalToolSpec) ToolResult {
 
 // firstNonEmptyLine returns the first non-empty trimmed line from s, or "".
 func firstNonEmptyLine(s string) string {
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			return trimmed
 		}

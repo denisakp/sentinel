@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/sanitize"
 )
 
 // OplogArchiveArgs defines oplog capture inputs.
@@ -67,7 +69,8 @@ func ArchiveOplog(ctx context.Context, args *OplogArchiveArgs) (*OplogArchiveRes
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
+		redacted, _ := sanitize.RedactStderr(stderr.Bytes())
+		msg := strings.TrimSpace(redacted)
 		if msg != "" {
 			return nil, fmt.Errorf("mongodump oplog capture failed: %w: %s", err, msg)
 		}

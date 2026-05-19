@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- **dump adapters**: redact credentials embedded in subprocess stderr before they reach returned errors, logs, the monitor SQLite store, or notifier payloads. Previously, a failing `pg_dump` / `pg_dumpall` / `mysqldump` / `mariadb-dump` / `mongodump` (incl. oplog) invocation could leak `PGPASSWORD=…`, `MYSQL_PWD=…`, `MONGO_INITDB_ROOT_PASSWORD=…`, libpq `password = …`, `--password=…`, `-p<value>`, or URI userinfo (`scheme://user:secret@host`) into operator-visible output. All eight dump-adapter callsites now route stderr through `sanitize.RedactStderr`, which caps the embedded buffer at 64 KiB with an explicit truncation marker. CI gate (`make lint-redact-stderr`, wired into `.github/workflows/integration.yml`) prevents regression. Severity: medium (local-file disclosure on failure); no behavior change on successful backups. Audit artifact: `docs/audit/stderr-redaction-audit.md`. (Feature 012)
+
 ### Fixed
 
 - **scheduler**: bounded executor no longer leaks slots on worker panic; panics now appear in monitor history with a `worker panic: ` error-message prefix and are fed through the retry policy as ordinary failures (PRD 09, ADR 0008 promoted to Accepted).
