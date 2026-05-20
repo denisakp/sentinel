@@ -24,6 +24,9 @@ func Backup(mda *MariaDBDumpArgs) error {
 
 	// execute mariadb-dump command
 	cmd := exec.Command("mariadb-dump", args...)
+	if mda.Password != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
+	}
 
 	// capture command error
 	var stdErr bytes.Buffer

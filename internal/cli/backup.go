@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/backup"
@@ -53,6 +54,12 @@ const (
 	executionModeConfig    backupExecutionMode = "config"
 	executionModeScheduled backupExecutionMode = "scheduled"
 )
+
+// passwordFlagDeprecationSuffix is the message body appended to pflag's
+// "Flag --password has been deprecated, " prefix on use.
+const passwordFlagDeprecationSuffix = "will be removed in the next minor release; passing a password on the command line exposes it via `ps`, /proc/<pid>/cmdline, and shell history. Use --password-env <VAR>, --password-file <PATH>, or set databases.<id>.password_env in the config file instead."
+
+var passwordFilePermWarnOnce sync.Once
 
 var backupForceFullJob string
 var backupChainStatusJob string
@@ -251,6 +258,9 @@ func init() {
 	BackupCmd.Flags().StringVarP(&port, "port", "P", "", "Database port")
 	BackupCmd.Flags().StringVarP(&user, "user", "u", "root", "Database user")
 	BackupCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")
+	BackupCmd.Flags().String("password-env", "", "Name of environment variable holding the database password")
+	BackupCmd.Flags().String("password-file", "", "Path to a file whose first line is the database password")
+	_ = BackupCmd.Flags().MarkDeprecated("password", passwordFlagDeprecationSuffix)
 	BackupCmd.Flags().StringVarP(&database, "database", "d", "", "Database name")
 
 	BackupCmd.Flags().BoolVarP(&compress, "compress", "c", false, "Compress the backup")
@@ -910,13 +920,26 @@ func applyStorageOverrides(cmd *cobra.Command, params *storage.Params, job *conf
 }
 
 func resolvePassword(cmd *cobra.Command, job config.BackupJob) (string, error) {
-	if cmd.Flags().Changed("password") {
-		return cmd.Flags().GetString("password")
+	flags := config.ResolveFlags{
+		PasswordSet:     cmd.Flags().Changed("password"),
+		PasswordEnvSet:  cmd.Flags().Changed("password-env"),
+		PasswordFileSet: cmd.Flags().Changed("password-file"),
 	}
-	if job.Type == "mongodb" {
-		return "", nil
+	flags.Password, _ = cmd.Flags().GetString("password")
+	flags.PasswordEnv, _ = cmd.Flags().GetString("password-env")
+	flags.PasswordFile, _ = cmd.Flags().GetString("password-file")
+
+	res, err := config.Resolve(flags, job)
+	if err != nil {
+		return "", err
 	}
-	return config.PasswordFromEnv(job.PasswordEnv)
+
+	if res.Source == config.SourceFileFlag && res.FileMode.Perm()&0o044 != 0 {
+		passwordFilePermWarnOnce.Do(func() {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: password file '%s' has permissions 0o%03o (group- or world-readable); recommend chmod 0600\n", res.FilePath, res.FileMode.Perm())
+		})
+	}
+	return res.Password, nil
 }
 
 func ensureDatabaseOptions(job *config.BackupJob) {

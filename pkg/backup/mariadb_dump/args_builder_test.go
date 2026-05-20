@@ -2,6 +2,7 @@ package mariadb_dump
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/utils"
@@ -35,13 +36,13 @@ func TestArgsBuilder(t *testing.T) {
 		{
 			name:    "Default Host and Port",
 			args:    &MariaDBDumpArgs{Username: "root", Password: "root", Database: "test"},
-			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "--password=root", "test"},
+			want:    []string{"--host=127.0.0.1", "--port=3306", "--user=root", "test"},
 			wantErr: false,
 		},
 		{
 			name:    "Provided host and port",
 			args:    &MariaDBDumpArgs{Username: "root", Password: "root", Database: "test", Host: "us-west1.mysql.domain.com", Port: "3319"},
-			want:    []string{"--host=us-west1.mysql.domain.com", "--port=3319", "--user=root", "--password=root", "test"},
+			want:    []string{"--host=us-west1.mysql.domain.com", "--port=3319", "--user=root", "test"},
 			wantErr: false,
 		},
 		{
@@ -74,6 +75,29 @@ func TestArgsBuilder(t *testing.T) {
 				t.Errorf("ArgsBuilder() got = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestArgsBuilderNeverContainsPassword(t *testing.T) {
+	cases := []*MariaDBDumpArgs{
+		{Username: "root", Database: "test"},
+		{Username: "root", Database: "test", Password: "secret"},
+		{Username: "root", Database: "test", Password: "secret", AdditionalArgs: "--skip-lock-tables"},
+		{Username: "root", Database: "test", Password: "secret", Host: "h", Port: "3306"},
+	}
+	for i, c := range cases {
+		got, err := ArgsBuilder(c)
+		if err != nil {
+			t.Fatalf("case %d: %v", i, err)
+		}
+		for _, a := range got {
+			if strings.HasPrefix(a, "--password") {
+				t.Errorf("case %d: argv leaked --password*: %q in %v", i, a, got)
+			}
+			if strings.Contains(a, "password=") {
+				t.Errorf("case %d: argv leaked password=: %q in %v", i, a, got)
+			}
+		}
 	}
 }
 
