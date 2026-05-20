@@ -37,10 +37,6 @@ func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 		fmt.Sprintf("--user=%s", mda.Username),
 	}
 
-	if mda.Password != "" {
-		args = append(args, fmt.Sprintf("--password=%s", mda.Password))
-	} // add the password argument if provided
-
 	if mda.AdditionalArgs != "" {
 		additionalArgs := backup.ParseAdditionalArgs(mda.AdditionalArgs)
 		args = append(args, additionalArgs...)

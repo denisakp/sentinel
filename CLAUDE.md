@@ -80,5 +80,5 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-Active plan: `specs/014-mongo-tls-client-key/plan.md`
+Active plan: `specs/015-remove-password-flag/plan.md`
 <!-- SPECKIT END -->

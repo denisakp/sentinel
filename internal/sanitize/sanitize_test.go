@@ -41,6 +41,16 @@ func TestRedactArgs(t *testing.T) {
 			args: []string{"PGPASSWORD=mysecret", "--host=db"},
 			want: []string{"PGPASSWORD=*****", "--host=db"},
 		},
+		{
+			name: "MYSQL_PWD env style",
+			args: []string{"MYSQL_PWD=mysecret", "--host=db"},
+			want: []string{"MYSQL_PWD=*****", "--host=db"},
+		},
+		{
+			name: "password-env var name is non-secret passthrough",
+			args: []string{"--password-env", "DB_PWD"},
+			want: []string{"--password-env", "DB_PWD"},
+		},
 	}
 
 	for _, tt := range tests {

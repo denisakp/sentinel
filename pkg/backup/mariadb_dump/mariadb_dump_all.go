@@ -30,10 +30,6 @@ func BackupAll(mda *MariaDBDumpAllArgs) error {
 		"--all-databases",
 	}
 
-	if mda.Password != "" {
-		args = append(args, fmt.Sprintf("--password=%s", mda.Password))
-	}
-
 	if mda.AdditionalArgs != "" {
 		additionalArgs := backup.ParseAdditionalArgs(mda.AdditionalArgs)
 		args = append(args, additionalArgs...)
@@ -42,6 +38,9 @@ func BackupAll(mda *MariaDBDumpAllArgs) error {
 	args = backup.RemoveArgsDuplicate(args)
 
 	cmd := exec.Command("mariadb-dump", args...)
+	if mda.Password != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
+	}
 
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr

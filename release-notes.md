@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+### Deprecated
+
+- **`sentinel backup --password` / `-p`**: deprecated; will be removed in the next minor release. Passing a password on the command line exposes it via `ps`, `/proc/<pid>/cmdline`, and shell history. Use one of three safe channels instead: `--password-env <VAR>`, `--password-file <PATH>` (first line, right-trimmed; warns on group/world-readable mode), or the existing config field `databases.<id>.password_env`. CLI flag precedence over config is preserved (silent override). Conflicts among `--password`, `--password-env`, `--password-file` are hard errors before any DB I/O. Migration recipes: [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md). (Feature 015)
+
 ### Security
 
+- **mariadb dump**: migrated MariaDB backup adapter (`pkg/backup/mariadb_dump`) from `--password=<value>` argv to `MYSQL_PWD` env injection, closing the last argv-leak path across supported engines. PostgreSQL (`PGPASSWORD`), MySQL (`MYSQL_PWD`), and MongoDB (URI) channels unchanged. Verified via argv-inspection unit tests in `pkg/backup/mariadb_dump/args_builder_test.go` and `pkg/backup/mariadb_dump/env_injection_test.go`. (Feature 015)
 - **dump adapters**: redact credentials embedded in subprocess stderr before they reach returned errors, logs, the monitor SQLite store, or notifier payloads. Previously, a failing `pg_dump` / `pg_dumpall` / `mysqldump` / `mariadb-dump` / `mongodump` (incl. oplog) invocation could leak `PGPASSWORD=…`, `MYSQL_PWD=…`, `MONGO_INITDB_ROOT_PASSWORD=…`, libpq `password = …`, `--password=…`, `-p<value>`, or URI userinfo (`scheme://user:secret@host`) into operator-visible output. All eight dump-adapter callsites now route stderr through `sanitize.RedactStderr`, which caps the embedded buffer at 64 KiB with an explicit truncation marker. CI gate (`make lint-redact-stderr`, wired into `.github/workflows/integration.yml`) prevents regression. Severity: medium (local-file disclosure on failure); no behavior change on successful backups. Audit artifact: `docs/audit/stderr-redaction-audit.md`. (Feature 012)
 
 ### Fixed
