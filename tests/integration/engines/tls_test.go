@@ -131,6 +131,43 @@ func TestTLS_MariaDB_AllModes(t *testing.T) {
 	}
 }
 
+// TestTLS_MariaDB_mTLS_KeyForwarded is the PRD-05 regression guard at the
+// integration boundary. With both ClientCert and ClientKey configured, the
+// MariaDB arg builder must emit BOTH --ssl-cert= and --ssl-key=. Previously
+// --ssl-key was silently dropped, breaking mutual TLS.
+func TestTLS_MariaDB_mTLS_KeyForwarded(t *testing.T) {
+	ca := GenerateSelfSignedCA(t)
+	client := GenerateSignedClientCert(t, ca)
+
+	cfg := &internaltls.Config{
+		Enabled:    true,
+		Mode:       "verify-full",
+		CACertPath: ca.CertFile,
+		ClientCert: client.CertFile,
+		ClientKey:  client.KeyFile,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+
+	args := internaltls.BuildTLSArgs("mariadb", cfg)
+	hasCert, hasKey := false, false
+	for _, a := range args {
+		if strings.HasPrefix(a, "--ssl-cert=") {
+			hasCert = true
+		}
+		if strings.HasPrefix(a, "--ssl-key=") {
+			hasKey = true
+		}
+	}
+	if !hasCert {
+		t.Errorf("BuildTLSArgs(mariadb, mTLS) missing --ssl-cert in %v", args)
+	}
+	if !hasKey {
+		t.Errorf("BuildTLSArgs(mariadb, mTLS) missing --ssl-key in %v (PRD-05 regression)", args)
+	}
+}
+
 // TestTLS_MongoDB_AllModes verifies TLS config validation and arg generation
 // for all supported modes against the MongoDB engine.
 func TestTLS_MongoDB_AllModes(t *testing.T) {

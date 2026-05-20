@@ -80,5 +80,5 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-Active plan: `specs/012-pg-dump-stderr-redaction/plan.md`
+Active plan: `specs/013-mariadb-tls-client-key/plan.md`
 <!-- SPECKIT END -->
