@@ -25,10 +25,16 @@ func Backup(da *DumpMongoArgs) error {
 		return err
 	}
 
-	args, err := argsBuilder(da, backupPath) // build mongo_dump arguments
+	args, material, err := argsBuilder(da, backupPath) // build mongo_dump arguments
 	if err != nil {
 		return fmt.Errorf("failed to build mongo_dump arguments: %w", err)
 	}
+	defer func() {
+		if cerr := material.Close(); cerr != nil {
+			// non-fatal; logged inside Close
+			_ = cerr
+		}
+	}()
 
 	// check connectivity
 	if err := mongo.CheckConnectivity(da.Uri); err != nil {

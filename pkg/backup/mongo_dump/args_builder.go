@@ -19,7 +19,7 @@ type DumpMongoArgs struct {
 	TLS            *internaltls.Config
 }
 
-func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
+func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, *internaltls.MongoTLSMaterial, error) {
 	// set default values
 	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
 
@@ -59,9 +59,13 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, error) {
 		args = append(args, parsedAdditionalArgs...)
 	}
 
-	args = append(args, internaltls.BuildTLSArgs("mongodb", da.TLS)...)
+	material, tlsArgs, err := internaltls.PrepareMongoTLS(da.TLS, da.Storage.OutName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("prepare mongo tls material: %w", err)
+	}
+	args = append(args, tlsArgs...)
 
 	args = backup.RemoveArgsDuplicate(args) // remove duplicate arguments
 
-	return args, nil
+	return args, material, nil
 }
