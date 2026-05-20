@@ -14,11 +14,12 @@ var ValidModes = []string{"require", "verify-ca", "verify-full", "prefer"}
 // It mirrors the config.TLSConfig YAML struct but is an independent
 // domain type to avoid coupling the tls package to config parsing.
 type Config struct {
-	Enabled    bool
-	Mode       string // require | verify-ca | verify-full | prefer
-	CACertPath string
-	ClientCert string
-	ClientKey  string
+	Enabled              bool
+	Mode                 string // require | verify-ca | verify-full | prefer
+	CACertPath           string
+	ClientCert           string
+	ClientKey            string
+	ClientKeyPasswordEnv string // env-var name holding passphrase for an encrypted ClientKey
 }
 
 // Validate checks that the TLS configuration is internally consistent.
@@ -48,6 +49,11 @@ func (c *Config) Validate() error {
 	// client cert and key must be provided together
 	if (c.ClientCert != "") != (c.ClientKey != "") {
 		return fmt.Errorf("tls.client_cert and tls.client_key must both be set for mutual TLS")
+	}
+
+	// passphrase env var requires a client key
+	if c.ClientKeyPasswordEnv != "" && c.ClientKey == "" {
+		return fmt.Errorf("tls.client_key must be set when tls.client_key_password_env is configured")
 	}
 
 	return nil

@@ -98,11 +98,12 @@ func ValidateConfig(cfg *Configuration) error {
 		// T017: validate TLS configuration when present; warn when absent.
 		if job.TLS != nil {
 			tlsCfg := &internaltls.Config{
-				Enabled:    job.TLS.Enabled,
-				Mode:       job.TLS.Mode,
-				CACertPath: job.TLS.CACertPath,
-				ClientCert: job.TLS.ClientCert,
-				ClientKey:  job.TLS.ClientKey,
+				Enabled:              job.TLS.Enabled,
+				Mode:                 job.TLS.Mode,
+				CACertPath:           job.TLS.CACertPath,
+				ClientCert:           job.TLS.ClientCert,
+				ClientKey:            job.TLS.ClientKey,
+				ClientKeyPasswordEnv: job.TLS.ClientKeyPasswordEnv,
 			}
 			if err := tlsCfg.Validate(); err != nil {
 				return fmt.Errorf("backup '%s': tls: %w", name, err)

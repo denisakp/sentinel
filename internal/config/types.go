@@ -20,6 +20,11 @@ type TLSConfig struct {
 
 	// ClientKey is the path to the client private key file (mutual TLS)
 	ClientKey string `yaml:"client_key,omitempty"`
+
+	// ClientKeyPasswordEnv names an environment variable that holds the passphrase
+	// for an encrypted ClientKey. The passphrase value itself is never stored in
+	// the config file or passed on the command line.
+	ClientKeyPasswordEnv string `yaml:"client_key_password_env,omitempty"`
 }
 
 // SchedulerConfig holds global scheduler and concurrency settings.
