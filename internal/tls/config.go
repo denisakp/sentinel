@@ -116,6 +116,9 @@ func buildMariaDBTLSArgs(mode string, c *Config) []string {
 	if c.ClientCert != "" {
 		args = append(args, fmt.Sprintf("--ssl-cert=%s", c.ClientCert))
 	}
+	if c.ClientKey != "" {
+		args = append(args, fmt.Sprintf("--ssl-key=%s", c.ClientKey))
+	}
 	if mode == "verify-full" {
 		args = append(args, "--ssl-verify-server-cert")
 	}

@@ -1,6 +1,7 @@
 package tls_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/tls"
@@ -59,14 +60,17 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			// PRD-05 regression guard: half-configured mTLS must be rejected at validation.
 			name:    "client cert without key",
 			cfg:     &tls.Config{Enabled: true, Mode: "prefer", ClientCert: "/etc/certs/client.crt"},
 			wantErr: true,
+			errMsg:  "client_cert and tls.client_key must both be set",
 		},
 		{
 			name:    "client key without cert",
 			cfg:     &tls.Config{Enabled: true, Mode: "prefer", ClientKey: "/etc/certs/client.key"},
 			wantErr: true,
+			errMsg:  "client_cert and tls.client_key must both be set",
 		},
 		{
 			name: "mutual TLS both cert and key",
@@ -86,6 +90,9 @@ func TestConfig_Validate(t *testing.T) {
 			err := tt.cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.errMsg != "" && err != nil && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("Validate() error = %q, want substring %q", err.Error(), tt.errMsg)
 			}
 		})
 	}
@@ -250,6 +257,8 @@ func TestBuildTLSArgs_MySQL_WithCerts(t *testing.T) {
 	if !hasCert {
 		t.Error("MySQL TLS args missing --ssl-cert")
 	}
+	// PRD-05 cross-engine regression guard: ensures MySQL keeps emitting --ssl-key
+	// alongside --ssl-cert, mirroring the MariaDB fix.
 	if !hasKey {
 		t.Error("MySQL TLS args missing --ssl-key")
 	}
@@ -267,6 +276,7 @@ func TestBuildTLSArgs_MariaDB_WithCerts(t *testing.T) {
 	hasSSL := false
 	hasCA := false
 	hasCert := false
+	hasKey := false
 	hasVerify := false
 	for _, a := range args {
 		if a == "--ssl" {
@@ -277,6 +287,9 @@ func TestBuildTLSArgs_MariaDB_WithCerts(t *testing.T) {
 		}
 		if a == "--ssl-cert=/etc/certs/client.crt" {
 			hasCert = true
+		}
+		if a == "--ssl-key=/etc/certs/client.key" {
+			hasKey = true
 		}
 		if a == "--ssl-verify-server-cert" {
 			hasVerify = true
@@ -291,8 +304,25 @@ func TestBuildTLSArgs_MariaDB_WithCerts(t *testing.T) {
 	if !hasCert {
 		t.Error("MariaDB TLS args missing --ssl-cert")
 	}
+	// PRD-05 regression guard: client key was silently dropped before this fix.
+	if !hasKey {
+		t.Error("MariaDB TLS args missing --ssl-key")
+	}
 	if !hasVerify {
 		t.Error("MariaDB TLS verify-full missing --ssl-verify-server-cert")
+	}
+}
+
+func TestBuildTLSArgs_MariaDB_NoCertsNoKey(t *testing.T) {
+	cfg := &tls.Config{Enabled: true, Mode: "require"}
+	args := tls.BuildTLSArgs("mariadb", cfg)
+	for _, a := range args {
+		if len(a) >= len("--ssl-cert=") && a[:len("--ssl-cert=")] == "--ssl-cert=" {
+			t.Errorf("MariaDB TLS args unexpectedly contain --ssl-cert: %v", args)
+		}
+		if len(a) >= len("--ssl-key=") && a[:len("--ssl-key=")] == "--ssl-key=" {
+			t.Errorf("MariaDB TLS args unexpectedly contain --ssl-key: %v", args)
+		}
 	}
 }
 
