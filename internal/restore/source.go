@@ -90,16 +90,18 @@ func StageRestoreSource(ctx context.Context, job config.RestoreJob) (*StagedArti
 
 	manifestObject := backupObject + ".manifest.json"
 	manifestPath := stagedPath + ".manifest.json"
-	if err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath); err == nil {
+	found, err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath)
+	if err != nil {
+		artifact.ManifestPath = manifestPath
+		_ = CleanupStagedArtifact(artifact)
+		return nil, fmt.Errorf("failed to stage restore manifest: %w", err)
+	}
+	if found {
 		artifact.ManifestPath = manifestPath
 		if chmodErr := os.Chmod(manifestPath, 0o600); chmodErr != nil {
 			_ = CleanupStagedArtifact(artifact)
 			return nil, fmt.Errorf("failed to secure staged manifest: %w", chmodErr)
 		}
-	} else if !errors.Is(err, ErrSourceObjectNotFound) {
-		artifact.ManifestPath = manifestPath
-		_ = CleanupStagedArtifact(artifact)
-		return nil, fmt.Errorf("failed to stage restore manifest: %w", err)
 	}
 
 	return artifact, nil
@@ -156,18 +158,20 @@ func StageChainArtifacts(ctx context.Context, job config.RestoreJob, backupIDs [
 
 		manifestObject := obj.Path + ".manifest.json"
 		manifestPath := stagedPath + ".manifest.json"
-		if err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath); err == nil {
+		found, err := downloadOptionalSourceObject(ctx, job.BackupSource, manifestObject, manifestPath)
+		if err != nil {
+			artifact.ManifestPath = manifestPath
+			_ = CleanupStagedArtifact(artifact)
+			_ = CleanupStagedArtifacts(artifacts)
+			return nil, fmt.Errorf("failed to stage chain manifest: %w", err)
+		}
+		if found {
 			artifact.ManifestPath = manifestPath
 			if chmodErr := os.Chmod(manifestPath, 0o600); chmodErr != nil {
 				_ = CleanupStagedArtifact(artifact)
 				_ = CleanupStagedArtifacts(artifacts)
 				return nil, fmt.Errorf("failed to secure staged manifest: %w", chmodErr)
 			}
-		} else if !errors.Is(err, ErrSourceObjectNotFound) {
-			artifact.ManifestPath = manifestPath
-			_ = CleanupStagedArtifact(artifact)
-			_ = CleanupStagedArtifacts(artifacts)
-			return nil, fmt.Errorf("failed to stage chain manifest: %w", err)
 		}
 
 		artifacts = append(artifacts, artifact)
@@ -296,14 +300,25 @@ func downloadSourceObject(ctx context.Context, source config.RestoreBackupSource
 	}
 }
 
-func downloadOptionalSourceObject(ctx context.Context, source config.RestoreBackupSource, object, dest string) error {
+// downloadOptionalSourceObject downloads an OPTIONAL restore source object.
+// Absence (the storage backend reports the object as not-found) is a legitimate
+// outcome and is reported via found=false with a nil error. Any other failure
+// (transport, permission, cancellation, configuration) is returned as a wrapped
+// error preserving the original cause for errors.Is / errors.As inspection.
+//
+// Postconditions:
+//   - (true,  nil)  : dest exists and is fully written.
+//   - (false, nil)  : dest is not written; object was reported absent.
+//   - (false, err)  : err is non-nil, wraps the original cause, and
+//     errors.Is(err, ErrSourceObjectNotFound) is false.
+func downloadOptionalSourceObject(ctx context.Context, source config.RestoreBackupSource, object, dest string) (bool, error) {
 	if err := downloadRestoreSourceObject(ctx, source, object, dest); err != nil {
 		if errors.Is(err, ErrSourceObjectNotFound) {
-			return err
+			return false, nil
 		}
-		return err
+		return false, fmt.Errorf("failed to download optional source object %q: %w", object, err)
 	}
-	return nil
+	return true, nil
 }
 
 func ensureStagingCapacity(dir string, required int64) error {
