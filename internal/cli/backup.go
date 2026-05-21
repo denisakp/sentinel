@@ -90,31 +90,31 @@ var BackupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Run a database backup",
 	Long:  "Run a database backup using CLI flags or a YAML config.\n\nExamples:\n  sentinel backup --config sentinel.yaml\n  sentinel backup --type postgres --host db --port 5432 --user backup --database app",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath, _ = cmd.Flags().GetString("config")
 		cfg, cfgErr := LoadAndValidateConfig(configPath)
 		if cfgErr == nil {
 			if err := runBackupJobsFromConfig(cmd, cfg); err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
-			return
+			return nil
 		}
 		if configPath != "" {
 			cmd.PrintErrln(cfgErr)
-			os.Exit(1)
+			return cfgErr
 		}
 
 		dbType, _ = cmd.Flags().GetString("type")
 		if dbType == "" {
 			cmd.PrintErrln(cfgErr)
-			os.Exit(1)
+			return cfgErr
 		}
 
 		// validate the database type
 		if err = backup.ValidateDbType(dbType); err != nil {
 			cmd.PrintErrln(err)
-			os.Exit(1)
+			return err
 		}
 
 		host, _ = cmd.Flags().GetString("host")           // get the host flag value
@@ -160,7 +160,7 @@ var BackupCmd = &cobra.Command{
 
 		if err = storage.ValidateStorage(params); err != nil {
 			cmd.PrintErrln(err)
-			return
+			return err
 		}
 
 		// validate the storage parameters
@@ -188,7 +188,7 @@ var BackupCmd = &cobra.Command{
 			err = pg_dump.Backup(pda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
@@ -206,7 +206,7 @@ var BackupCmd = &cobra.Command{
 			err = mysql_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
@@ -224,7 +224,7 @@ var BackupCmd = &cobra.Command{
 			err = mariadb_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
@@ -242,9 +242,10 @@ var BackupCmd = &cobra.Command{
 			err = mongo_dump.Backup(da)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
+		return nil
 	},
 }
 

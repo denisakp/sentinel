@@ -33,7 +33,7 @@ var backupVerifyCmd = &cobra.Command{
 		cfg, err := config.LoadConfig(cfgPath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, "", fmt.Sprintf("failed to load config: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("load config: %w", ErrVerifyInternal)
 		}
 
 		if outputFmt == "" {
@@ -43,7 +43,7 @@ var backupVerifyCmd = &cobra.Command{
 		mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, "", fmt.Sprintf("failed to open history db: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("open history db: %w", ErrVerifyInternal)
 		}
 		defer mon.Close()
 
@@ -53,12 +53,12 @@ var backupVerifyCmd = &cobra.Command{
 		if err != nil || exec == nil {
 			verifyPrintError(outputFmt, backupID, "",
 				fmt.Sprintf("backup ID %q not found in history\n  Fix: run 'sentinel monitor list' to see available backup IDs", backupID))
-			os.Exit(2)
+			return fmt.Errorf("backup %q: %w", backupID, ErrVerifyNotFound)
 		}
 
 		if exec.FilePath == "" {
 			verifyPrintSkipped(outputFmt, backupID)
-			os.Exit(3)
+			return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 		}
 
 		manifestPath := exec.FilePath + ".manifest.json"
@@ -66,18 +66,18 @@ var backupVerifyCmd = &cobra.Command{
 		if err != nil {
 			if errors.Is(err, manifest.ErrNoManifest) {
 				verifyPrintSkipped(outputFmt, backupID)
-				os.Exit(3)
+				return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 			}
 			verifyPrintError(outputFmt, backupID, exec.BackupName,
 				fmt.Sprintf("failed to read manifest: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("read manifest: %w", ErrVerifyInternal)
 		}
 
 		computedHash, err := verifyComputeFileHash(exec.FilePath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, exec.BackupName,
 				fmt.Sprintf("failed to compute hash: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("compute hash: %w", ErrVerifyInternal)
 		}
 
 		verifiedAt := time.Now().UTC()
@@ -101,7 +101,7 @@ var backupVerifyCmd = &cobra.Command{
 				fmt.Printf("  Computed hash: %s\n", computedHash)
 				fmt.Println("  Status:        FAIL - hash mismatch")
 			}
-			os.Exit(1)
+			return errors.New("hash mismatch")
 		}
 
 		if outputFmt == "json" {
