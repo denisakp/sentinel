@@ -80,5 +80,5 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-Active plan: `specs/017-monitor-schema-migration/plan.md`
+Active plan: `specs/018-assembler-tests/plan.md`
 <!-- SPECKIT END -->
