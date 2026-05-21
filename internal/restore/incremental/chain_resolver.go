@@ -1,6 +1,9 @@
 package incremental
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ChainArtifact describes a single artifact in a resolved chain.
 type ChainArtifact struct {
@@ -12,6 +15,7 @@ type ChainArtifact struct {
 	TimelineID       string
 	ManifestPresent  bool
 	HashVerified     bool
+	EndTimestamp     time.Time
 }
 
 // ResolvedChain contains validated artifacts in execution order.
