@@ -12,6 +12,7 @@ import (
 // EmailNotifier sends notifications via SMTP email
 type EmailNotifier struct {
 	config *EmailNotificationConfig
+	send   func(addr, from string, to []string, msg []byte, useTLS bool, host, user, pass string) error
 }
 
 // NewEmailNotifier creates a new email notifier
@@ -19,9 +20,9 @@ func NewEmailNotifier(config *EmailNotificationConfig) *EmailNotifier {
 	if config.SMTPPort == 0 {
 		config.SMTPPort = 587
 	}
-	return &EmailNotifier{
-		config: config,
-	}
+	e := &EmailNotifier{config: config}
+	e.send = e.smtpDialSend
+	return e
 }
 
 // SendBackup sends a backup notification via email
@@ -33,7 +34,6 @@ func (e *EmailNotifier) SendBackup(ctx context.Context, backup *BackupContext) e
 	msg := FormatMessage(backup)
 	emailBody := e.buildEmailBodyFromBackup(backup, msg)
 
-	// Build email headers
 	to := e.config.ToAddresses
 	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n",
 		e.config.FromAddress,
@@ -42,8 +42,9 @@ func (e *EmailNotifier) SendBackup(ctx context.Context, backup *BackupContext) e
 		time.Now().Format(time.RFC1123Z),
 	)
 
-	fullMessage := headers + emailBody
-	return e.sendEmailMessage(fullMessage)
+	fullMessage := []byte(headers + emailBody)
+	addr := fmt.Sprintf("%s:%d", e.config.SMTPHost, e.config.SMTPPort)
+	return e.send(addr, e.config.FromAddress, to, fullMessage, e.config.UseTLS, e.config.SMTPHost, e.config.SMTPUsername, e.config.SMTPPassword)
 }
 
 // SendRestore sends a restore notification via email
@@ -55,7 +56,6 @@ func (e *EmailNotifier) SendRestore(ctx context.Context, restore *RestoreContext
 	msg := FormatRestoreMessage(restore)
 	emailBody := e.buildEmailBodyFromRestore(restore, msg)
 
-	// Build email headers
 	to := e.config.ToAddresses
 	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n",
 		e.config.FromAddress,
@@ -64,8 +64,9 @@ func (e *EmailNotifier) SendRestore(ctx context.Context, restore *RestoreContext
 		time.Now().Format(time.RFC1123Z),
 	)
 
-	fullMessage := headers + emailBody
-	return e.sendEmailMessage(fullMessage)
+	fullMessage := []byte(headers + emailBody)
+	addr := fmt.Sprintf("%s:%d", e.config.SMTPHost, e.config.SMTPPort)
+	return e.send(addr, e.config.FromAddress, to, fullMessage, e.config.UseTLS, e.config.SMTPHost, e.config.SMTPUsername, e.config.SMTPPassword)
 }
 
 // Send is deprecated, use SendBackup instead
@@ -73,58 +74,33 @@ func (e *EmailNotifier) Send(ctx context.Context, backup *BackupContext) error {
 	return e.SendBackup(ctx, backup)
 }
 
-// sendEmailMessage sends an email message via SMTP
-func (e *EmailNotifier) sendEmailMessage(fullMessage string) error {
-	// Connect to SMTP server
-	addr := fmt.Sprintf("%s:%d", e.config.SMTPHost, e.config.SMTPPort)
-
+// smtpDialSend sends a fully-formed message via SMTP. Default implementation of EmailNotifier.send.
+func (e *EmailNotifier) smtpDialSend(addr, from string, to []string, msg []byte, useTLS bool, host, user, pass string) error {
 	var auth smtp.Auth
-	if e.config.SMTPUsername != "" {
-		auth = smtp.PlainAuth("", e.config.SMTPUsername, e.config.SMTPPassword, e.config.SMTPHost)
+	if user != "" {
+		auth = smtp.PlainAuth("", user, pass, host)
 	}
 
-	// Establish connection
-	var conn *smtp.Client
-	var err error
+	conn, err := smtp.Dial(addr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to SMTP server %s - %w", addr, err)
+	}
+	defer conn.Close()
 
-	if e.config.UseTLS {
-		// Use StartTLS (port 587 typical)
-		conn, err = smtp.Dial(addr)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SMTP server %s - %w", addr, err)
-		}
-		defer conn.Close()
-
-		// Upgrade connection to TLS
-		tlsConfig := &tls.Config{ServerName: e.config.SMTPHost}
+	if useTLS {
+		tlsConfig := &tls.Config{ServerName: host}
 		if err = conn.StartTLS(tlsConfig); err != nil {
 			return fmt.Errorf("failed to upgrade SMTP connection to TLS - %w", err)
 		}
+	}
 
-		// Authenticate
-		if auth != nil {
-			if err = conn.Auth(auth); err != nil {
-				return fmt.Errorf("failed to authenticate with SMTP server - %w", err)
-			}
-		}
-	} else {
-		// Direct SSL/TLS connection (port 465 typical)
-		conn, err = smtp.Dial(addr)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SMTP server %s - %w", addr, err)
-		}
-		defer conn.Close()
-
-		if auth != nil {
-			if err = conn.Auth(auth); err != nil {
-				return fmt.Errorf("failed to authenticate with SMTP server - %w", err)
-			}
+	if auth != nil {
+		if err = conn.Auth(auth); err != nil {
+			return fmt.Errorf("failed to authenticate with SMTP server - %w", err)
 		}
 	}
 
-	// Send email
-	to := e.config.ToAddresses
-	if err = conn.Mail(e.config.FromAddress); err != nil {
+	if err = conn.Mail(from); err != nil {
 		return fmt.Errorf("failed to set sender address - %w", err)
 	}
 
@@ -140,7 +116,7 @@ func (e *EmailNotifier) sendEmailMessage(fullMessage string) error {
 	}
 	defer wc.Close()
 
-	if _, err = wc.Write([]byte(fullMessage)); err != nil {
+	if _, err = wc.Write(msg); err != nil {
 		return fmt.Errorf("failed to write email body - %w", err)
 	}
 
