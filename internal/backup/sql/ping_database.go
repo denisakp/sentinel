@@ -3,27 +3,33 @@ package sql
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 )
 
-// PingSqlDatabase pings the sql database
-func PingSqlDatabase(driver, sourceName string) error {
-	db, err := sql.Open(driver, sourceName) // open a database connection
-
+// PingSqlDatabase opens a sql connection with the given driver and DSN, pings it,
+// and closes it. Failure-mode matrix is defined in
+// specs/016-remove-ping-fatal/contracts/connectivity-helpers.md.
+//
+// PingSqlDatabase MUST NOT call log.Fatal*, log.Panic*, or os.Exit.
+func PingSqlDatabase(driver, sourceName string) (retErr error) {
+	db, err := sql.Open(driver, sourceName)
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
-	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-			log.Fatalf("failed to close database connection: %v", err)
+	defer func() {
+		closeErr := db.Close()
+		if closeErr == nil {
+			return
 		}
-	}(db)
+		if retErr == nil {
+			retErr = fmt.Errorf("close ping conn: %w", closeErr)
+			return
+		}
+		slog.Warn("sql_ping_close_error", "event", "sql_ping_close_error", "error", closeErr.Error())
+	}()
 
-	err = db.Ping() // ping the database
-	if err != nil {
+	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-
 	return nil
 }
