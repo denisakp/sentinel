@@ -41,19 +41,36 @@ func NewMonitor(dbPath string) (*Monitor, error) {
 		return nil, fmt.Errorf("failed to open history database: %w", err)
 	}
 
-	// Ensure schema_migrations table exists first
+	// Wait up to 30s for SQLite-level locks so concurrent openers serialize
+	// at the database layer instead of returning "database is locked"
+	// errors. The cross-process migration lock at internal/lock already
+	// serializes the migration phase itself; this PRAGMA covers the
+	// CREATE TABLE IF NOT EXISTS prelude and incidental writes.
+	if _, err := db.Exec(`PRAGMA busy_timeout = 30000`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
+	// Ensure schema_migrations table exists first.
 	if _, err := db.Exec(SchemaMigrationsTable); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ensure schema_migrations table: %w", err)
 	}
 
-	// Run pending migrations before applying legacy schemas
-	if err := runMigrations(db); err != nil {
+	// Run pending migrations under a file lock, gated by schema_version.
+	// On forward-incompatible DBs, returns ErrForwardIncompatible without
+	// mutating any state. Migration 001 creates the baseline tables on
+	// fresh installations; subsequent migrations add columns. The CREATE
+	// TABLE IF NOT EXISTS calls below are kept only as a defensive no-op
+	// for upgrade scenarios where migration files might be skipped (they
+	// will never run before runMigrationsLocked).
+	if err := runMigrationsLocked(path, db); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+		return nil, err
 	}
 
-	// Legacy schema application (for backwards compatibility)
+	// Defensive baseline CREATE TABLE IF NOT EXISTS (no-op when migrations
+	// already created the tables, harmless when they did).
 	if _, err := db.Exec(BackupExecutionsSchema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ensure backup history schema: %w", err)
@@ -62,6 +79,10 @@ func NewMonitor(dbPath string) (*Monitor, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ensure restore history schema: %w", err)
 	}
+
+	// Reconcile column additions and CHECK-constraint rebuilds for installs
+	// that pre-date the migration framework owning these columns. Idempotent
+	// against current installations because they already carry the columns.
 	if err := ensureSchemaColumns(db); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ensure history columns: %w", err)
