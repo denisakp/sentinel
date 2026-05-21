@@ -298,7 +298,7 @@ func ExecuteScheduledRestoreWithRunner(
 			}
 
 			if mon != nil {
-				_ = mon.RecordRestoreExecution(ctx, &monitor.RestoreExecution{
+				if err := mon.RecordRestoreExecution(ctx, &monitor.RestoreExecution{
 					RestoreName:      jobName,
 					DatabaseType:     job.Type,
 					DatabaseName:     job.Database,
@@ -312,7 +312,14 @@ func ExecuteScheduledRestoreWithRunner(
 					SourceBackupPath: job.BackupSource.BackupPath,
 					CreatedAt:        result.StartedAt,
 					FinishedAt:       &result.CompletedAt,
-				})
+				}); err != nil {
+					slog.Error("failed to record skipped restore execution",
+						"event", "monitor_record_restore_failed",
+						"job", jobName,
+						"reason", "concurrency_limit_reached",
+						"error", err.Error(),
+					)
+				}
 			}
 
 			return result, nil

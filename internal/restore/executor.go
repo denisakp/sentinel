@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sort"
@@ -599,7 +600,13 @@ func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job conf
 	if req.Monitor == nil {
 		return
 	}
-	_ = req.Monitor.RecordRestoreExecution(ctx, entry)
+	if err := req.Monitor.RecordRestoreExecution(ctx, entry); err != nil {
+		slog.Error("failed to record restore execution",
+			"event", "monitor_record_restore_failed",
+			"job", req.JobName,
+			"error", err.Error(),
+		)
+	}
 	result.ExecutionID = entry.ID
 }
 
