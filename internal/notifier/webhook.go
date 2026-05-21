@@ -59,7 +59,12 @@ func (w *WebhookNotifier) SendBackup(ctx context.Context, backup *BackupContext)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(respBody))
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			return fmt.Errorf("webhook returned status %d (Retry-After: %s): %s: %w",
+				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+		}
+		return fmt.Errorf("webhook returned status %d: %s: %w",
+			resp.StatusCode, string(respBody), ErrNon2xxResponse)
 	}
 
 	return nil
@@ -95,7 +100,12 @@ func (w *WebhookNotifier) SendRestore(ctx context.Context, restore *RestoreConte
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(respBody))
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			return fmt.Errorf("webhook returned status %d (Retry-After: %s): %s: %w",
+				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+		}
+		return fmt.Errorf("webhook returned status %d: %s: %w",
+			resp.StatusCode, string(respBody), ErrNon2xxResponse)
 	}
 
 	return nil

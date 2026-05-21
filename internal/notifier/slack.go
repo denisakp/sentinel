@@ -58,7 +58,12 @@ func (s *SlackNotifier) SendBackup(ctx context.Context, backup *BackupContext) e
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("slack webhook returned status %d: %s", resp.StatusCode, string(respBody))
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			return fmt.Errorf("slack webhook returned status %d (Retry-After: %s): %s: %w",
+				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+		}
+		return fmt.Errorf("slack webhook returned status %d: %s: %w",
+			resp.StatusCode, string(respBody), ErrNon2xxResponse)
 	}
 
 	return nil
@@ -93,7 +98,12 @@ func (s *SlackNotifier) SendRestore(ctx context.Context, restore *RestoreContext
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("slack webhook returned status %d: %s", resp.StatusCode, string(respBody))
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			return fmt.Errorf("slack webhook returned status %d (Retry-After: %s): %s: %w",
+				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+		}
+		return fmt.Errorf("slack webhook returned status %d: %s: %w",
+			resp.StatusCode, string(respBody), ErrNon2xxResponse)
 	}
 
 	return nil
