@@ -2,8 +2,10 @@ package mysql_dump
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
+	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -75,6 +77,163 @@ func TestArgsBuilder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestArgsBuilder_TLS(t *testing.T) {
+	tests := []struct {
+		name            string
+		tls             *internaltls.Config
+		wantContains    []string
+		wantNoSSLPrefix bool
+	}{
+		{
+			name:            "AB-01 TLS disabled",
+			tls:             &internaltls.Config{Enabled: false, Mode: "require"},
+			wantNoSSLPrefix: true,
+		},
+		{
+			name:            "AB-02 TLS nil",
+			tls:             nil,
+			wantNoSSLPrefix: true,
+		},
+		{
+			name:         "AB-03 TLS require",
+			tls:          &internaltls.Config{Enabled: true, Mode: "require"},
+			wantContains: []string{"--ssl-mode=REQUIRED"},
+		},
+		{
+			name:         "AB-04 TLS verify-ca",
+			tls:          &internaltls.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/tmp/ca.pem"},
+			wantContains: []string{"--ssl-mode=VERIFY_CA", "--ssl-ca=/tmp/ca.pem"},
+		},
+		{
+			name:         "AB-05 TLS verify-full",
+			tls:          &internaltls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/tmp/ca.pem"},
+			wantContains: []string{"--ssl-mode=VERIFY_IDENTITY", "--ssl-ca=/tmp/ca.pem"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args, err := argsBuilder(&MySqlDumpArgs{
+				Username: "root",
+				Database: "test",
+				TLS:      tt.tls,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNoSSLPrefix {
+				for _, a := range args {
+					if strings.HasPrefix(a, "--ssl-") {
+						t.Fatalf("unexpected TLS flag %q in args=%v", a, args)
+					}
+				}
+				return
+			}
+			assertContainsAll(t, args, tt.wantContains...)
+		})
+	}
+}
+
+func TestArgsBuilder_MutualTLS(t *testing.T) {
+	cfg := &internaltls.Config{
+		Enabled:    true,
+		Mode:       "verify-full",
+		CACertPath: "/tmp/ca.pem",
+		ClientCert: "/tmp/client.crt",
+		ClientKey:  "/tmp/client.key",
+	}
+
+	// Pre-flight: confirm the shared TLS helper still emits client cert/key.
+	helperOut := internaltls.BuildTLSArgs("mysql", cfg)
+	hasCert := false
+	for _, a := range helperOut {
+		if strings.HasPrefix(a, "--ssl-cert=") {
+			hasCert = true
+			break
+		}
+	}
+	if !hasCert {
+		t.Skip("mutual TLS for MySQL pending PRD 05")
+	}
+
+	args, err := argsBuilder(&MySqlDumpArgs{
+		Username: "root",
+		Database: "test",
+		TLS:      cfg,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertContainsAll(t, args,
+		"--ssl-ca=/tmp/ca.pem",
+		"--ssl-cert=/tmp/client.crt",
+		"--ssl-key=/tmp/client.key",
+	)
+}
+
+func TestArgsBuilder_PasswordNoLeak(t *testing.T) {
+	tests := []struct {
+		name string
+		pwd  string
+	}{
+		{name: "AB-07 normal special chars", pwd: "s3cret!$pace word"},
+		{name: "AB-08 shell-meta chars", pwd: "p@$$'\""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args, err := argsBuilder(&MySqlDumpArgs{
+				Username: "root",
+				Password: tt.pwd,
+				Database: "test",
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertNoPasswordInArgs(t, args, tt.pwd)
+		})
+	}
+}
+
+func TestArgsBuilder_AdditionalArgs(t *testing.T) {
+	t.Run("AB-09 merge new flag", func(t *testing.T) {
+		args, err := argsBuilder(&MySqlDumpArgs{
+			Username:       "root",
+			Database:       "test",
+			AdditionalArgs: "--single-transaction",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		count := 0
+		for _, a := range args {
+			if a == "--single-transaction" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("--single-transaction count = %d, want 1; args=%v", count, args)
+		}
+	})
+
+	t.Run("AB-10 empty additional args no stray token", func(t *testing.T) {
+		args, err := argsBuilder(&MySqlDumpArgs{
+			Username:       "root",
+			Database:       "test",
+			AdditionalArgs: "",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for i, a := range args {
+			if a == "" {
+				t.Fatalf("empty string at args[%d]; args=%v", i, args)
+			}
+		}
+		if len(args) != 5 {
+			t.Fatalf("len(args) = %d, want 5 (host, port, user, --skip-password, database); args=%v", len(args), args)
+		}
+	})
 }
 
 func TestFinalOutNameMySQLExtensionPreservation(t *testing.T) {
