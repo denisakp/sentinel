@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -220,6 +221,13 @@ func TestRunMigrationsLocked_NegativeVersion(t *testing.T) {
 	}
 	_ = mon.Close()
 
+	// Capture the pre-rejection state so we can assert no rows or schema
+	// mutations occur during the failed open (T021c invariant).
+	prePath := filepath.Join(t.TempDir(), "snapshot.db")
+	if err := copyFile(path, prePath); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
 	_, err = NewMonitor(path)
 	if err == nil {
 		t.Fatal("expected ErrUnsupportedSourceVersion, got nil")
@@ -227,6 +235,31 @@ func TestRunMigrationsLocked_NegativeVersion(t *testing.T) {
 	if !errors.Is(err, ErrUnsupportedSourceVersion) {
 		t.Fatalf("errors.Is(err, ErrUnsupportedSourceVersion) = false; err = %v", err)
 	}
+
+	// schema_version must still hold -1 (no advance, no overwrite to 0).
+	post, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer post.Close()
+	var v int
+	if err := post.QueryRow(`SELECT version FROM schema_version WHERE id = 1`).Scan(&v); err != nil {
+		t.Fatalf("read schema_version: %v", err)
+	}
+	if v != -1 {
+		t.Errorf("schema_version mutated after rejection: got %d, want -1", v)
+	}
+}
+
+// copyFile is a tiny helper used by the unsupported-source-version test to
+// snapshot the DB before the rejection so we can assert no mutation. Kept
+// local to this file to avoid touching test helpers elsewhere.
+func copyFile(src, dst string) error {
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, b, 0o600)
 }
 
 // TestRecordRestoreExecution_NoFallbackPath compiles against the current

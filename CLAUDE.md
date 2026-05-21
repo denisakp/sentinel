@@ -39,7 +39,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 ### Package layout
 - `internal/cli/` — Cobra commands (one file per command group)
 - `internal/config/` — `types.go` (YAML schema), `loader.go`, `validator.go`
-- `internal/monitor/` — SQLite execution history. `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`
+- `internal/monitor/` — SQLite execution history. `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`. Schema is version-gated via `BinarySchemaVersion`; migrations run under a file lock on every open and forward-incompat DBs are refused (`ErrForwardIncompatible`). Inspect with `sentinel monitor doctor [--repair]`.
 - `internal/scheduler/` — cron loop (`scheduler.go`), execution (`executor.go`), restore hook (`restore_integration.go`)
 - `internal/storage/` — backend dispatcher; sub-packages `local/`, `sentinel_s3/`, `gcs/`, `gdrive/`, `azure/`, shared types in `types/`
 - `internal/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash)

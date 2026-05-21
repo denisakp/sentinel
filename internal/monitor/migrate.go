@@ -48,7 +48,7 @@ func runMigrationsLocked(dbPath string, db *sql.DB) error {
 			"current_version", current,
 			"required_version", BinarySchemaVersion,
 		)
-		return fmt.Errorf("%w: schema is at version %d, this binary requires version %d", ErrForwardIncompatible, current, BinarySchemaVersion)
+		return newForwardIncompatible(current, BinarySchemaVersion)
 	}
 
 	if current == BinarySchemaVersion {
@@ -74,7 +74,7 @@ func runMigrationsLocked(dbPath string, db *sql.DB) error {
 	}
 	if current >= BinarySchemaVersion {
 		if current > BinarySchemaVersion {
-			return fmt.Errorf("%w: schema is at version %d, this binary requires version %d", ErrForwardIncompatible, current, BinarySchemaVersion)
+			return newForwardIncompatible(current, BinarySchemaVersion)
 		}
 		return nil
 	}

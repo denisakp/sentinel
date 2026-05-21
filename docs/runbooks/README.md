@@ -15,6 +15,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 - [Database credentials](./credentials.md)
 - [Alerting setup](./alerting-setup.md)
 - [DB migration status](./db-migration-status.md)
+- [Monitor schema migration](./monitor-schema-migration.md)
 
 ## Restore
 - [Restore from backup](./restore-from-backup.md)
