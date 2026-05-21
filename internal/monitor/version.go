@@ -13,8 +13,29 @@ const BinarySchemaVersion = 4
 
 // ErrForwardIncompatible is returned by NewMonitor when the on-disk
 // schema_version is ahead of BinarySchemaVersion. Callers map this to a
-// non-zero exit at the CLI boundary.
+// non-zero exit at the CLI boundary. Wrap via ForwardIncompatibleError to
+// expose the found/required versions to the CLI formatter.
 var ErrForwardIncompatible = errors.New("monitor schema is ahead of this binary")
+
+// ForwardIncompatibleError carries the structured versions so the CLI
+// formatter can render them without parsing the error string. It wraps
+// ErrForwardIncompatible so existing errors.Is checks keep working.
+type ForwardIncompatibleError struct {
+	Found    int
+	Required int
+}
+
+func (e *ForwardIncompatibleError) Error() string {
+	return fmt.Sprintf("%s: schema is at version %d, this binary requires version %d",
+		ErrForwardIncompatible.Error(), e.Found, e.Required)
+}
+
+func (e *ForwardIncompatibleError) Unwrap() error { return ErrForwardIncompatible }
+
+// newForwardIncompatible builds the typed error for migrate.go.
+func newForwardIncompatible(found, required int) error {
+	return &ForwardIncompatibleError{Found: found, Required: required}
+}
 
 // ErrUnsupportedSourceVersion is returned by the migration runner when the
 // recorded schema_version cannot be reconciled with the available migration

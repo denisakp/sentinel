@@ -185,8 +185,12 @@ func init() {
 	monitorCmd.AddCommand(monitorStatsCmd)
 	monitorCmd.AddCommand(monitorShowCmd)
 	monitorCmd.AddCommand(monitorExportCmd)
+	monitorCmd.AddCommand(monitorDoctorCmd)
 
 	monitorCmd.PersistentFlags().StringP("config", "c", "", "Path to YAML configuration file")
+
+	monitorDoctorCmd.Flags().Bool("repair", false, "Apply any pending monitor schema migrations")
+	monitorDoctorCmd.Flags().Bool("json", false, "Emit the doctor report as JSON")
 
 	monitorListCmd.Flags().StringP("last", "l", "7d", "Time range (e.g., '7d', '30d', '12h')")
 	monitorListCmd.Flags().String("job", "", "Filter by backup job name")

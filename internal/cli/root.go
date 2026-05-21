@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/denisakp/sentinel/internal/monitor"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/version"
 	"github.com/spf13/cobra"
@@ -92,5 +94,20 @@ func init() {
 }
 
 func Execute() error {
-	return RootCmd.Execute()
+	// Silence cobra's default "Error: ..." emission so the CLI boundary owns
+	// error formatting (constitution III: what/why/how for known sentinels,
+	// the legacy single-line shape for everything else).
+	RootCmd.SilenceErrors = true
+	err := RootCmd.Execute()
+	if err == nil {
+		return nil
+	}
+	out := RootCmd.ErrOrStderr()
+	switch {
+	case errors.Is(err, monitor.ErrForwardIncompatible):
+		printForwardIncompatible(out, err)
+	default:
+		fmt.Fprintf(out, "Error: %s\n", err.Error())
+	}
+	return err
 }
