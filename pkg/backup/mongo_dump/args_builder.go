@@ -29,7 +29,11 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, *internaltls.M
 
 	parsedAdditionalArgs := []string{}
 	if da.AdditionalArgs != "" {
-		parsedAdditionalArgs = backup.ParseAdditionalArgs(da.AdditionalArgs)
+		var err error
+		parsedAdditionalArgs, err = backup.ParseAdditionalArgs(da.AdditionalArgs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 	}
 
 	hasArchive := false

@@ -37,3 +37,6 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 - [Upgrade Sentinel binary](./upgrade-sentinel-binary.md)
 - [Migrate storage backend](./migrate-storage-backend.md)
 - [Key rotation](./key-rotation.md)
+
+## Reference
+- [`additional_args` quoting reference](./additional-args.md)

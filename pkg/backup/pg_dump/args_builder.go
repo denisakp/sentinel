@@ -91,7 +91,10 @@ func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 
 	// handle additional arguments
 	if pda.AdditionalArgs != "" {
-		additionalArgs := backup.ParseAdditionalArgs(pda.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(pda.AdditionalArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	}
 

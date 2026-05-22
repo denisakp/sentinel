@@ -40,7 +40,10 @@ func BackupAll(pda *PgDumpAllArgs) error {
 	}
 
 	if pda.AdditionalArgs != "" {
-		additionalArgs := backup.ParseAdditionalArgs(pda.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(pda.AdditionalArgs)
+		if err != nil {
+			return fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	}
 

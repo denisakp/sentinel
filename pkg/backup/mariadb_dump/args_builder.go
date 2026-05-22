@@ -38,7 +38,10 @@ func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 	}
 
 	if mda.AdditionalArgs != "" {
-		additionalArgs := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	} // add additional arguments if provided
 

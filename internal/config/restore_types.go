@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/backup"
 )
 
 // BinlogTargetPosition identifies a replay stop point in MySQL/MariaDB binlogs.
@@ -264,6 +266,17 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	enabled := job.Enabled == nil || *job.Enabled
 	if enabled && job.Schedule == "" {
 		return fmt.Errorf("restore schedule (cron) is required")
+	}
+
+	// FR-009(a): validate restore_options.additional_args parses at config load.
+	if raw, ok := job.RestoreOptions["additional_args"]; ok {
+		s, isString := raw.(string)
+		if !isString {
+			return fmt.Errorf("restore_options.additional_args must be a string, got %T", raw)
+		}
+		if _, err := backup.ParseAdditionalArgs(s); err != nil {
+			return fmt.Errorf("restore_options.additional_args: %w", err)
+		}
 	}
 
 	// Validate conflict strategy if specified
