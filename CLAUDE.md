@@ -47,6 +47,9 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/lock/` — file-based concurrency; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
 - `internal/tls/` — `internaltls.Config` (domain) mirrors `config.TLSConfig` (YAML); map manually
+- `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
+- `internal/restore/` — restore arg validation (`args.go`, `validator.go`) + `incremental/`
+- `internal/utils/` — shared helpers (`file.go`, `time.go`, `scheduled_output.go`)
 - `internal/retention/`, `internal/notifier/` (slack/discord/email/webhook), `internal/version/`
 - `pkg/backup/{pg,mysql,mariadb,mongo}_dump/args_builder.go` — engine-specific dump arg builders
 - `pkg/backup/{mysqlbinlog,pg_combine}/` — incremental backup helpers (WAL / binlogs)
@@ -72,7 +75,7 @@ Opt-in via `encryption_key_env`. Generate with `sentinel security init-key`. Pla
 
 ## Spec-driven workflow
 
-Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.specify`, `speckit.plan`, `speckit.tasks`, `speckit.implement`, `speckit.clarify`, `speckit.analyze`, `speckit.checklist`, `speckit.constitution`, `speckit.taskstoissues`. Use when feature work touches spec/plan/task artifacts.
+Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.plan`, `speckit.tasks`, `speckit.implement`, `speckit.clarify`, `speckit.analyze`, `speckit.checklist`, `speckit.constitution`, `speckit.taskstoissues`. Use when feature work touches spec/plan/task artifacts.
 
 ## Docs
 - `README.md` — user-facing usage, config examples
@@ -80,5 +83,6 @@ Repo uses Spec Kit (`.specify/`, `specs/`, `prds/`). Skills available: `speckit.
 - `docs/roadmap/`, `release-notes.md`
 
 <!-- SPECKIT START -->
-Active plan: `specs/024-mongo-dump-remote-storage/plan.md`
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->

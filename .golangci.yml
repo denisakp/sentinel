@@ -1,28 +1,43 @@
-run:
-  timeout: 5m
-
+version: "2"
 output:
   formats:
-    - format: colored-line-number
-
+    text:
+      path: stdout
 linters:
-  disable-all: true
+  default: none
   enable:
     - forbidigo
     - govet
-
-linters-settings:
-  forbidigo:
-    forbid:
-      - p: '^log\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$'
-        msg: "process-killing call in library code; return an error instead. See specs/016-remove-ping-fatal/spec.md FR-007."
-      - p: '^os\.Exit$'
-        msg: "do not exit from command bodies; return an error and let main.go map it. See internal/cli/exit_codes.go."
-    analyze-types: true
-
-issues:
-  exclude-rules:
-    - path: ^main\.go$
-      linters: [forbidigo]
-    - path: ^internal/cli/root\.go$
-      linters: [forbidigo]
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^log\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$
+          msg: process-killing call in library code; return an error instead. See specs/016-remove-ping-fatal/spec.md FR-007.
+        - pattern: ^os\.Exit$
+          msg: do not exit from command bodies; return an error and let main.go map it. See internal/cli/exit_codes.go.
+      analyze-types: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - forbidigo
+        path: ^main\.go$
+      - linters:
+          - forbidigo
+        path: ^internal/cli/root\.go$
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
