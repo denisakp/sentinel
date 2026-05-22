@@ -49,7 +49,7 @@ func TestMariaDBBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MariaDB backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := mariadb_dump.Backup(args)
+	_, err := mariadb_dump.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -102,7 +102,7 @@ func TestMariaDBRestore(t *testing.T) {
 		},
 	}
 
-	if err := mariadb_dump.Backup(backupArgs); err != nil {
+	if _, err := mariadb_dump.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MariaDB backup with invalid credentials (expecting failure)")
-	err = mariadb_dump.Backup(args)
+	_, err = mariadb_dump.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {

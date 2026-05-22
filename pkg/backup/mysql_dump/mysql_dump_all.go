@@ -2,6 +2,8 @@ package mysql_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
 
@@ -46,10 +48,10 @@ func argsBuilderAll(mda *MySqlDumpAllArgs) ([]string, error) {
 }
 
 // BackupAll backs up all MySQL databases using mysqldump --all-databases.
-func BackupAll(mda *MySqlDumpAllArgs) error {
+func BackupAll(mda *MySqlDumpAllArgs) (string, error) {
 	args, err := argsBuilderAll(mda)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	cmd := exec.Command("mysqldump", args...)
@@ -64,25 +66,28 @@ func BackupAll(mda *MySqlDumpAllArgs) error {
 
 	if err := cmd.Run(); err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute mysqldump command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute mysqldump command - %w, %s", err, redacted)
 	}
 
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 	backupPath, err := storageHandler.GetBackupPath(mda.Storage.LocalPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
+
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
-	return nil
+	return digest, nil
 }

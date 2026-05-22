@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Performance
+
+- **backup hashing**: compute the plaintext manifest hash inline with the dump write, eliminating a second full read of the artefact. Each engine adapter (`pg_dump`, `pg_dumpall`, `mysqldump` single + `--all-databases`, `mariadb-dump` single + `--all-databases`, `mongodump` local) now returns `(digest, error)` where `digest` is `hex(sha256(payload))` of the bytes handed to storage; the orchestrator stores it in `.manifest.json` as-is. The encrypted path (AES-256-GCM) and `sentinel backup verify` are unchanged. (PRD 19)
+
 ### Deprecated
 
 - **`sentinel backup --password` / `-p`**: deprecated; will be removed in the next minor release. Passing a password on the command line exposes it via `ps`, `/proc/<pid>/cmdline`, and shell history. Use one of three safe channels instead: `--password-env <VAR>`, `--password-file <PATH>` (first line, right-trimmed; warns on group/world-readable mode), or the existing config field `databases.<id>.password_env`. CLI flag precedence over config is preserved (silent override). Conflicts among `--password`, `--password-env`, `--password-file` are hard errors before any DB I/O. Migration recipes: [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md). (Feature 015)

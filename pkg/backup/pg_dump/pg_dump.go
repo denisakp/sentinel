@@ -2,6 +2,8 @@ package pg_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
 
@@ -10,29 +12,32 @@ import (
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
+// checkConnectivity is overridable in tests.
+var checkConnectivity = sql.CheckConnectivity
+
 // Backup backs up a PostgresSQL database using pg_dump
-func Backup(pda *PgDumpArgs) error {
+func Backup(pda *PgDumpArgs) (string, error) {
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// get the backup path
 	backupPath, err := storageHandler.GetBackupPath(pda.Storage.LocalPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// build pg_dump arguments
 	args, err := argsBuilder(pda, backupPath)
 	if err != nil {
-		return fmt.Errorf("failed to build pg_dump args - %w", err)
+		return "", fmt.Errorf("failed to build pg_dump args - %w", err)
 	}
 
 	// check connectivity
-	if ok, err := sql.CheckConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
-		return err
+	if ok, err := checkConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
+		return "", err
 	}
 
 	// run pg_dump command
@@ -55,15 +60,18 @@ func Backup(pda *PgDumpArgs) error {
 	err = cmd.Run()
 	if err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute pg_dump command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute pg_dump command - %w, %s", err, redacted)
 	}
+
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
 
 	// write the backup to the storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), pda.Storage.OutName); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
 
-	return nil
+	return digest, nil
 }

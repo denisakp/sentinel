@@ -185,7 +185,7 @@ var BackupCmd = &cobra.Command{
 				Storage:              params,
 			}
 
-			err = pg_dump.Backup(pda)
+			_, err = pg_dump.Backup(pda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -203,7 +203,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			err = mysql_dump.Backup(mda)
+			_, err = mysql_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -221,7 +221,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			err = mariadb_dump.Backup(mda)
+			_, err = mariadb_dump.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -239,7 +239,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			err = mongo_dump.Backup(da)
+			_, err = mongo_dump.Backup(da)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -349,6 +349,7 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 	}
 
 	var backupErr error
+	var digest string
 	switch job.Type {
 	case "postgres":
 		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
@@ -367,19 +368,19 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("pg-compression-level") {
 			pgArgs.CompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
 		}
-		backupErr = pg_dump.Backup(pgArgs)
+		digest, backupErr = pg_dump.Backup(pgArgs)
 	case "mysql":
 		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mysql_dump.Backup(mysqlArgs)
+		digest, backupErr = mysql_dump.Backup(mysqlArgs)
 	case "mariadb":
 		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mariadb_dump.Backup(mariaArgs)
+		digest, backupErr = mariadb_dump.Backup(mariaArgs)
 	case "mongodb":
 		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
 		if err != nil {
@@ -391,7 +392,7 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		backupErr = mongo_dump.Backup(mongoArgs)
+		digest, backupErr = mongo_dump.Backup(mongoArgs)
 	default:
 		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
 	}
@@ -399,7 +400,7 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 	end := time.Now()
 	var security *backupSecurityResult
 	if backupErr == nil {
-		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull)
+		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull, digest)
 		if err != nil {
 			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
 		}
@@ -472,13 +473,14 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 	}
 
 	var backupErr error
+	var digest string
 	switch job.Type {
 	case "postgres":
 		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = pg_dump.BackupAll(&pg_dump.PgDumpAllArgs{
+		digest, backupErr = pg_dump.BackupAll(&pg_dump.PgDumpAllArgs{
 			Host:           pgArgs.Host,
 			Port:           pgArgs.Port,
 			Username:       pgArgs.Username,
@@ -491,7 +493,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mysql_dump.BackupAll(&mysql_dump.MySqlDumpAllArgs{
+		digest, backupErr = mysql_dump.BackupAll(&mysql_dump.MySqlDumpAllArgs{
 			Host:           mysqlArgs.Host,
 			Port:           mysqlArgs.Port,
 			Username:       mysqlArgs.Username,
@@ -504,7 +506,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mariadb_dump.BackupAll(&mariadb_dump.MariaDBDumpAllArgs{
+		digest, backupErr = mariadb_dump.BackupAll(&mariadb_dump.MariaDBDumpAllArgs{
 			Host:           mariaArgs.Host,
 			Port:           mariaArgs.Port,
 			Username:       mariaArgs.Username,
@@ -524,7 +526,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		backupErr = mongo_dump.Backup(mongoArgs)
+		digest, backupErr = mongo_dump.Backup(mongoArgs)
 	default:
 		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
 	}
@@ -532,7 +534,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 	end := time.Now()
 	var security *backupSecurityResult
 	if backupErr == nil {
-		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull)
+		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull, digest)
 		if err != nil {
 			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
 		}
@@ -965,10 +967,12 @@ type backupSecurityResult struct {
 
 var verifyIncrementalArtifactHash = manifest.VerifyBackupHash
 
-// applyBackupSecurity computes a SHA-256 hash of the local backup file and optionally
-// encrypts it in-place using AES-256-GCM (T023, T033). A BackupManifest is written
-// alongside the file. Returns nil silently for non-local or missing files.
-func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, forceFull bool) (*backupSecurityResult, error) {
+// applyBackupSecurity records the supplied plaintext digest in a manifest and
+// optionally encrypts the local backup in-place using AES-256-GCM. The
+// plaintextDigest is the hex SHA-256 the dump adapter computed inline over the
+// bytes written to storage; an empty digest is treated the same as a non-local
+// artefact (no manifest emitted).
+func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, forceFull bool, plaintextDigest string) (*backupSecurityResult, error) {
 	filePath, fileSize := localBackupInfo(storageParams)
 	if filePath == "" {
 		return nil, nil
@@ -977,10 +981,7 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 		return nil, nil
 	}
 
-	hashValue, err := computeFileHash(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute backup hash: %w", err)
-	}
+	hashValue := plaintextDigest
 	plaintextHash := hashValue
 
 	result := &backupSecurityResult{
@@ -1073,20 +1074,6 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 	}
 
 	return result, nil
-}
-
-// computeFileHash returns the hex-encoded SHA-256 digest of the file at path.
-func computeFileHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file for hashing: %w", err)
-	}
-	defer f.Close()
-	hw := crypto.NewHashingWriter(io.Discard)
-	if _, err := io.Copy(hw, f); err != nil {
-		return "", fmt.Errorf("failed to read file for hashing: %w", err)
-	}
-	return hw.Sum(), nil
 }
 
 type backupIncrementalContext struct {
