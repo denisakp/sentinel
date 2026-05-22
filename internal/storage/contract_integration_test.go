@@ -14,7 +14,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/denisakp/sentinel/internal/config"
 	storage "github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
@@ -184,11 +183,11 @@ func setupAzurite(t *testing.T) storage.StorageBackend {
 		t.Fatalf("CreateContainer: %v", err)
 	}
 
-	cfg := config.AzureConfig{
+	cfg := azure.Config{
 		AccountName: "devstoreaccount1",
 		Container:   containerName,
 		Tier:        "Hot",
-		Auth: config.AzureAuthConfig{
+		Auth: azure.AuthConfig{
 			Type:             "connection_string",
 			ConnectionString: connStr,
 		},

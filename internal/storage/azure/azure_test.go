@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -68,11 +67,11 @@ func startAzurite(t *testing.T, ctx context.Context) (host, port string) {
 func newTestBackend(t *testing.T, connStr, container string) *azure.AzureBlobBackend {
 	t.Helper()
 
-	cfg := config.AzureConfig{
+	cfg := azure.Config{
 		AccountName: "devstoreaccount1",
 		Container:   container,
 		Tier:        "Hot",
-		Auth: config.AzureAuthConfig{
+		Auth: azure.AuthConfig{
 			Type:             "connection_string",
 			ConnectionString: connStr,
 		},
@@ -249,37 +248,37 @@ func TestAzureBlobBackend_Status(t *testing.T) {
 func TestAzureBlobBackend_InvalidConfig(t *testing.T) {
 	tests := []struct {
 		name        string
-		cfg         config.AzureConfig
+		cfg         azure.Config
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "missing account_name",
-			cfg: config.AzureConfig{
+			cfg: azure.Config{
 				AccountName: "",
 				Container:   "mycontainer",
-				Auth:        config.AzureAuthConfig{Type: "connection_string", ConnectionString: "x"},
+				Auth:        azure.AuthConfig{Type: "connection_string", ConnectionString: "x"},
 			},
 			wantErr:     true,
 			errContains: "account_name",
 		},
 		{
 			name: "missing container",
-			cfg: config.AzureConfig{
+			cfg: azure.Config{
 				AccountName: "myaccount",
 				Container:   "",
-				Auth:        config.AzureAuthConfig{Type: "connection_string", ConnectionString: "x"},
+				Auth:        azure.AuthConfig{Type: "connection_string", ConnectionString: "x"},
 			},
 			wantErr:     true,
 			errContains: "container",
 		},
 		{
 			name: "invalid tier",
-			cfg: config.AzureConfig{
+			cfg: azure.Config{
 				AccountName: "myaccount",
 				Container:   "mycontainer",
 				Tier:        "Glacier",
-				Auth:        config.AzureAuthConfig{Type: "connection_string", ConnectionString: "x"},
+				Auth:        azure.AuthConfig{Type: "connection_string", ConnectionString: "x"},
 			},
 			wantErr:     true,
 			errContains: "tier",

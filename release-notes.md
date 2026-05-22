@@ -13,6 +13,7 @@
 
 ### Added
 
+- **mongo backups upload to remote storage**: `mongodump` now honors `--storage s3|gcs|azure|google-drive`. Archive-mode output stages under `<backup_path>/.staging/<job-id>/` and streams to the configured backend via `StorageBackend.Upload`; staging dir is cleaned on success and failure. Local-backend behaviour unchanged. (Feature 024)
 - **monitor schema migration framework**: monitor history DB now carries an explicit `schema_version` integer that is gated on every open. Stale DBs are migrated under a cross-process file lock (`<db>.migrate.lock` via `internal/lock`); forward-incompatible DBs (`current > BinarySchemaVersion`) are refused before any read/write with `monitor.ErrForwardIncompatible`, surfaced at the CLI with a what/why/how block and a non-zero exit. The previous silent legacy-fallback INSERT path in `RecordRestoreExecution` is removed — restore rows always carry `restore_mode` / `planning_status`. New `sentinel monitor doctor [--repair] [--json]` inspects state with stable exit codes (`0/1/2/3/4` for current/stale/forward-incompat/missing/corrupt) and idempotent migration application. Runbook: [`docs/runbooks/monitor-schema-migration.md`](docs/runbooks/monitor-schema-migration.md). (PRD-11 / spec 017)
 
 ### Changed (breaking)

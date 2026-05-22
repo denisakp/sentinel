@@ -19,7 +19,7 @@ type DumpMongoArgs struct {
 	TLS            *internaltls.Config
 }
 
-func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, *internaltls.MongoTLSMaterial, error) {
+func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string, *internaltls.MongoTLSMaterial, error) {
 	// set default values
 	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
 
@@ -43,10 +43,15 @@ func argsBuilder(da *DumpMongoArgs, backupPath string) ([]string, *internaltls.M
 		}
 	}
 
+	remote := da.Storage.StorageType != "" && da.Storage.StorageType != "local"
+
 	args := []string{
 		fmt.Sprintf("--uri=%s", da.Uri),
 	}
-	if !hasArchive {
+	switch {
+	case remote && !hasArchive:
+		args = append(args, fmt.Sprintf("--archive=%s", stagingArchive))
+	case !remote && !hasArchive:
 		args = append(args, fmt.Sprintf("--out=%s", da.Storage.OutName))
 	}
 	args = append(args, "--quiet")

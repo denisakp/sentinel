@@ -164,17 +164,17 @@ type azureDeleteBackend interface {
 }
 
 var newAzureDeleteBackend = func(cfg config.StorageConfig) (azureDeleteBackend, error) {
-	azCfg := config.AzureConfig{
+	azCfg := azure.Config{
 		AccountName: cfg.AzureStorageAccount,
 		Container:   cfg.AzureContainer,
 	}
 	if strings.TrimSpace(cfg.AzureStorageKey) != "" {
-		azCfg.Auth = config.AzureAuthConfig{
+		azCfg.Auth = azure.AuthConfig{
 			Type:             "connection_string",
 			ConnectionString: fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", cfg.AzureStorageAccount, cfg.AzureStorageKey),
 		}
 	} else {
-		azCfg.Auth = config.AzureAuthConfig{Type: "managed_identity"}
+		azCfg.Auth = azure.AuthConfig{Type: "managed_identity"}
 	}
 	return azure.NewAzureBlobBackend(azCfg)
 }

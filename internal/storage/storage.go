@@ -32,6 +32,9 @@ type Params struct {
 	AWSRegion            string
 	AWSBucket            string
 	AWSBucketEndpoint    string
+	AzureStorageAccount  string
+	AzureStorageKey      string
+	AzureContainer       string
 }
 
 // NewStorage returns a new storage based on the storage type
