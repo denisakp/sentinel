@@ -23,6 +23,7 @@ var (
 	ErrUnsupportedRestoreSource = errors.New("unsupported restore source")
 	ErrSourceObjectNotFound     = errors.New("restore source object not found")
 	ErrInsufficientStagingSpace = errors.New("insufficient staging space")
+	ErrAmbiguousBackupID        = errors.New("ambiguous backup id")
 )
 
 type StagedArtifact struct {
@@ -347,19 +348,68 @@ func EnsureStagingCapacityForArtifacts(dir string, artifactSizes []int64) error 
 	return ensureStagingCapacity(dir, total)
 }
 
+// resolveChainObject locates the single storage object that corresponds to the
+// requested backup ID. An exact full-path match wins outright. Otherwise the
+// match is performed against the filename component (filepath.Base) of each
+// candidate: the filename must equal the backup ID or begin with the backup ID
+// followed immediately by a '.' (the extension boundary). Comparisons are
+// byte-for-byte and case-sensitive; intermediate path segments are never
+// matched. Returns ErrAmbiguousBackupID (wrapped with the candidate list) when
+// two or more objects satisfy the boundary rule and no exact full-path match
+// exists, ErrSourceObjectNotFound when no object satisfies the rule.
 func resolveChainObject(backupID string, objects []storage.StorageObject) (storage.StorageObject, error) {
+	if backupID == "" {
+		return storage.StorageObject{}, fmt.Errorf("resolve chain object: empty backup id")
+	}
+
+	var exact []storage.StorageObject
 	for _, obj := range objects {
 		if obj.Path == backupID {
-			return obj, nil
+			exact = append(exact, obj)
 		}
 	}
+	if len(exact) == 1 {
+		return exact[0], nil
+	}
+
+	var candidates []storage.StorageObject
 	for _, obj := range objects {
-		base := filepath.Base(obj.Path)
-		if strings.Contains(base, backupID) {
-			return obj, nil
+		if matchesBackupIDBoundary(filepath.Base(obj.Path), backupID) {
+			candidates = append(candidates, obj)
 		}
 	}
-	return storage.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
+
+	switch len(candidates) {
+	case 0:
+		return storage.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
+	case 1:
+		return candidates[0], nil
+	default:
+		paths := make([]string, 0, len(candidates))
+		for _, c := range candidates {
+			paths = append(paths, c.Path)
+		}
+		sort.Strings(paths)
+		return storage.StorageObject{}, fmt.Errorf("%w: %s matches multiple objects: %s", ErrAmbiguousBackupID, backupID, strings.Join(paths, ", "))
+	}
+}
+
+// matchesBackupIDBoundary reports whether base equals backupID or begins with
+// backupID followed immediately by '.' (the extension boundary). Byte-for-byte;
+// case-sensitive. Underscore is NOT a boundary: backup IDs themselves may
+// contain underscores (e.g. b_01), so allowing '_' would let b_01 match
+// b_01_extra — the exact collision PRD 13 forbids.
+func matchesBackupIDBoundary(base, backupID string) bool {
+	if base == backupID {
+		return true
+	}
+	if len(base) <= len(backupID) {
+		return false
+	}
+	if base[:len(backupID)] != backupID {
+		return false
+	}
+	return base[len(backupID)] == '.'
 }
 
 func stagedFileName(jobName, sourcePath string) string {

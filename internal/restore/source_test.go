@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/storage"
 )
 
 var errTransportTest = errors.New("transport boom")
@@ -301,5 +303,149 @@ func TestStageChainArtifacts_CleansPartialDownloadsOnError(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("expected partial staged chain cleaned up, found %v", matches)
+	}
+}
+
+func TestResolveChainObject(t *testing.T) {
+	tests := []struct {
+		name      string
+		backupID  string
+		paths     []string
+		wantPath  string
+		wantErrIs error
+		errNotIs  []error
+		ambigHas  []string // substrings that must appear in an ambiguous error message
+	}{
+		{
+			name:     "exact path match",
+			backupID: "b_01",
+			paths:    []string{"b_01"},
+			wantPath: "b_01",
+		},
+		{
+			name:     "boundary dot match",
+			backupID: "b_01",
+			paths:    []string{"b_01.dump"},
+			wantPath: "b_01.dump",
+		},
+		{
+			name:      "interior substring rejected",
+			backupID:  "b_01",
+			paths:     []string{"b_01_extra.dump"},
+			wantErrIs: ErrSourceObjectNotFound,
+			errNotIs:  []error{ErrAmbiguousBackupID},
+		},
+		{
+			name:      "prd13 backup_2024 collision rejected",
+			backupID:  "backup_2024",
+			paths:     []string{"backup_2024_01.dump"},
+			wantErrIs: ErrSourceObjectNotFound,
+		},
+		{
+			name:      "empty listing not found",
+			backupID:  "b_01",
+			paths:     nil,
+			wantErrIs: ErrSourceObjectNotFound,
+		},
+		{
+			name:     "empty backup id rejected",
+			backupID: "",
+			paths:    []string{"b_01.dump"},
+			// neither sentinel
+			errNotIs: []error{ErrSourceObjectNotFound, ErrAmbiguousBackupID},
+		},
+		{
+			name:      "intermediate path segment not matched",
+			backupID:  "b_01",
+			paths:     []string{"parent/b_01/data.dump"},
+			wantErrIs: ErrSourceObjectNotFound,
+		},
+		{
+			name:      "case sensitive",
+			backupID:  "b_01",
+			paths:     []string{"B_01.dump"},
+			wantErrIs: ErrSourceObjectNotFound,
+		},
+		{
+			name:      "ambiguous two boundary matches",
+			backupID:  "b_01",
+			paths:     []string{"b_01.dump", "b_01.dump.enc"},
+			wantErrIs: ErrAmbiguousBackupID,
+			ambigHas:  []string{"b_01.dump", "b_01.dump.enc"},
+		},
+		{
+			name:     "exact path wins over boundary",
+			backupID: "b_01",
+			paths:    []string{"b_01", "b_01.dump"},
+			wantPath: "b_01",
+		},
+		{
+			name:     "underscore is not a boundary (b_01 vs b_01_part)",
+			backupID: "b_01",
+			paths:    []string{"b_01.dump", "b_01_part.dump"},
+			wantPath: "b_01.dump",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runResolveCase(t, tt.backupID, tt.paths, tt.wantPath, tt.wantErrIs, tt.errNotIs, tt.ambigHas)
+		})
+		t.Run(tt.name+"/reversed", func(t *testing.T) {
+			reversed := make([]string, len(tt.paths))
+			for i, p := range tt.paths {
+				reversed[len(tt.paths)-1-i] = p
+			}
+			runResolveCase(t, tt.backupID, reversed, tt.wantPath, tt.wantErrIs, tt.errNotIs, tt.ambigHas)
+		})
+	}
+}
+
+func runResolveCase(t *testing.T, backupID string, paths []string, wantPath string, wantErrIs error, errNotIs []error, ambigHas []string) {
+	t.Helper()
+	objects := make([]storage.StorageObject, 0, len(paths))
+	for _, p := range paths {
+		objects = append(objects, storage.StorageObject{Path: p})
+	}
+
+	got, err := resolveChainObject(backupID, objects)
+
+	if wantErrIs != nil {
+		if err == nil {
+			t.Fatalf("expected error %v, got object %+v", wantErrIs, got)
+		}
+		if !errors.Is(err, wantErrIs) {
+			t.Fatalf("expected errors.Is(err, %v), got %v", wantErrIs, err)
+		}
+		for _, sub := range ambigHas {
+			if !strings.Contains(err.Error(), sub) {
+				t.Fatalf("expected ambiguous error message to contain %q, got %q", sub, err.Error())
+			}
+		}
+	}
+	for _, neg := range errNotIs {
+		if err != nil && errors.Is(err, neg) {
+			t.Fatalf("did not expect errors.Is(err, %v), but got %v", neg, err)
+		}
+	}
+	if wantErrIs == nil && len(errNotIs) == 0 {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Path != wantPath {
+			t.Fatalf("expected path %q, got %q", wantPath, got.Path)
+		}
+		return
+	}
+	if wantErrIs == nil && wantPath != "" {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Path != wantPath {
+			t.Fatalf("expected path %q, got %q", wantPath, got.Path)
+		}
+	}
+	if wantErrIs == nil && wantPath == "" && err == nil && len(errNotIs) > 0 {
+		t.Fatalf("expected an error matching none of %v, got nil error", errNotIs)
 	}
 }
