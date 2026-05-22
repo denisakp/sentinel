@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
-	"github.com/denisakp/sentinel/internal/config"
-	internalstorage "github.com/denisakp/sentinel/internal/storage"
+	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 )
 
 // AzureBlobBackend implements StorageBackend for Azure Blob Storage.
@@ -21,9 +22,39 @@ type AzureBlobBackend struct {
 	tier      blob.AccessTier
 }
 
-// NewAzureBlobBackend creates an AzureBlobBackend from the given config.
-func NewAzureBlobBackend(cfg config.AzureConfig) (*AzureBlobBackend, error) {
-	if err := internalstorage.ValidateAzureConfig(cfg.AccountName, cfg.Container, cfg.Tier, cfg.Auth.Type); err != nil {
+// NewBlobBackendFromKey constructs an AzureBlobBackend from primitive credentials.
+// When key is non-empty, connection_string auth is used (built locally). When
+// key is empty, managed identity auth is attempted.
+func NewBlobBackendFromKey(account, container, key string) (*AzureBlobBackend, error) {
+	if account == "" {
+		return nil, fmt.Errorf("azure: account_name is required")
+	}
+	if container == "" {
+		return nil, fmt.Errorf("azure: container is required")
+	}
+
+	var client *azblob.Client
+	var err error
+	if key != "" {
+		connStr := fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", account, key)
+		client, err = azblob.NewClientFromConnectionString(connStr, nil)
+	} else {
+		serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", account)
+		cred, credErr := azidentity.NewDefaultAzureCredential(nil)
+		if credErr != nil {
+			return nil, fmt.Errorf("azure: failed to create managed identity credential: %w", credErr)
+		}
+		client, err = azblob.NewClient(serviceURL, cred, nil)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("azure: failed to create client: %w", err)
+	}
+	return &AzureBlobBackend{client: client, container: container, tier: blob.AccessTierHot}, nil
+}
+
+// NewAzureBlobBackend creates an AzureBlobBackend from the given Config.
+func NewAzureBlobBackend(cfg Config) (*AzureBlobBackend, error) {
+	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
 
@@ -45,6 +76,28 @@ func NewAzureBlobBackend(cfg config.AzureConfig) (*AzureBlobBackend, error) {
 		container: cfg.Container,
 		tier:      tier,
 	}, nil
+}
+
+func validateConfig(cfg Config) error {
+	if strings.TrimSpace(cfg.AccountName) == "" {
+		return fmt.Errorf("azure: account_name is required")
+	}
+	if strings.TrimSpace(cfg.Container) == "" {
+		return fmt.Errorf("azure: container is required")
+	}
+	if cfg.Tier != "" {
+		valid := map[string]bool{"Hot": true, "Cool": true, "Archive": true}
+		if !valid[cfg.Tier] {
+			return fmt.Errorf("azure: tier must be Hot, Cool, or Archive (got %q)", cfg.Tier)
+		}
+	}
+	if cfg.Auth.Type != "" {
+		valid := map[string]bool{"managed_identity": true, "connection_string": true, "sas_token": true}
+		if !valid[cfg.Auth.Type] {
+			return fmt.Errorf("azure: auth.type must be managed_identity, connection_string, or sas_token (got %q)", cfg.Auth.Type)
+		}
+	}
+	return nil
 }
 
 // Upload uploads a local file at src to blob path dest.
@@ -97,19 +150,19 @@ func (b *AzureBlobBackend) Delete(ctx context.Context, path string) error {
 }
 
 // List returns all blobs with the given prefix.
-func (b *AzureBlobBackend) List(ctx context.Context, prefix string) ([]internalstorage.StorageObject, error) {
+func (b *AzureBlobBackend) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
 	pager := b.client.NewListBlobsFlatPager(b.container, &azblob.ListBlobsFlatOptions{
 		Prefix: &prefix,
 	})
 
-	var objects []internalstorage.StorageObject
+	var objects []storagetypes.StorageObject
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("azure: failed to list blobs: %w", err)
 		}
 		for _, item := range page.Segment.BlobItems {
-			obj := internalstorage.StorageObject{
+			obj := storagetypes.StorageObject{
 				Path: *item.Name,
 			}
 			if item.Properties != nil {
@@ -142,10 +195,10 @@ func (b *AzureBlobBackend) Exists(ctx context.Context, path string) (bool, error
 }
 
 // Status returns the repository status for this Azure backend.
-func (b *AzureBlobBackend) Status(ctx context.Context) (internalstorage.RepoStatus, error) {
+func (b *AzureBlobBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return internalstorage.RepoStatus{
+		return storagetypes.RepoStatus{
 			Reachable: false,
 			Error:     err.Error(),
 		}, nil
@@ -161,7 +214,7 @@ func (b *AzureBlobBackend) Status(ctx context.Context) (internalstorage.RepoStat
 		}
 	}
 
-	return internalstorage.RepoStatus{
+	return storagetypes.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,
@@ -173,18 +226,6 @@ func isNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Azure SDK wraps errors; check for 404 in the message
 	errStr := err.Error()
-	return contains(errStr, "404") || contains(errStr, "BlobNotFound") || contains(errStr, "ContainerNotFound")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (func() bool {
-		for i := 0; i <= len(s)-len(substr); i++ {
-			if s[i:i+len(substr)] == substr {
-				return true
-			}
-		}
-		return false
-	})()
+	return strings.Contains(errStr, "404") || strings.Contains(errStr, "BlobNotFound") || strings.Contains(errStr, "ContainerNotFound")
 }

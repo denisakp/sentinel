@@ -55,6 +55,9 @@ func BuildStorageParams(job BackupJob) *storage.Params {
 		AWSBucketEndpoint:    job.Storage.S3BucketEndpoint,
 		AWSAccessKeyID:       job.Storage.S3AccessKeyID,
 		AWSSecretAccessKey:   job.Storage.S3SecretAccessKey,
+		AzureStorageAccount:  job.Storage.AzureStorageAccount,
+		AzureStorageKey:      job.Storage.AzureStorageKey,
+		AzureContainer:       job.Storage.AzureContainer,
 	}
 }
 

@@ -40,3 +40,4 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 
 ## Reference
 - [`additional_args` quoting reference](./additional-args.md)
+- [Mongo remote-backup `.staging/` directory](./mongo-staging.md)

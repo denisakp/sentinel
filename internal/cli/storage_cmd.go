@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/gdrive"
@@ -135,7 +134,7 @@ var storageStatusCmd = &cobra.Command{
 				}
 
 			case "azure":
-				azCfg := config.AzureConfig{
+				azCfg := azure.Config{
 					AccountName: storageCfg.AzureStorageAccount,
 					Container:   storageCfg.AzureContainer,
 				}

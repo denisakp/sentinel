@@ -6,12 +6,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-
-	"github.com/denisakp/sentinel/internal/config"
 )
 
 // NewAzureClient creates an azblob.Client based on the authentication config.
-func NewAzureClient(cfg config.AzureConfig) (*azblob.Client, error) {
+func NewAzureClient(cfg Config) (*azblob.Client, error) {
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", cfg.AccountName)
 
 	switch cfg.Auth.Type {
