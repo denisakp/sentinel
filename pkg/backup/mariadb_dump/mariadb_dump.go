@@ -2,6 +2,8 @@ package mariadb_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/sanitize"
@@ -10,16 +12,19 @@ import (
 	"os/exec"
 )
 
-func Backup(mda *MariaDBDumpArgs) error {
+// checkConnectivity is overridable in tests.
+var checkConnectivity = sql.CheckConnectivity
+
+func Backup(mda *MariaDBDumpArgs) (string, error) {
 	// Validate the required arguments
 	args, err := ArgsBuilder(mda)
 	if err != nil {
-		return fmt.Errorf("failed to build arguments: %w", err)
+		return "", fmt.Errorf("failed to build arguments: %w", err)
 	}
 
 	// check connectivity
-	if ok, err := sql.CheckConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
-		return err
+	if ok, err := checkConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
+		return "", err
 	}
 
 	// execute mariadb-dump command
@@ -39,13 +44,13 @@ func Backup(mda *MariaDBDumpArgs) error {
 	err = cmd.Run()
 	if err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
 	}
 
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// get the backup path
@@ -57,12 +62,15 @@ func Backup(mda *MariaDBDumpArgs) error {
 	// get the full path
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
+
 	// write backup to storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
 
-	return nil
+	return digest, nil
 }

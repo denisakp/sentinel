@@ -49,7 +49,7 @@ func TestMySQLBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MySQL backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := mysql_dump.Backup(args)
+	_, err := mysql_dump.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -102,7 +102,7 @@ func TestMySQLRestore(t *testing.T) {
 		},
 	}
 
-	if err := mysql_dump.Backup(backupArgs); err != nil {
+	if _, err := mysql_dump.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestMySQLBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MySQL backup with invalid credentials (expecting failure)")
-	err = mysql_dump.Backup(args)
+	_, err = mysql_dump.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {

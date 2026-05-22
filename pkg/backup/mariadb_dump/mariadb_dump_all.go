@@ -2,6 +2,8 @@ package mariadb_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
 
@@ -22,7 +24,7 @@ type MariaDBDumpAllArgs struct {
 }
 
 // BackupAll backs up all MariaDB databases using mariadb-dump --all-databases.
-func BackupAll(mda *MariaDBDumpAllArgs) error {
+func BackupAll(mda *MariaDBDumpAllArgs) (string, error) {
 	args := []string{
 		fmt.Sprintf("--host=%s", utils.DefaultValue(mda.Host, "127.0.0.1")),
 		fmt.Sprintf("--port=%s", utils.DefaultValue(mda.Port, "3306")),
@@ -33,7 +35,7 @@ func BackupAll(mda *MariaDBDumpAllArgs) error {
 	if mda.AdditionalArgs != "" {
 		additionalArgs, err := backup.ParseAdditionalArgs(mda.AdditionalArgs)
 		if err != nil {
-			return fmt.Errorf("failed to parse additional_args: %w", err)
+			return "", fmt.Errorf("failed to parse additional_args: %w", err)
 		}
 		args = append(args, additionalArgs...)
 	}
@@ -52,25 +54,28 @@ func BackupAll(mda *MariaDBDumpAllArgs) error {
 
 	if err := cmd.Run(); err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute mariadb-dump command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute mariadb-dump command - %w, %s", err, redacted)
 	}
 
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 	backupPath, err := storageHandler.GetBackupPath(mda.Storage.LocalPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
+
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
-	return nil
+	return digest, nil
 }

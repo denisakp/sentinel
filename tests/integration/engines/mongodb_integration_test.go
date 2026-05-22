@@ -47,7 +47,7 @@ func TestMongoDBBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MongoDB backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := mongo_dump.Backup(args)
+	_, err := mongo_dump.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -96,7 +96,7 @@ func TestMongoDBRestore(t *testing.T) {
 		},
 	}
 
-	if err := mongo_dump.Backup(backupArgs); err != nil {
+	if _, err := mongo_dump.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestMongoDBBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MongoDB backup with invalid credentials (expecting failure)")
-	err = mongo_dump.Backup(args)
+	_, err = mongo_dump.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {

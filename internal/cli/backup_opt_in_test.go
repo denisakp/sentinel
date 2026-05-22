@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +27,11 @@ func writeBackupFixture(t *testing.T, content string) string {
 	return path
 }
 
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 func validBase64Key() string {
 	key := make([]byte, 32)
 	for i := range key {
@@ -36,11 +43,12 @@ func validBase64Key() string {
 func TestApplyBackupSecurity_PlaintextByDefaultWithAmbientKey(t *testing.T) {
 	t.Setenv("SENTINEL_MASTER_KEY", validBase64Key())
 
-	backupPath := writeBackupFixture(t, "-- plaintext backup\n")
+	content := "-- plaintext backup\n"
+	backupPath := writeBackupFixture(t, content)
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "plain-job", Type: "postgres", Database: "app"}
 
-	result, err := applyBackupSecurity(&config.Configuration{}, job, params, false)
+	result, err := applyBackupSecurity(&config.Configuration{}, job, params, false, sha256Hex([]byte(content)))
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -69,12 +77,13 @@ func TestApplyBackupSecurity_PlaintextByDefaultWithAmbientKey(t *testing.T) {
 func TestApplyBackupSecurity_ExplicitEncryptionSuccess(t *testing.T) {
 	t.Setenv("TEST_SENTINEL_MASTER_KEY", validBase64Key())
 
-	backupPath := writeBackupFixture(t, "-- backup to encrypt\n")
+	content := "-- backup to encrypt\n"
+	backupPath := writeBackupFixture(t, content)
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "enc-job", Type: "postgres", Database: "app"}
 	cfg := &config.Configuration{EncryptionKeyEnv: "TEST_SENTINEL_MASTER_KEY"}
 
-	result, err := applyBackupSecurity(cfg, job, params, false)
+	result, err := applyBackupSecurity(cfg, job, params, false, sha256Hex([]byte(content)))
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -101,12 +110,13 @@ func TestApplyBackupSecurity_ExplicitEncryptionSuccess(t *testing.T) {
 }
 
 func TestApplyBackupSecurity_ExplicitEncryptionFailureIsFatal(t *testing.T) {
-	backupPath := writeBackupFixture(t, "-- backup should fail encryption\n")
+	content := "-- backup should fail encryption\n"
+	backupPath := writeBackupFixture(t, content)
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "enc-fail-job", Type: "postgres", Database: "app"}
 	cfg := &config.Configuration{EncryptionKeyEnv: "MISSING_SENTINEL_KEY"}
 
-	result, err := applyBackupSecurity(cfg, job, params, false)
+	result, err := applyBackupSecurity(cfg, job, params, false, sha256Hex([]byte(content)))
 	if err == nil {
 		t.Fatal("applyBackupSecurity() error = nil, want error")
 	}
@@ -124,11 +134,12 @@ func TestApplyBackupSecurity_ExplicitEncryptionFailureIsFatal(t *testing.T) {
 func TestApplyBackupSecurity_ImperativeFlowUnaffected(t *testing.T) {
 	t.Setenv("SENTINEL_MASTER_KEY", validBase64Key())
 
-	backupPath := writeBackupFixture(t, "-- imperative backup\n")
+	content := "-- imperative backup\n"
+	backupPath := writeBackupFixture(t, content)
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 	job := config.BackupJob{Name: "imperative-job", Type: "postgres", Database: "app"}
 
-	result, err := applyBackupSecurity(nil, job, params, false)
+	result, err := applyBackupSecurity(nil, job, params, false, sha256Hex([]byte(content)))
 	if err != nil {
 		t.Fatalf("applyBackupSecurity() error = %v", err)
 	}
@@ -149,7 +160,8 @@ func TestApplyBackupSecurity_IncrementalHashVerificationFailureIsFatal(t *testin
 		verifyIncrementalArtifactHash = prevVerify
 	})
 
-	backupPath := writeBackupFixture(t, "-- incremental backup payload\n")
+	content := "-- incremental backup payload\n"
+	backupPath := writeBackupFixture(t, content)
 	params := &storage.Params{StorageType: "local", OutName: backupPath}
 
 	historyPath := filepath.Join(t.TempDir(), "history.db")
@@ -185,7 +197,7 @@ func TestApplyBackupSecurity_IncrementalHashVerificationFailureIsFatal(t *testin
 		},
 	}
 
-	result, err := applyBackupSecurity(&config.Configuration{HistoryDBPath: historyPath}, job, params, false)
+	result, err := applyBackupSecurity(&config.Configuration{HistoryDBPath: historyPath}, job, params, false, sha256Hex([]byte(content)))
 	if err == nil {
 		t.Fatal("applyBackupSecurity() error = nil, want hash verification error")
 	}

@@ -50,7 +50,7 @@ func TestPostgresBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running PostgreSQL backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := pg_dump.Backup(args)
+	_, err := pg_dump.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -104,7 +104,7 @@ func TestPostgresRestore(t *testing.T) {
 		},
 	}
 
-	if err := pg_dump.Backup(backupArgs); err != nil {
+	if _, err := pg_dump.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -150,7 +150,7 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running PostgreSQL backup with invalid credentials (expecting failure)")
-	err = pg_dump.Backup(args)
+	_, err = pg_dump.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {

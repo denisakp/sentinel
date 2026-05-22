@@ -2,6 +2,8 @@ package pg_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
 
@@ -22,15 +24,15 @@ type PgDumpAllArgs struct {
 }
 
 // BackupAll backs up all PostgresSQL databases using pg_dumpall.
-func BackupAll(pda *PgDumpAllArgs) error {
+func BackupAll(pda *PgDumpAllArgs) (string, error) {
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	backupPath, err := storageHandler.GetBackupPath(pda.Storage.LocalPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	args := []string{
@@ -42,7 +44,7 @@ func BackupAll(pda *PgDumpAllArgs) error {
 	if pda.AdditionalArgs != "" {
 		additionalArgs, err := backup.ParseAdditionalArgs(pda.AdditionalArgs)
 		if err != nil {
-			return fmt.Errorf("failed to parse additional_args: %w", err)
+			return "", fmt.Errorf("failed to parse additional_args: %w", err)
 		}
 		args = append(args, additionalArgs...)
 	}
@@ -60,17 +62,20 @@ func BackupAll(pda *PgDumpAllArgs) error {
 
 	if err := cmd.Run(); err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute pg_dumpall command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute pg_dumpall command - %w, %s", err, redacted)
 	}
 
 	pda.Storage.OutName = utils.FinalOutName(pda.Storage.OutName)
 	fullPath := utils.FullPath(backupPath, pda.Storage.OutName)
 
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
+
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
 
-	return nil
+	return digest, nil
 }

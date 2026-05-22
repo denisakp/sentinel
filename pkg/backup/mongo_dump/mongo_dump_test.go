@@ -80,8 +80,12 @@ func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	if err := Backup(da); err != nil {
+	digest, err := Backup(da)
+	if err != nil {
 		t.Fatalf("Backup: %v", err)
+	}
+	if digest != "" {
+		t.Fatalf("remote branch digest = %q, want empty", digest)
 	}
 	if len(fake.uploadCalls) != 1 {
 		t.Fatalf("expected 1 Upload call, got %d", len(fake.uploadCalls))
@@ -117,7 +121,7 @@ func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	err := Backup(da)
+	_, err := Backup(da)
 	if err == nil || !strings.Contains(err.Error(), "upload boom") {
 		t.Fatalf("expected upload error, got %v", err)
 	}
@@ -144,7 +148,7 @@ func TestBackup_MongodumpFail_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	err := Backup(da)
+	_, err := Backup(da)
 	if err == nil || !strings.Contains(err.Error(), "failed to run mongo_dump") {
 		t.Fatalf("expected mongo_dump error, got %v", err)
 	}

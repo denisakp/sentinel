@@ -13,7 +13,7 @@ import (
 
 func TestBackup_ConnectivityFailureReturnsError(t *testing.T) {
 	// Port 1 is reserved + closed locally → fast TCP RST.
-	err := Backup(&MySqlDumpArgs{
+	_, err := Backup(&MySqlDumpArgs{
 		Host:     "127.0.0.1",
 		Port:     "1",
 		Username: "root",
@@ -30,7 +30,7 @@ func TestBackup_ConnectivityFailureReturnsError(t *testing.T) {
 
 func TestBackup_InvalidArgsReturnsBuildError(t *testing.T) {
 	// Missing Database → argsBuilder fails before connectivity attempt.
-	err := Backup(&MySqlDumpArgs{Username: "root"})
+	_, err := Backup(&MySqlDumpArgs{Username: "root"})
 	if err == nil {
 		t.Fatal("expected build error")
 	}

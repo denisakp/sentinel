@@ -2,6 +2,8 @@ package mysql_dump
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/sanitize"
@@ -10,16 +12,19 @@ import (
 	"os/exec"
 )
 
+// checkConnectivity is overridable in tests.
+var checkConnectivity = sql.CheckConnectivity
+
 // Backup backs up a MySQL database using mysqldump
-func Backup(mda *MySqlDumpArgs) error {
+func Backup(mda *MySqlDumpArgs) (string, error) {
 	args, err := argsBuilder(mda)
 	if err != nil {
-		return fmt.Errorf("failed to build mysql_dump args - %w", err)
+		return "", fmt.Errorf("failed to build mysql_dump args - %w", err)
 	}
 
 	// check database connectivity
-	if ok, err := sql.CheckConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
-		return err
+	if ok, err := checkConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
+		return "", err
 	}
 
 	// execute mysqldump command
@@ -39,13 +44,13 @@ func Backup(mda *MySqlDumpArgs) error {
 	err = cmd.Run()
 	if err != nil {
 		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return fmt.Errorf("failed to execute mysqldump command - %w, %s", err, redacted)
+		return "", fmt.Errorf("failed to execute mysqldump command - %w, %s", err, redacted)
 	}
 
 	// get storage handler
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// get backup path
@@ -57,12 +62,15 @@ func Backup(mda *MySqlDumpArgs) error {
 	// get full path
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
+	sum := sha256.Sum256(stdOut.Bytes())
+	digest := hex.EncodeToString(sum[:])
+
 	// write backup to storage
 	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return fmt.Errorf("failed to write backup to storage - %w", err)
+		return "", fmt.Errorf("failed to write backup to storage - %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")
 
-	return nil
+	return digest, nil
 }
