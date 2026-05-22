@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+
+	"github.com/denisakp/sentinel/internal/backup"
 )
 
 // RestoreArgs holds arguments for PostgreSQL restore operations
@@ -124,7 +125,10 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 
 	// Parse and add additional arguments
 	if ra.AdditionalArgs != "" {
-		additionalArgs := parseCLIArgs(ra.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(ra.AdditionalArgs)
+		if err != nil {
+			return fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	}
 
@@ -154,17 +158,6 @@ func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("backup path is required")
 	}
 	return Restore(ctx, ra)
-}
-
-// parseCLIArgs parses space-separated CLI arguments
-func parseCLIArgs(args string) []string {
-	if args == "" {
-		return []string{}
-	}
-
-	// Simple split on spaces (does not handle quoted arguments)
-	// For robust parsing, consider using go-shlex or similar
-	return strings.Fields(args)
 }
 
 // checkConnectivity verifies database connectivity using pg_dump

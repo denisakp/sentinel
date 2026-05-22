@@ -1,8 +1,11 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/backup"
 )
 
 func TestRestoreJobValidation(t *testing.T) {
@@ -474,5 +477,78 @@ func TestLoadConfig_RestoreGCSInterpolationMissingEnvFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "MISSING_RESTORE_GCS_BUCKET") {
 		t.Fatalf("expected missing env error, got %v", err)
+	}
+}
+
+func TestRestoreJobValidation_AdditionalArgs(t *testing.T) {
+	validJob := func(opts map[string]interface{}) *RestoreJob {
+		return &RestoreJob{
+			Name:       "rj",
+			Schedule:   "0 2 * * *",
+			Type:       "postgres",
+			StagingDir: "/tmp/sentinel",
+			Host:       "localhost",
+			Username:   "user",
+			Database:   "testdb",
+			BackupSource: RestoreBackupSource{
+				Type:       "local",
+				LocalPath:  "/backup",
+				BackupPath: "prod.sql",
+			},
+			RestoreOptions: opts,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		opts      map[string]interface{}
+		wantErrIs error
+		errSub    string
+	}{
+		{
+			name: "valid additional_args passes",
+			opts: map[string]interface{}{"additional_args": `--exclude-table-data="audit logs"`},
+		},
+		{
+			name: "no additional_args field passes",
+			opts: nil,
+		},
+		{
+			name:      "unterminated quote rejected",
+			opts:      map[string]interface{}{"additional_args": `--where="x > 1`},
+			wantErrIs: backup.ErrUnterminatedQuote,
+			errSub:    "restore_options.additional_args",
+		},
+		{
+			name:   "non-string additional_args rejected",
+			opts:   map[string]interface{}{"additional_args": 42},
+			errSub: "must be a string",
+		},
+		{
+			name:      "NUL byte rejected",
+			opts:      map[string]interface{}{"additional_args": "--foo\x00bar"},
+			wantErrIs: backup.ErrNULByte,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateRestoreJob(validJob(tt.opts))
+			if tt.wantErrIs == nil && tt.errSub == "" {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
+				t.Fatalf("expected errors.Is(err, %v), got %v", tt.wantErrIs, err)
+			}
+			if tt.errSub != "" && !strings.Contains(err.Error(), tt.errSub) {
+				t.Fatalf("expected error to contain %q, got %q", tt.errSub, err.Error())
+			}
+		})
 	}
 }

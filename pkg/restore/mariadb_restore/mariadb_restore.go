@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+
+	"github.com/denisakp/sentinel/internal/backup"
 )
 
 // RestoreArgs holds arguments for MariaDB restore operations
@@ -98,7 +99,10 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 
 	// Parse and add additional arguments
 	if ra.AdditionalArgs != "" {
-		additionalArgs := parseCLIArgs(ra.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(ra.AdditionalArgs)
+		if err != nil {
+			return fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	}
 
@@ -134,15 +138,6 @@ func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("backup path is required")
 	}
 	return Restore(ctx, ra)
-}
-
-// parseCLIArgs parses space-separated CLI arguments
-func parseCLIArgs(args string) []string {
-	if args == "" {
-		return []string{}
-	}
-
-	return strings.Fields(args)
 }
 
 // checkConnectivity verifies database connectivity using mariadb

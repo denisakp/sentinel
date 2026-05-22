@@ -22,7 +22,7 @@ type MySqlDumpAllArgs struct {
 }
 
 // argsBuilderAll builds the arguments for `mysqldump --all-databases`.
-func argsBuilderAll(mda *MySqlDumpAllArgs) []string {
+func argsBuilderAll(mda *MySqlDumpAllArgs) ([]string, error) {
 	args := []string{
 		fmt.Sprintf("--host=%s", utils.DefaultValue(mda.Host, "127.0.0.1")),
 		fmt.Sprintf("--port=%s", utils.DefaultValue(mda.Port, "3306")),
@@ -35,15 +35,22 @@ func argsBuilderAll(mda *MySqlDumpAllArgs) []string {
 	}
 
 	if mda.AdditionalArgs != "" {
-		args = append(args, backup.ParseAdditionalArgs(mda.AdditionalArgs)...)
+		extra, err := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse additional_args: %w", err)
+		}
+		args = append(args, extra...)
 	}
 
-	return backup.RemoveArgsDuplicate(args)
+	return backup.RemoveArgsDuplicate(args), nil
 }
 
 // BackupAll backs up all MySQL databases using mysqldump --all-databases.
 func BackupAll(mda *MySqlDumpAllArgs) error {
-	args := argsBuilderAll(mda)
+	args, err := argsBuilderAll(mda)
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command("mysqldump", args...)
 	if mda.Password != "" {

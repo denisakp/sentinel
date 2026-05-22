@@ -72,7 +72,10 @@ func TestErrorRedaction_MysqlDumpAll(t *testing.T) {
 
 func TestArgsBuilderAll(t *testing.T) {
 	t.Run("MDA-01 defaults + skip-password + all-databases", func(t *testing.T) {
-		got := argsBuilderAll(&MySqlDumpAllArgs{Username: "root"})
+		got, err := argsBuilderAll(&MySqlDumpAllArgs{Username: "root"})
+		if err != nil {
+			t.Fatalf("argsBuilderAll: %v", err)
+		}
 		assertContainsAll(t, got,
 			"--host=127.0.0.1",
 			"--port=3306",
@@ -92,10 +95,13 @@ func TestArgsBuilderAll(t *testing.T) {
 	})
 
 	t.Run("MDA-02 additional args merge + dedup", func(t *testing.T) {
-		got := argsBuilderAll(&MySqlDumpAllArgs{
+		got, err := argsBuilderAll(&MySqlDumpAllArgs{
 			Username:       "root",
 			AdditionalArgs: "--port=3306 --single-transaction",
 		})
+		if err != nil {
+			t.Fatalf("argsBuilderAll: %v", err)
+		}
 		portCount := 0
 		hasSingleTx := false
 		for _, a := range got {
@@ -162,10 +168,13 @@ func TestArgsBuilderAll(t *testing.T) {
 	})
 
 	t.Run("MDA-03 password no-leak; no --skip-password", func(t *testing.T) {
-		got := argsBuilderAll(&MySqlDumpAllArgs{
+		got, err := argsBuilderAll(&MySqlDumpAllArgs{
 			Username: "root",
 			Password: "s3cret",
 		})
+		if err != nil {
+			t.Fatalf("argsBuilderAll: %v", err)
+		}
 		for _, a := range got {
 			if a == "--skip-password" {
 				t.Fatalf("--skip-password unexpectedly present when password is set; got=%v", got)

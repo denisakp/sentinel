@@ -40,7 +40,10 @@ func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 	} // skip password prompt if password is not provided
 
 	if mda.AdditionalArgs != "" {
-		additionalArgs := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		additionalArgs, err := backup.ParseAdditionalArgs(mda.AdditionalArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse additional_args: %w", err)
+		}
 		args = append(args, additionalArgs...)
 	} // handle additional arguments
 
