@@ -4,13 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/tls"
 )
 
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     *tls.Config
+		cfg     *ports.Config
 		wantErr bool
 		errMsg  string
 	}{
@@ -21,60 +22,60 @@ func TestConfig_Validate(t *testing.T) {
 		},
 		{
 			name:    "disabled config is valid",
-			cfg:     &tls.Config{Enabled: false, Mode: "invalid-mode"},
+			cfg:     &ports.Config{Enabled: false, Mode: "invalid-mode"},
 			wantErr: false,
 		},
 		{
 			name:    "prefer mode no certs",
-			cfg:     &tls.Config{Enabled: true, Mode: "prefer"},
+			cfg:     &ports.Config{Enabled: true, Mode: "prefer"},
 			wantErr: false,
 		},
 		{
 			name:    "require mode no certs",
-			cfg:     &tls.Config{Enabled: true, Mode: "require"},
+			cfg:     &ports.Config{Enabled: true, Mode: "require"},
 			wantErr: false,
 		},
 		{
 			name:    "verify-ca missing ca_cert",
-			cfg:     &tls.Config{Enabled: true, Mode: "verify-ca"},
+			cfg:     &ports.Config{Enabled: true, Mode: "verify-ca"},
 			wantErr: true,
 		},
 		{
 			name:    "verify-ca with ca_cert",
-			cfg:     &tls.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/etc/certs/ca.crt"},
+			cfg:     &ports.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/etc/certs/ca.crt"},
 			wantErr: false,
 		},
 		{
 			name:    "verify-full missing ca_cert",
-			cfg:     &tls.Config{Enabled: true, Mode: "verify-full"},
+			cfg:     &ports.Config{Enabled: true, Mode: "verify-full"},
 			wantErr: true,
 		},
 		{
 			name:    "verify-full with ca_cert",
-			cfg:     &tls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/etc/certs/ca.crt"},
+			cfg:     &ports.Config{Enabled: true, Mode: "verify-full", CACertPath: "/etc/certs/ca.crt"},
 			wantErr: false,
 		},
 		{
 			name:    "invalid mode",
-			cfg:     &tls.Config{Enabled: true, Mode: "allow"},
+			cfg:     &ports.Config{Enabled: true, Mode: "allow"},
 			wantErr: true,
 		},
 		{
 			// PRD-05 regression guard: half-configured mTLS must be rejected at validation.
 			name:    "client cert without key",
-			cfg:     &tls.Config{Enabled: true, Mode: "prefer", ClientCert: "/etc/certs/client.crt"},
+			cfg:     &ports.Config{Enabled: true, Mode: "prefer", ClientCert: "/etc/certs/client.crt"},
 			wantErr: true,
 			errMsg:  "client_cert and tls.client_key must both be set",
 		},
 		{
 			name:    "client key without cert",
-			cfg:     &tls.Config{Enabled: true, Mode: "prefer", ClientKey: "/etc/certs/client.key"},
+			cfg:     &ports.Config{Enabled: true, Mode: "prefer", ClientKey: "/etc/certs/client.key"},
 			wantErr: true,
 			errMsg:  "client_cert and tls.client_key must both be set",
 		},
 		{
 			name: "mutual TLS both cert and key",
-			cfg: &tls.Config{
+			cfg: &ports.Config{
 				Enabled:    true,
 				Mode:       "verify-full",
 				CACertPath: "/etc/certs/ca.crt",
@@ -101,7 +102,7 @@ func TestConfig_Validate(t *testing.T) {
 func TestBuildTLSArgs_Postgres(t *testing.T) {
 	tests := []struct {
 		name     string
-		cfg      *tls.Config
+		cfg      *ports.Config
 		wantArgs []string
 	}{
 		{
@@ -111,22 +112,22 @@ func TestBuildTLSArgs_Postgres(t *testing.T) {
 		},
 		{
 			name:     "disabled returns empty",
-			cfg:      &tls.Config{Enabled: false},
+			cfg:      &ports.Config{Enabled: false},
 			wantArgs: nil,
 		},
 		{
 			name:     "prefer mode",
-			cfg:      &tls.Config{Enabled: true, Mode: "prefer"},
+			cfg:      &ports.Config{Enabled: true, Mode: "prefer"},
 			wantArgs: []string{"--sslmode=prefer"},
 		},
 		{
 			name:     "require mode",
-			cfg:      &tls.Config{Enabled: true, Mode: "require"},
+			cfg:      &ports.Config{Enabled: true, Mode: "require"},
 			wantArgs: []string{"--sslmode=require"},
 		},
 		{
 			name:     "verify-full with all certs",
-			cfg:      &tls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/ca.crt", ClientCert: "/c.crt", ClientKey: "/c.key"},
+			cfg:      &ports.Config{Enabled: true, Mode: "verify-full", CACertPath: "/ca.crt", ClientCert: "/c.crt", ClientKey: "/c.key"},
 			wantArgs: []string{"--sslmode=verify-full", "--sslrootcert=/ca.crt", "--sslcert=/c.crt", "--sslkey=/c.key"},
 		},
 	}
@@ -161,7 +162,7 @@ func TestBuildTLSArgs_MySQL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &tls.Config{Enabled: true, Mode: tt.mode}
+			cfg := &ports.Config{Enabled: true, Mode: tt.mode}
 			args := tls.BuildTLSArgs("mysql", cfg)
 			if len(args) == 0 || args[0] != tt.wantFlag {
 				t.Errorf("BuildTLSArgs(mysql, %s) first arg = %v, want %s", tt.mode, args, tt.wantFlag)
@@ -171,7 +172,7 @@ func TestBuildTLSArgs_MySQL(t *testing.T) {
 }
 
 func TestBuildTLSArgs_MariaDB(t *testing.T) {
-	cfg := &tls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/ca.crt"}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", CACertPath: "/ca.crt"}
 	args := tls.BuildTLSArgs("mariadb", cfg)
 	hasSSL := false
 	hasVerify := false
@@ -206,7 +207,7 @@ func TestBuildTLSArgs_MongoDB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &tls.Config{Enabled: true, Mode: tt.mode}
+			cfg := &ports.Config{Enabled: true, Mode: tt.mode}
 			args := tls.BuildTLSArgs("mongodb", cfg)
 			hasTLS := false
 			hasInsecure := false
@@ -229,7 +230,7 @@ func TestBuildTLSArgs_MongoDB(t *testing.T) {
 }
 
 func TestBuildTLSArgs_MySQL_WithCerts(t *testing.T) {
-	cfg := &tls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-ca",
 		CACertPath: "/etc/certs/ca.crt",
@@ -265,7 +266,7 @@ func TestBuildTLSArgs_MySQL_WithCerts(t *testing.T) {
 }
 
 func TestBuildTLSArgs_MariaDB_WithCerts(t *testing.T) {
-	cfg := &tls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: "/etc/certs/ca.crt",
@@ -314,7 +315,7 @@ func TestBuildTLSArgs_MariaDB_WithCerts(t *testing.T) {
 }
 
 func TestBuildTLSArgs_MariaDB_NoCertsNoKey(t *testing.T) {
-	cfg := &tls.Config{Enabled: true, Mode: "require"}
+	cfg := &ports.Config{Enabled: true, Mode: "require"}
 	args := tls.BuildTLSArgs("mariadb", cfg)
 	for _, a := range args {
 		if len(a) >= len("--ssl-cert=") && a[:len("--ssl-cert=")] == "--ssl-cert=" {
@@ -327,7 +328,7 @@ func TestBuildTLSArgs_MariaDB_NoCertsNoKey(t *testing.T) {
 }
 
 func TestBuildTLSArgs_UnknownType(t *testing.T) {
-	cfg := &tls.Config{Enabled: true, Mode: "require"}
+	cfg := &ports.Config{Enabled: true, Mode: "require"}
 	args := tls.BuildTLSArgs("oracle", cfg)
 	if len(args) != 0 {
 		t.Errorf("BuildTLSArgs(unknown) = %v, want empty", args)
@@ -336,7 +337,7 @@ func TestBuildTLSArgs_UnknownType(t *testing.T) {
 
 func TestBuildTLSArgs_Postgres_DefaultMode(t *testing.T) {
 	// Empty mode should default to "prefer" in BuildTLSArgs
-	cfg := &tls.Config{Enabled: true, Mode: ""}
+	cfg := &ports.Config{Enabled: true, Mode: ""}
 	args := tls.BuildTLSArgs("postgres", cfg)
 	if len(args) == 0 {
 		t.Error("BuildTLSArgs(postgres, emptyMode) returned empty args")
@@ -344,7 +345,7 @@ func TestBuildTLSArgs_Postgres_DefaultMode(t *testing.T) {
 }
 
 func TestBuildTLSArgs_Postgres_VerifyCA(t *testing.T) {
-	cfg := &tls.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/etc/ca.crt"}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/etc/ca.crt"}
 	args := tls.BuildTLSArgs("postgres", cfg)
 	hasMode := false
 	for _, a := range args {
@@ -358,7 +359,7 @@ func TestBuildTLSArgs_Postgres_VerifyCA(t *testing.T) {
 }
 
 func TestBuildTLSArgs_MongoDB_WithCACert(t *testing.T) {
-	cfg := &tls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/etc/ca.crt", ClientCert: "/etc/client.pem"}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", CACertPath: "/etc/ca.crt", ClientCert: "/etc/client.pem"}
 	args := tls.BuildTLSArgs("mongodb", cfg)
 	hasCA := false
 	hasCert := false

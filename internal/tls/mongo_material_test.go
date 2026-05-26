@@ -17,6 +17,7 @@ import (
 
 	"github.com/youmark/pkcs8"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 )
 
@@ -122,7 +123,7 @@ func snapshotMaterialFiles(t *testing.T) map[string]struct{} {
 
 func TestPrepareMongoTLS_SeparateCertKey_Plain(t *testing.T) {
 	p := genPEMPair(t)
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: p.caPath,
@@ -207,7 +208,7 @@ func TestPrepareMongoTLS_SeparateCertKey_Plain(t *testing.T) {
 func TestPrepareMongoTLS_CombinedPEM_NoTempFile(t *testing.T) {
 	p := genPEMPair(t)
 	combined := combinedFile(t, p)
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: p.caPath,
@@ -248,7 +249,7 @@ func TestPrepareMongoTLS_EncryptedKey_PKCS8(t *testing.T) {
 	p := genPEMPair(t)
 	encKey := encryptedPKCS8File(t, p, "hunter2")
 	t.Setenv("SENTINEL_TEST_KEY_PW", "hunter2")
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:              true,
 		Mode:                 "verify-full",
 		CACertPath:           p.caPath,
@@ -293,54 +294,54 @@ func TestPrepareMongoTLS_ErrorCases(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		cfgFn     func(*pemPair) *internaltls.Config
+		cfgFn     func(*pemPair) *ports.Config
 		envName   string
 		envValue  string
 		wantSubst string
 	}{
 		{
 			name: "cert without key",
-			cfgFn: func(p *pemPair) *internaltls.Config {
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath}
+			cfgFn: func(p *pemPair) *ports.Config {
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath}
 			},
 			wantSubst: "both be set for mutual TLS",
 		},
 		{
 			name: "key without cert",
-			cfgFn: func(p *pemPair) *internaltls.Config {
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientKey: p.keyPath}
+			cfgFn: func(p *pemPair) *ports.Config {
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientKey: p.keyPath}
 			},
 			wantSubst: "both be set for mutual TLS",
 		},
 		{
 			name: "combined cert + separate key",
-			cfgFn: func(p *pemPair) *internaltls.Config {
+			cfgFn: func(p *pemPair) *ports.Config {
 				combined := combinedFile(t, *p)
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: combined, ClientKey: p.keyPath}
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: combined, ClientKey: p.keyPath}
 			},
 			wantSubst: "tls.client_cert already contains a private key",
 		},
 		{
 			name: "encrypted key but no password env field",
-			cfgFn: func(p *pemPair) *internaltls.Config {
+			cfgFn: func(p *pemPair) *ports.Config {
 				encKey := encryptedPKCS8File(t, *p, "x")
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey}
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey}
 			},
 			wantSubst: "tls.client_key is encrypted",
 		},
 		{
 			name: "password env field set but env unset",
-			cfgFn: func(p *pemPair) *internaltls.Config {
+			cfgFn: func(p *pemPair) *ports.Config {
 				encKey := encryptedPKCS8File(t, *p, "x")
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey, ClientKeyPasswordEnv: "SENTINEL_NOT_SET_XYZ"}
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey, ClientKeyPasswordEnv: "SENTINEL_NOT_SET_XYZ"}
 			},
 			wantSubst: `passphrase env var "SENTINEL_NOT_SET_XYZ" is unset or empty`,
 		},
 		{
 			name: "wrong passphrase",
-			cfgFn: func(p *pemPair) *internaltls.Config {
+			cfgFn: func(p *pemPair) *ports.Config {
 				encKey := encryptedPKCS8File(t, *p, "right")
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey, ClientKeyPasswordEnv: "SENTINEL_WRONG_PW"}
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: encKey, ClientKeyPasswordEnv: "SENTINEL_WRONG_PW"}
 			},
 			envName:   "SENTINEL_WRONG_PW",
 			envValue:  "wrong",
@@ -348,10 +349,10 @@ func TestPrepareMongoTLS_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "key file empty",
-			cfgFn: func(p *pemPair) *internaltls.Config {
+			cfgFn: func(p *pemPair) *ports.Config {
 				empty := filepath.Join(t.TempDir(), "empty.key")
 				_ = os.WriteFile(empty, []byte(""), 0o600)
-				return &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: empty}
+				return &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: empty}
 			},
 			wantSubst: "file is empty",
 		},
@@ -389,7 +390,7 @@ func TestPrepareMongoTLS_ErrorCases(t *testing.T) {
 
 func TestPrepareMongoTLS_CleanupOnSuccess(t *testing.T) {
 	p := genPEMPair(t)
-	cfg := &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
 	material, _, err := internaltls.PrepareMongoTLS(cfg, "job-c")
 	if err != nil {
 		t.Fatal(err)
@@ -414,7 +415,7 @@ func TestPrepareMongoTLS_ConcurrentJobs(t *testing.T) {
 	pre := snapshotMaterialFiles(t)
 
 	const N = 8
-	cfg := &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
 
 	paths := make([]string, N)
 	var wg sync.WaitGroup

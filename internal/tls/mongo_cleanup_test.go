@@ -4,12 +4,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 )
 
 func TestRegisterUnregisterCloseAll(t *testing.T) {
 	p := genPEMPair(t)
-	cfg := &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
 
 	const N = 4
 	mats := make([]*internaltls.MongoTLSMaterial, N)
@@ -40,7 +41,7 @@ func TestRegisterUnregisterCloseAll(t *testing.T) {
 
 func TestCleanupRingConcurrent(t *testing.T) {
 	p := genPEMPair(t)
-	cfg := &internaltls.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
+	cfg := &ports.Config{Enabled: true, Mode: "verify-full", ClientCert: p.certPath, ClientKey: p.keyPath}
 
 	const N = 16
 	var wg sync.WaitGroup

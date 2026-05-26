@@ -11,8 +11,8 @@ import (
 
 	"github.com/denisakp/sentinel/internal/backup"
 	backupincremental "github.com/denisakp/sentinel/internal/backup/incremental"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
 )
 
 var allowedPostgresOptions = map[string]bool{
@@ -97,7 +97,7 @@ func ValidateConfig(cfg *Configuration) error {
 
 		// T017: validate TLS configuration when present; warn when absent.
 		if job.TLS != nil {
-			tlsCfg := &internaltls.Config{
+			tlsCfg := &ports.Config{
 				Enabled:              job.TLS.Enabled,
 				Mode:                 job.TLS.Mode,
 				CACertPath:           job.TLS.CACertPath,

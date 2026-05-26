@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 
 	"github.com/youmark/pkcs8"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // MongoTLSMaterial holds the on-disk material handed to mongodump/mongorestore.
@@ -31,7 +33,7 @@ type MongoTLSMaterial struct {
 // material.Close() on the non-nil return.
 //
 // Returns (nil, nil, nil) when TLS is disabled, cfg is nil, or mode is "prefer".
-func PrepareMongoTLS(cfg *Config, jobID string) (*MongoTLSMaterial, []string, error) {
+func PrepareMongoTLS(cfg *ports.Config, jobID string) (*MongoTLSMaterial, []string, error) {
 	if cfg == nil || !cfg.Enabled {
 		return nil, nil, nil
 	}
@@ -82,7 +84,7 @@ func PrepareMongoTLS(cfg *Config, jobID string) (*MongoTLSMaterial, []string, er
 // prepareMongoClientMaterial loads the configured cert/key, optionally decrypts
 // the key, and returns a *MongoTLSMaterial. When the cert file is already
 // combined and ClientKey is unset, no temp file is created.
-func prepareMongoClientMaterial(cfg *Config, jobID string) (*MongoTLSMaterial, error) {
+func prepareMongoClientMaterial(cfg *ports.Config, jobID string) (*MongoTLSMaterial, error) {
 	combined, err := isCombinedPEM(cfg.ClientCert)
 	if err != nil {
 		return nil, fmt.Errorf("read tls.client_cert %q: %w", cfg.ClientCert, err)

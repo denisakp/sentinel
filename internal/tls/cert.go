@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // LoadAndValidateCert reads a PEM certificate file, parses it, and returns an
@@ -43,7 +45,7 @@ func LoadAndValidateCert(path string) error {
 
 // ValidateCerts validates all certificate files referenced in c.
 // It is called as a pre-flight check before backup/restore operations.
-func ValidateCerts(c *Config) error {
+func ValidateCerts(c *ports.Config) error {
 	if c == nil || !c.Enabled {
 		return nil
 	}

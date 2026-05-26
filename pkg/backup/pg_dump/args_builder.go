@@ -7,6 +7,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -22,7 +23,7 @@ type PgDumpArgs struct {
 	CompressionLevel     int             // Compression level
 	AdditionalArgs       string          // Additional arguments for the pg_dump command
 	Storage              *storage.Params // Storage parameters
-	TLS                  *internaltls.Config
+	TLS                  *ports.Config
 
 	PITREnabled        bool      // Enables PITR metadata capture
 	WALArchivePrefix   string    // WAL archive prefix associated with the backup lineage

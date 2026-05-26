@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/tls"
 )
 
@@ -114,7 +115,7 @@ func TestValidateCerts(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cfg     *tls.Config
+		cfg     *ports.Config
 		wantErr bool
 	}{
 		{
@@ -124,27 +125,27 @@ func TestValidateCerts(t *testing.T) {
 		},
 		{
 			name:    "disabled",
-			cfg:     &tls.Config{Enabled: false, CACertPath: "/nonexistent"},
+			cfg:     &ports.Config{Enabled: false, CACertPath: "/nonexistent"},
 			wantErr: false,
 		},
 		{
 			name:    "valid ca cert",
-			cfg:     &tls.Config{Enabled: true, CACertPath: validPath},
+			cfg:     &ports.Config{Enabled: true, CACertPath: validPath},
 			wantErr: false,
 		},
 		{
 			name:    "missing ca cert",
-			cfg:     &tls.Config{Enabled: true, CACertPath: "/does/not/exist.crt"},
+			cfg:     &ports.Config{Enabled: true, CACertPath: "/does/not/exist.crt"},
 			wantErr: true,
 		},
 		{
 			name:    "valid client cert",
-			cfg:     &tls.Config{Enabled: true, ClientCert: validPath},
+			cfg:     &ports.Config{Enabled: true, ClientCert: validPath},
 			wantErr: false,
 		},
 		{
 			name:    "invalid client cert",
-			cfg:     &tls.Config{Enabled: true, ClientCert: "/does/not/exist.crt"},
+			cfg:     &ports.Config{Enabled: true, ClientCert: "/does/not/exist.crt"},
 			wantErr: true,
 		},
 	}

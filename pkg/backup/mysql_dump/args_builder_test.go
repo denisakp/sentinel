@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -82,13 +83,13 @@ func TestArgsBuilder(t *testing.T) {
 func TestArgsBuilder_TLS(t *testing.T) {
 	tests := []struct {
 		name            string
-		tls             *internaltls.Config
+		tls             *ports.Config
 		wantContains    []string
 		wantNoSSLPrefix bool
 	}{
 		{
 			name:            "AB-01 TLS disabled",
-			tls:             &internaltls.Config{Enabled: false, Mode: "require"},
+			tls:             &ports.Config{Enabled: false, Mode: "require"},
 			wantNoSSLPrefix: true,
 		},
 		{
@@ -98,17 +99,17 @@ func TestArgsBuilder_TLS(t *testing.T) {
 		},
 		{
 			name:         "AB-03 TLS require",
-			tls:          &internaltls.Config{Enabled: true, Mode: "require"},
+			tls:          &ports.Config{Enabled: true, Mode: "require"},
 			wantContains: []string{"--ssl-mode=REQUIRED"},
 		},
 		{
 			name:         "AB-04 TLS verify-ca",
-			tls:          &internaltls.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/tmp/ca.pem"},
+			tls:          &ports.Config{Enabled: true, Mode: "verify-ca", CACertPath: "/tmp/ca.pem"},
 			wantContains: []string{"--ssl-mode=VERIFY_CA", "--ssl-ca=/tmp/ca.pem"},
 		},
 		{
 			name:         "AB-05 TLS verify-full",
-			tls:          &internaltls.Config{Enabled: true, Mode: "verify-full", CACertPath: "/tmp/ca.pem"},
+			tls:          &ports.Config{Enabled: true, Mode: "verify-full", CACertPath: "/tmp/ca.pem"},
 			wantContains: []string{"--ssl-mode=VERIFY_IDENTITY", "--ssl-ca=/tmp/ca.pem"},
 		},
 	}
@@ -136,7 +137,7 @@ func TestArgsBuilder_TLS(t *testing.T) {
 }
 
 func TestArgsBuilder_MutualTLS(t *testing.T) {
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: "/tmp/ca.pem",

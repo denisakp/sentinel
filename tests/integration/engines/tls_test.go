@@ -25,7 +25,7 @@ func tlsModeSubtest(
 ) {
 	t.Helper()
 
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled: true,
 		Mode:    mode,
 	}
@@ -139,7 +139,7 @@ func TestTLS_MariaDB_mTLS_KeyForwarded(t *testing.T) {
 	ca := GenerateSelfSignedCA(t)
 	client := GenerateSignedClientCert(t, ca)
 
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: ca.CertFile,
@@ -175,7 +175,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	server := GenerateSignedServerCert(t, ca, []string{"localhost"})
 
 	t.Run("require", func(t *testing.T) {
-		cfg := &internaltls.Config{Enabled: true, Mode: "require"}
+		cfg := &ports.Config{Enabled: true, Mode: "require"}
 		if err := cfg.Validate(); err != nil {
 			t.Errorf("Validate() unexpected error: %v", err)
 		}
@@ -194,7 +194,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("verify-ca", func(t *testing.T) {
-		cfg := &internaltls.Config{
+		cfg := &ports.Config{
 			Enabled:    true,
 			Mode:       "verify-ca",
 			CACertPath: ca.CertFile,
@@ -208,7 +208,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("verify-full", func(t *testing.T) {
-		cfg := &internaltls.Config{
+		cfg := &ports.Config{
 			Enabled:    true,
 			Mode:       "verify-full",
 			CACertPath: ca.CertFile,
@@ -222,7 +222,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("prefer", func(t *testing.T) {
-		cfg := &internaltls.Config{Enabled: true, Mode: "prefer"}
+		cfg := &ports.Config{Enabled: true, Mode: "prefer"}
 		if err := cfg.Validate(); err != nil {
 			t.Errorf("Validate() unexpected error: %v", err)
 		}
@@ -251,13 +251,13 @@ func TestTLS_FallbackWarning(t *testing.T) {
 		t.Fatalf("invalid port %q: %v", db.Port, err)
 	}
 
-	cfg := internaltls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "postgres",
 		Host:     db.Host,
 		Port:     portInt,
 		Username: db.Username,
 		Password: db.Password,
-		TLS: &internaltls.Config{
+		TLS: &ports.Config{
 			Enabled: true,
 			Mode:    "prefer",
 		},
@@ -285,7 +285,7 @@ func TestTLS_ExpiredCert_Aborts(t *testing.T) {
 	expiredCA := GenerateExpiredCA(t)
 
 	// Attempt to validate a config using the expired CA
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: expiredCA.CertFile,

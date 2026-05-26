@@ -7,6 +7,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -16,7 +17,7 @@ type DumpMongoArgs struct {
 	Compress       bool            // Compress the backup file
 	AdditionalArgs string          // Additional arguments for the mongo_dump command
 	Storage        *storage.Params // Storage parameters
-	TLS            *internaltls.Config
+	TLS            *ports.Config
 }
 
 func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string, *internaltls.MongoTLSMaterial, error) {

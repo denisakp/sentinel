@@ -6,6 +6,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -17,7 +18,7 @@ type MariaDBDumpArgs struct {
 	Database       string          // MariaDB database name
 	AdditionalArgs string          // Additional arguments for the mariadb_dump command
 	Storage        *storage.Params // Storage parameters
-	TLS            *internaltls.Config
+	TLS            *ports.Config
 }
 
 // ArgsBuilder builds the arguments for the mariadb_dump command
