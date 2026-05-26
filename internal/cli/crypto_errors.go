@@ -3,7 +3,7 @@ package cli
 import (
 	"errors"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const friendlyDecryptMessage = "file corrupt or wrong key"
@@ -16,7 +16,7 @@ func FriendlyDecryptError(err error) (string, bool) {
 	if err == nil {
 		return "", false
 	}
-	if errors.Is(err, crypto.ErrChunkTooLarge) || errors.Is(err, crypto.ErrAuthTagFailed) {
+	if errors.Is(err, ports.ErrChunkTooLarge) || errors.Is(err, ports.ErrAuthTagFailed) {
 		return friendlyDecryptMessage, true
 	}
 	return "", false

@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/notifier"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
@@ -23,9 +23,9 @@ import (
 func mapRestoreSourceError(job config.RestoreJob, err error) error {
 	src := job.BackupSource
 	switch {
-	case errors.Is(err, crypto.ErrLegacyEnvelope):
+	case errors.Is(err, ports.ErrLegacyEnvelope):
 		return fmt.Errorf(LegacyEnvelopeRefusalMsg, job.Name, src.BackupPath)
-	case errors.Is(err, crypto.ErrChunkTooLarge), errors.Is(err, crypto.ErrAuthTagFailed):
+	case errors.Is(err, ports.ErrChunkTooLarge), errors.Is(err, ports.ErrAuthTagFailed):
 		return fmt.Errorf("%s: %w", friendlyDecryptMessage, err)
 	case errors.Is(err, internalrestore.ErrUnsupportedRestoreSource):
 		return fmt.Errorf("source type %q is not supported for restore; supported types: local, s3, gcs", src.Type)

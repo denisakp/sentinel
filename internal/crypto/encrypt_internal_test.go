@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"math"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // fakeAEAD lets us drive NewChunkEncryptWriter-like paths with a custom NonceSize.
@@ -39,7 +41,7 @@ func TestChunkCounterOverflow_EmitsLogAndError(t *testing.T) {
 	// Fill buffer + force a flush via Write.
 	payload := make([]byte, chunkSize)
 	_, werr := w.Write(payload)
-	if !errors.Is(werr, ErrChunkCounterOverflow) {
+	if !errors.Is(werr, ports.ErrChunkCounterOverflow) {
 		t.Fatalf("Write() err = %v, want ErrChunkCounterOverflow", werr)
 	}
 
@@ -62,7 +64,7 @@ func TestNewChunkEncryptWriter_RejectsShortNonce_FakeAEAD(t *testing.T) {
 	}
 	// The exported constructor would have refused this AEAD up-front.  Assert
 	// the sentinel exists and would have been wrapped.
-	if !errors.Is(wrap(ErrShortNonce), ErrShortNonce) {
+	if !errors.Is(wrap(ports.ErrShortNonce), ports.ErrShortNonce) {
 		t.Fatal("ErrShortNonce sentinel broken")
 	}
 	_ = w

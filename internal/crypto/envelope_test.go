@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestEnvelopeHeader_V2RoundTrip(t *testing.T) {
@@ -30,7 +32,7 @@ func TestEnvelopeHeader_V2RoundTrip(t *testing.T) {
 func TestEnvelopeHeader_UnknownVersion(t *testing.T) {
 	r := bytes.NewReader([]byte{'S', 'E', 'N', 'C', 0xFF})
 	_, _, _, err := readAndClassifyHeader(r)
-	var unsupp ErrUnsupportedEnvelopeVersion
+	var unsupp ports.ErrUnsupportedEnvelopeVersion
 	if !errors.As(err, &unsupp) {
 		t.Fatalf("err = %v, want ErrUnsupportedEnvelopeVersion", err)
 	}

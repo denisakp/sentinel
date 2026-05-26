@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // maxChunkSize is the largest legal value for a per-chunk length prefix in the v1
@@ -16,16 +18,6 @@ import (
 // ADR 0006's stated invariant: chunkSize + gcm.Overhead(). Reads exceeding this
 // fail fast with ErrChunkTooLarge before any allocation is sized by the prefix.
 const maxChunkSize = chunkSize + 16
-
-// DecryptOptions controls how the decrypt path handles envelope versioning.
-type DecryptOptions struct {
-	// AllowLegacy permits decrypting pre-v2 (unversioned) artifacts. Off by default.
-	AllowLegacy bool
-	// Source is a human-readable path/URI identifying the artifact (for log lines).
-	Source string
-	// BackupID is the AAD used during encryption.
-	BackupID string
-}
 
 // ChunkDecryptReader reads AES-256-GCM encrypted data from r and decrypts it.
 // It expects the v2 envelope format: a 5-byte header `"SENC" || 0x02` followed
@@ -35,7 +27,7 @@ type ChunkDecryptReader struct {
 	gcm           cipher.AEAD
 	baseNonce     []byte
 	aad           []byte
-	opts          DecryptOptions
+	opts          ports.DecryptOptions
 	chunkIdx      uint64
 	plainBuf      []byte
 	eof           bool
@@ -49,12 +41,12 @@ type ChunkDecryptReader struct {
 // Callers SHOULD prefer NewChunkDecryptReaderWithOptions so log lines carry a
 // meaningful source.
 func NewChunkDecryptReader(r io.Reader, key, baseNonce []byte, backupID string) (*ChunkDecryptReader, error) {
-	return NewChunkDecryptReaderWithOptions(r, key, baseNonce, DecryptOptions{BackupID: backupID})
+	return NewChunkDecryptReaderWithOptions(r, key, baseNonce, ports.DecryptOptions{BackupID: backupID})
 }
 
 // NewChunkDecryptReaderWithOptions is the explicit constructor. AllowLegacy=false
 // refuses pre-v2 artifacts; AllowLegacy=true emits a loud warning and proceeds.
-func NewChunkDecryptReaderWithOptions(r io.Reader, key, baseNonce []byte, opts DecryptOptions) (*ChunkDecryptReader, error) {
+func NewChunkDecryptReaderWithOptions(r io.Reader, key, baseNonce []byte, opts ports.DecryptOptions) (*ChunkDecryptReader, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("crypto: failed to create AES cipher: %w", err)
@@ -117,7 +109,7 @@ func (d *ChunkDecryptReader) readChunk() error {
 	chunkLen := binary.LittleEndian.Uint32(lenBuf[:])
 	if chunkLen == 0 || chunkLen > maxChunkSize {
 		return fmt.Errorf("crypto: chunk %d length %d out of bounds [1, %d]: %w",
-			d.chunkIdx, chunkLen, maxChunkSize, ErrChunkTooLarge)
+			d.chunkIdx, chunkLen, maxChunkSize, ports.ErrChunkTooLarge)
 	}
 
 	// Read ciphertext+tag
@@ -131,7 +123,7 @@ func (d *ChunkDecryptReader) readChunk() error {
 	plaintext, err := d.gcm.Open(nil, nonce, ciphertext, d.aad)
 	if err != nil {
 		return fmt.Errorf("crypto: authentication tag verification failed (chunk %d): %w: %w",
-			d.chunkIdx, ErrAuthTagFailed, err)
+			d.chunkIdx, ports.ErrAuthTagFailed, err)
 	}
 
 	d.chunkIdx++
@@ -142,7 +134,7 @@ func (d *ChunkDecryptReader) readChunk() error {
 func (d *ChunkDecryptReader) consumeHeader() error {
 	_, isLegacy, leadBytes, err := readAndClassifyHeader(d.r)
 	if err != nil {
-		if unsupp, ok := err.(ErrUnsupportedEnvelopeVersion); ok {
+		if unsupp, ok := err.(ports.ErrUnsupportedEnvelopeVersion); ok {
 			logCryptoEvent(context.Background(), EventEnvelopeUnknownVersion,
 				slog.String("backup_id", d.opts.BackupID),
 				slog.String("source", d.opts.Source),
@@ -157,7 +149,7 @@ func (d *ChunkDecryptReader) consumeHeader() error {
 	if isLegacy {
 		if !d.opts.AllowLegacy {
 			return fmt.Errorf("crypto: legacy envelope for %q from %q: %w",
-				d.opts.BackupID, d.opts.Source, ErrLegacyEnvelope)
+				d.opts.BackupID, d.opts.Source, ports.ErrLegacyEnvelope)
 		}
 		logCryptoEvent(context.Background(), EventLegacyEnvelopeDecrypt,
 			slog.String("backup_id", d.opts.BackupID),
