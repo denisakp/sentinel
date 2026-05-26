@@ -13,7 +13,6 @@ import (
 	"os"
 
 	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -25,11 +24,11 @@ import (
 //  4. Returns an io.Reader of the plaintext backup data
 //
 // Callers MUST handle the following sentinel errors:
-//   - manifest.ErrNoManifest   → pre-v1.1 backup, log WARN and proceed with raw file
+//   - ports.ErrNoManifest   → pre-v1.1 backup, log WARN and proceed with raw file
 //   - ErrHashMismatch          → corruption detected, abort and delete backup
 func PreRestoreVerifyAndDecrypt(
 	ctx context.Context,
-	m *manifest.BackupManifest,
+	m *ports.BackupManifest,
 	filePath string,
 	keyProvider crypto.KeyProvider,
 ) (io.Reader, error) {
@@ -40,7 +39,7 @@ func PreRestoreVerifyAndDecrypt(
 // envelope-version policy (e.g. AllowLegacy for pre-v2 artifacts).
 func PreRestoreVerifyAndDecryptWithOptions(
 	ctx context.Context,
-	m *manifest.BackupManifest,
+	m *ports.BackupManifest,
 	filePath string,
 	keyProvider crypto.KeyProvider,
 	decryptOpts ports.DecryptOptions,

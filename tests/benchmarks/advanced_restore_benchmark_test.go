@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/notifier"
 	"github.com/denisakp/sentinel/internal/restore"
 )
@@ -22,9 +22,9 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 		PITRInputValue:   targetTime.Format(time.RFC3339),
 		PITRTimestampUTC: &targetTime,
 	}
-	pitrManifest := &manifest.BackupManifest{
+	pitrManifest := &ports.BackupManifest{
 		BackupID: "postgres-base-2026-03-20T22-00-00Z",
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities:                  []string{"pitr"},
 			RecoverableWindowStartUTC:     &windowStart,
 			RecoverableWindowEndUTC:       &windowEnd,
@@ -36,11 +36,11 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 		RestoreMode:           "incremental",
 		IncrementalFromBackup: "postgres-base-2026-03-19",
 	}
-	incrementalManifest := &manifest.BackupManifest{
+	incrementalManifest := &ports.BackupManifest{
 		BackupID: "postgres-delta-2026-03-20",
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:   "postgres-base-2026-03-19",
 				ExecutionSupported: false,
 				RequiredBackupIDs: []string{

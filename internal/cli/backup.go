@@ -23,6 +23,7 @@ import (
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -1013,7 +1014,7 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 	result.fullSize = incrementalMeta.FullBackupSizeBytes
 
 	// Encryption is opt-in: only attempt encryption when an explicit key source is configured.
-	var encInfo *manifest.EncryptionInfo
+	var encInfo *ports.EncryptionInfo
 	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
 		encrypted, encMeta, encHash, encErr := encryptBackupFile(cfg, filePath, job.Name)
 		if encErr != nil {
@@ -1034,21 +1035,21 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 
 	// Write manifest alongside the backup file
 	manifestPath := filePath + ".manifest.json"
-	m := &manifest.BackupManifest{
+	m := &ports.BackupManifest{
 		BackupID:     job.Name,
 		Database:     job.Database,
 		DatabaseType: job.Type,
 		CreatedAt:    time.Now().UTC(),
 		SizeBytes:    fileSize,
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm:      "sha256",
 			Value:          result.hashValue,
 			PlaintextValue: plaintextHash,
 		},
 		Encryption: encInfo,
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"full", "incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				Enabled:             incrementalMeta.Enabled,
 				ChainID:             incrementalMeta.ChainID,
 				ChainIndex:          incrementalMeta.ChainIndex,
@@ -1412,7 +1413,7 @@ func isSuccessfulStatus(status string) bool {
 
 // encryptBackupFile encrypts filePath in-place using AES-256-GCM via ChunkEncryptWriter.
 // Returns (encrypted, encInfo, hashOfEncryptedFile, err).
-func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *manifest.EncryptionInfo, string, error) {
+func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *ports.EncryptionInfo, string, error) {
 	kp := &crypto.FileKeyProvider{
 		EnvVar:   cfg.EncryptionKeyEnv,
 		FilePath: cfg.EncryptionKeyFile,
@@ -1473,7 +1474,7 @@ func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bo
 		return false, nil, "", fmt.Errorf("failed to replace file with encrypted version: %w", renameErr)
 	}
 
-	encInfo := &manifest.EncryptionInfo{
+	encInfo := &ports.EncryptionInfo{
 		Algorithm:       "AES-256-GCM",
 		KeyDerivation:   "PBKDF2-HMAC-SHA256",
 		Iterations:      100_000,

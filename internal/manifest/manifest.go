@@ -2,21 +2,17 @@ package manifest
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
-// ErrNoManifest is returned when a manifest file does not exist.
-// Callers should treat this as a pre-v1.1 backup and proceed with a WARN.
-var ErrNoManifest = errors.New("manifest not found")
-
 // WriteManifest serialises m to a JSON file at path.
-func WriteManifest(path string, m *BackupManifest) error {
+func WriteManifest(path string, m *ports.BackupManifest) error {
 	if path == "" {
 		return fmt.Errorf("manifest path is empty")
 	}
@@ -37,8 +33,8 @@ func WriteManifest(path string, m *BackupManifest) error {
 }
 
 // ReadManifest deserialises a manifest from a JSON file at path.
-// Returns ErrNoManifest if the file does not exist.
-func ReadManifest(path string) (*BackupManifest, error) {
+// Returns ports.ErrNoManifest if the file does not exist.
+func ReadManifest(path string) (*ports.BackupManifest, error) {
 	if path == "" {
 		return nil, fmt.Errorf("manifest path is empty")
 	}
@@ -46,12 +42,12 @@ func ReadManifest(path string) (*BackupManifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNoManifest
+			return nil, ports.ErrNoManifest
 		}
 		return nil, fmt.Errorf("failed to read manifest from %q: %w", path, err)
 	}
 
-	var m BackupManifest
+	var m ports.BackupManifest
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("failed to parse manifest at %q: %w", path, err)
 	}
@@ -69,10 +65,10 @@ func ReadManifest(path string) (*BackupManifest, error) {
 	return &m, nil
 }
 
-// LoadRestoreManifest loads restore manifest metadata and preserves ErrNoManifest semantics.
-func LoadRestoreManifest(path string) (*BackupManifest, error) {
+// LoadRestoreManifest loads restore manifest metadata and preserves ports.ErrNoManifest semantics.
+func LoadRestoreManifest(path string) (*ports.BackupManifest, error) {
 	if path == "" {
-		return nil, ErrNoManifest
+		return nil, ports.ErrNoManifest
 	}
 	m, err := ReadManifest(path)
 	if err != nil {
@@ -82,7 +78,7 @@ func LoadRestoreManifest(path string) (*BackupManifest, error) {
 }
 
 // ValidateIncrementalLineageContract verifies required lineage fields when incremental metadata is present.
-func ValidateIncrementalLineageContract(m *BackupManifest) error {
+func ValidateIncrementalLineageContract(m *ports.BackupManifest) error {
 	if m == nil || m.AdvancedRestore == nil || m.AdvancedRestore.IncrementalLineage == nil {
 		return nil
 	}

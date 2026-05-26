@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/monitor"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/spf13/cobra"
@@ -349,12 +350,12 @@ func TestHandleRestoreValidateChain_Succeeds(t *testing.T) {
 		t.Fatalf("WriteFile() backup error = %v", err)
 	}
 
-	m := &manifest.BackupManifest{
+	m := &ports.BackupManifest{
 		BackupID: "incr-003",
-		Hash:     manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		Hash:     ports.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:   "full-001",
 				RequiredBackupIDs:  []string{"incr-002"},
 				ExecutionSupported: true,

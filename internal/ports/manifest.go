@@ -1,9 +1,37 @@
-package manifest
+package ports
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ManifestStore abstracts *internal/manifest.Adapter (current concrete implementation).
+//
+// It is the read/write seam for backup manifests — the .manifest.json
+// sidecar that records integrity, encryption, and advanced-restore
+// metadata for every backup artefact.
+type ManifestStore interface {
+	Write(path string, m *BackupManifest) error
+	Read(path string) (*BackupManifest, error)
+	LoadForRestore(path string) (*BackupManifest, error)
+	VerifyHash(path, algorithm, expected string) error
+	ValidateIncrementalLineage(m *BackupManifest) error
+}
+
+// ErrNoManifest is returned when the .manifest.json sidecar is missing.
+//
+// Callers MUST treat this as a soft signal (pre-v1.1 backup) rather than a
+// hard failure: log a WARN and proceed with the raw file.
+//
+// Relocated from internal/manifest/manifest.go (single source of truth per
+// spec 028 FR-003a).
+var ErrNoManifest = errors.New("manifest not found")
 
 // BackupManifest is the single source of truth for backup integrity and restore metadata.
 // Written as <backup-filename>.manifest.json alongside the backup file.
+//
+// Relocated from internal/manifest/types.go (single source of truth per
+// spec 028 FR-003a).
 type BackupManifest struct {
 	BackupID        string                   `json:"backup_id"`
 	Database        string                   `json:"database"`
