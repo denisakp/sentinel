@@ -18,6 +18,7 @@ import (
 	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
 	mariadbrestore "github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
@@ -493,7 +494,7 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 		keyProvider = &crypto.FileKeyProvider{EnvVar: cfg.EncryptionKeyEnv, FilePath: cfg.EncryptionKeyFile}
 	}
 
-	reader, err := PreRestoreVerifyAndDecryptWithOptions(ctx, m, artifact.Path, keyProvider, crypto.DecryptOptions{
+	reader, err := PreRestoreVerifyAndDecryptWithOptions(ctx, m, artifact.Path, keyProvider, ports.DecryptOptions{
 		AllowLegacy: allowLegacyEnvelope,
 		Source:      artifact.Path,
 		BackupID:    m.BackupID,

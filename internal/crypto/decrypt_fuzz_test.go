@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // FuzzChunkDecryptReader feeds arbitrary input to the decrypter and asserts
@@ -65,13 +66,13 @@ func FuzzChunkDecryptReader(f *testing.F) {
 		}
 
 		switch {
-		case errors.Is(err, crypto.ErrChunkTooLarge):
-		case errors.Is(err, crypto.ErrAuthTagFailed):
-		case errors.Is(err, crypto.ErrLegacyEnvelope):
+		case errors.Is(err, ports.ErrChunkTooLarge):
+		case errors.Is(err, ports.ErrAuthTagFailed):
+		case errors.Is(err, ports.ErrLegacyEnvelope):
 		case errors.Is(err, io.EOF):
 		case errors.Is(err, io.ErrUnexpectedEOF):
 		default:
-			var unsupp crypto.ErrUnsupportedEnvelopeVersion
+			var unsupp ports.ErrUnsupportedEnvelopeVersion
 			if errors.As(err, &unsupp) {
 				return
 			}

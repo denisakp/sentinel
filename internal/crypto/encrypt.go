@@ -19,6 +19,8 @@ import (
 	"io"
 	"log/slog"
 	"math"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const chunkSize = 64 * 1024 // 64KB chunks
@@ -56,7 +58,7 @@ func NewChunkEncryptWriter(w io.Writer, key []byte, backupID string) (*ChunkEncr
 	}
 
 	if gcm.NonceSize() < 8 {
-		return nil, fmt.Errorf("crypto: AEAD nonce size %d insufficient: %w", gcm.NonceSize(), ErrShortNonce)
+		return nil, fmt.Errorf("crypto: AEAD nonce size %d insufficient: %w", gcm.NonceSize(), ports.ErrShortNonce)
 	}
 
 	baseNonce := make([]byte, gcm.NonceSize())
@@ -137,7 +139,7 @@ func (e *ChunkEncryptWriter) flushChunk() error {
 			slog.String("backup_id", string(e.aad)),
 			slog.Uint64("chunk_count", e.chunkIdx),
 		)
-		return ErrChunkCounterOverflow
+		return ports.ErrChunkCounterOverflow
 	}
 
 	nonce := e.chunkNonce(e.chunkIdx)

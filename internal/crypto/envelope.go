@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // MagicV2 is the 4-byte ASCII prefix that marks an envelope-v2 encrypted stream.
@@ -14,30 +16,6 @@ const EnvelopeVersionV2 uint8 = 0x02
 
 // headerSize is the fixed byte size of the v2 envelope header (4 magic + 1 version).
 const headerSize = 5
-
-// ErrShortNonce indicates the AEAD's nonce size is too small to host the 8-byte counter region.
-var ErrShortNonce = errors.New("crypto: AEAD nonce shorter than 8-byte counter region")
-
-// ErrChunkCounterOverflow indicates the per-stream chunk counter would overflow uint64.
-var ErrChunkCounterOverflow = errors.New("crypto: chunk counter would overflow uint64 — rotate the encryption key and re-encrypt from source")
-
-// ErrLegacyEnvelope indicates a stream lacks the v2 magic header and the caller did not opt in.
-var ErrLegacyEnvelope = errors.New("crypto: legacy (pre-v2) envelope detected — re-encrypt from source, or pass --allow-legacy-envelope to proceed at your own risk")
-
-// ErrChunkTooLarge indicates a chunk-length prefix is outside the legal range [1, maxChunkSize].
-var ErrChunkTooLarge = errors.New("crypto: chunk length out of bounds")
-
-// ErrAuthTagFailed indicates AES-GCM authentication-tag verification failed for a chunk (wrong key, tampered ciphertext, or tampered tag).
-var ErrAuthTagFailed = errors.New("crypto: authentication tag verification failed")
-
-// ErrUnsupportedEnvelopeVersion indicates the stream header carries an unknown version byte.
-type ErrUnsupportedEnvelopeVersion struct {
-	Version uint8
-}
-
-func (e ErrUnsupportedEnvelopeVersion) Error() string {
-	return fmt.Sprintf("crypto: unsupported envelope version 0x%02X — upgrade Sentinel", e.Version)
-}
 
 // writeHeader emits the 5-byte v2 envelope header (magic + version) to w.
 func writeHeader(w io.Writer) error {
@@ -50,7 +28,7 @@ func writeHeader(w io.Writer) error {
 
 // readAndClassifyHeader reads exactly 5 bytes from r and classifies the stream:
 //   - magic match + known version → (version, false, nil, nil)
-//   - magic match + unknown version → (version, false, nil, ErrUnsupportedEnvelopeVersion{Version})
+//   - magic match + unknown version → (version, false, nil, ports.ErrUnsupportedEnvelopeVersion{Version})
 //   - magic mismatch → (0, true, raw5bytes, nil)
 //   - short read → (0, false, nil, wrapped io.ErrUnexpectedEOF)
 func readAndClassifyHeader(r io.Reader) (version uint8, isLegacy bool, leadBytes []byte, err error) {
@@ -68,7 +46,7 @@ func readAndClassifyHeader(r io.Reader) (version uint8, isLegacy bool, leadBytes
 
 	v := buf[4]
 	if v != EnvelopeVersionV2 {
-		return v, false, nil, ErrUnsupportedEnvelopeVersion{Version: v}
+		return v, false, nil, ports.ErrUnsupportedEnvelopeVersion{Version: v}
 	}
 	return v, false, nil, nil
 }

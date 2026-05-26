@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestEnvelopeV2RoundTrip(t *testing.T) {
@@ -41,7 +42,7 @@ func TestEnvelopeV2RoundTrip(t *testing.T) {
 	}
 
 	dec, err := crypto.NewChunkDecryptReaderWithOptions(&encBuf, key, enc.BaseNonce(),
-		crypto.DecryptOptions{BackupID: "rt-100mb"})
+		ports.DecryptOptions{BackupID: "rt-100mb"})
 	if err != nil {
 		t.Fatalf("NewChunkDecryptReaderWithOptions() error = %v", err)
 	}
@@ -69,7 +70,7 @@ func TestEnvelopeV2_EmptyStream(t *testing.T) {
 	}
 
 	dec, err := crypto.NewChunkDecryptReaderWithOptions(&encBuf, key, enc.BaseNonce(),
-		crypto.DecryptOptions{BackupID: "empty"})
+		ports.DecryptOptions{BackupID: "empty"})
 	if err != nil {
 		t.Fatalf("NewChunkDecryptReaderWithOptions() error = %v", err)
 	}
@@ -86,13 +87,13 @@ func TestDecryptEnvelope_RejectsUnknownVersion(t *testing.T) {
 	key := make([]byte, 32)
 	stream := append([]byte{'S', 'E', 'N', 'C', 0xFF}, []byte("garbage")...)
 	dec, err := crypto.NewChunkDecryptReaderWithOptions(bytes.NewReader(stream), key, make([]byte, 12),
-		crypto.DecryptOptions{BackupID: "unk", Source: "/tmp/unk.enc"})
+		ports.DecryptOptions{BackupID: "unk", Source: "/tmp/unk.enc"})
 	if err != nil {
 		t.Fatalf("NewChunkDecryptReaderWithOptions() error = %v", err)
 	}
 	var sink bytes.Buffer
 	_, err = io.Copy(&sink, dec)
-	var unsupp crypto.ErrUnsupportedEnvelopeVersion
+	var unsupp ports.ErrUnsupportedEnvelopeVersion
 	if !errors.As(err, &unsupp) {
 		t.Fatalf("err = %v, want ErrUnsupportedEnvelopeVersion", err)
 	}
@@ -137,13 +138,13 @@ func TestDecryptEnvelope_RefusesLegacyByDefault(t *testing.T) {
 	legacy := writeLegacyV1(t, key, baseNonce, "legacy-1", plaintext)
 
 	dec, err := crypto.NewChunkDecryptReaderWithOptions(bytes.NewReader(legacy), key, baseNonce,
-		crypto.DecryptOptions{AllowLegacy: false, BackupID: "legacy-1", Source: "/tmp/legacy.enc"})
+		ports.DecryptOptions{AllowLegacy: false, BackupID: "legacy-1", Source: "/tmp/legacy.enc"})
 	if err != nil {
 		t.Fatalf("NewChunkDecryptReaderWithOptions() error = %v", err)
 	}
 	var sink bytes.Buffer
 	_, err = io.Copy(&sink, dec)
-	if !errors.Is(err, crypto.ErrLegacyEnvelope) {
+	if !errors.Is(err, ports.ErrLegacyEnvelope) {
 		t.Fatalf("err = %v, want ErrLegacyEnvelope", err)
 	}
 	if sink.Len() != 0 {
@@ -158,7 +159,7 @@ func TestDecryptEnvelope_LegacyOptInProceeds(t *testing.T) {
 	legacy := writeLegacyV1(t, key, baseNonce, "legacy-2", plaintext)
 
 	dec, err := crypto.NewChunkDecryptReaderWithOptions(bytes.NewReader(legacy), key, baseNonce,
-		crypto.DecryptOptions{AllowLegacy: true, BackupID: "legacy-2", Source: "/tmp/legacy.enc"})
+		ports.DecryptOptions{AllowLegacy: true, BackupID: "legacy-2", Source: "/tmp/legacy.enc"})
 	if err != nil {
 		t.Fatalf("NewChunkDecryptReaderWithOptions() error = %v", err)
 	}

@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestFriendlyDecryptError(t *testing.T) {
@@ -20,12 +20,12 @@ func TestFriendlyDecryptError(t *testing.T) {
 		{"plain", errors.New("something else"), "", false},
 		{"eof", io.EOF, "", false},
 		{"unexpected_eof", io.ErrUnexpectedEOF, "", false},
-		{"chunk_too_large_bare", crypto.ErrChunkTooLarge, "file corrupt or wrong key", true},
-		{"chunk_too_large_wrapped", fmt.Errorf("decrypt: %w", crypto.ErrChunkTooLarge), "file corrupt or wrong key", true},
-		{"chunk_too_large_double_wrapped", fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", crypto.ErrChunkTooLarge)), "file corrupt or wrong key", true},
-		{"auth_tag_bare", crypto.ErrAuthTagFailed, "file corrupt or wrong key", true},
-		{"auth_tag_wrapped", fmt.Errorf("chunk 3 failed: %w", crypto.ErrAuthTagFailed), "file corrupt or wrong key", true},
-		{"legacy_envelope_not_mapped", crypto.ErrLegacyEnvelope, "", false},
+		{"chunk_too_large_bare", ports.ErrChunkTooLarge, "file corrupt or wrong key", true},
+		{"chunk_too_large_wrapped", fmt.Errorf("decrypt: %w", ports.ErrChunkTooLarge), "file corrupt or wrong key", true},
+		{"chunk_too_large_double_wrapped", fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", ports.ErrChunkTooLarge)), "file corrupt or wrong key", true},
+		{"auth_tag_bare", ports.ErrAuthTagFailed, "file corrupt or wrong key", true},
+		{"auth_tag_wrapped", fmt.Errorf("chunk 3 failed: %w", ports.ErrAuthTagFailed), "file corrupt or wrong key", true},
+		{"legacy_envelope_not_mapped", ports.ErrLegacyEnvelope, "", false},
 	}
 
 	for _, tc := range cases {

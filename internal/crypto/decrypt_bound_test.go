@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const (
@@ -76,10 +77,10 @@ func TestChunkBoundEnforced(t *testing.T) {
 		chunkLen uint32
 		wantErr  error
 	}{
-		{"zero_length", 0, crypto.ErrChunkTooLarge},
-		{"one_over_max", uint32(testMaxChunkSize + 1), crypto.ErrChunkTooLarge},
-		{"one_gib", 1 << 30, crypto.ErrChunkTooLarge},
-		{"max_uint32", ^uint32(0), crypto.ErrChunkTooLarge},
+		{"zero_length", 0, ports.ErrChunkTooLarge},
+		{"one_over_max", uint32(testMaxChunkSize + 1), ports.ErrChunkTooLarge},
+		{"one_gib", 1 << 30, ports.ErrChunkTooLarge},
+		{"max_uint32", ^uint32(0), ports.ErrChunkTooLarge},
 	}
 
 	for _, tc := range cases {
@@ -143,7 +144,7 @@ func TestChunkBound_WrongKey_AuthTagFailed(t *testing.T) {
 		t.Fatalf("NewChunkDecryptReader: %v", err)
 	}
 	_, err = io.ReadAll(dec)
-	if !errors.Is(err, crypto.ErrAuthTagFailed) {
+	if !errors.Is(err, ports.ErrAuthTagFailed) {
 		t.Fatalf("err = %v, want errors.Is(_, ErrAuthTagFailed)", err)
 	}
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/crypto"
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // PreRestoreVerifyAndDecrypt is the single entry point for restore pre-flight:
@@ -32,7 +33,7 @@ func PreRestoreVerifyAndDecrypt(
 	filePath string,
 	keyProvider crypto.KeyProvider,
 ) (io.Reader, error) {
-	return PreRestoreVerifyAndDecryptWithOptions(ctx, m, filePath, keyProvider, crypto.DecryptOptions{})
+	return PreRestoreVerifyAndDecryptWithOptions(ctx, m, filePath, keyProvider, ports.DecryptOptions{})
 }
 
 // PreRestoreVerifyAndDecryptWithOptions is the explicit form that lets callers pass
@@ -42,7 +43,7 @@ func PreRestoreVerifyAndDecryptWithOptions(
 	m *manifest.BackupManifest,
 	filePath string,
 	keyProvider crypto.KeyProvider,
-	decryptOpts crypto.DecryptOptions,
+	decryptOpts ports.DecryptOptions,
 ) (io.Reader, error) {
 	// Verify hash
 	computed, err := computeHash(filePath)
