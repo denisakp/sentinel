@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/tls"
 )
 
 func TestProbeTLSConnection_NilTLS(t *testing.T) {
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type: "postgres",
 		TLS:  nil,
 	}
@@ -25,9 +26,9 @@ func TestProbeTLSConnection_NilTLS(t *testing.T) {
 }
 
 func TestProbeTLSConnection_DisabledTLS(t *testing.T) {
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type: "postgres",
-		TLS:  &tls.Config{Enabled: false, Mode: "require"},
+		TLS:  &ports.Config{Enabled: false, Mode: "require"},
 	}
 	result, err := tls.ProbeTLSConnection(context.Background(), cfg)
 	if err != nil {
@@ -40,9 +41,9 @@ func TestProbeTLSConnection_DisabledTLS(t *testing.T) {
 
 func TestProbeTLSConnection_MongoDB(t *testing.T) {
 	// MongoDB is skipped — probe returns empty result with no error
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type: "mongodb",
-		TLS:  &tls.Config{Enabled: true, Mode: "require"},
+		TLS:  &ports.Config{Enabled: true, Mode: "require"},
 	}
 	result, err := tls.ProbeTLSConnection(context.Background(), cfg)
 	if err != nil {
@@ -54,9 +55,9 @@ func TestProbeTLSConnection_MongoDB(t *testing.T) {
 }
 
 func TestProbeTLSConnection_UnknownType(t *testing.T) {
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type: "oracle",
-		TLS:  &tls.Config{Enabled: true, Mode: "require"},
+		TLS:  &ports.Config{Enabled: true, Mode: "require"},
 	}
 	result, err := tls.ProbeTLSConnection(context.Background(), cfg)
 	if err != nil {
@@ -72,13 +73,13 @@ func TestProbeTLSConnection_UnknownType(t *testing.T) {
 // and mode is "require" (non-TLS connection errors propagate as hard errors).
 func TestProbeTLSConnection_Postgres_RequireMode_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "postgres",
 		Host:     "127.0.0.1",
 		Port:     1, // nothing listening here → immediate connection refused
 		Username: "nouser",
 		Password: "nopass",
-		TLS:      &tls.Config{Enabled: true, Mode: "require"},
+		TLS:      &ports.Config{Enabled: true, Mode: "require"},
 	}
 	_, err := tls.ProbeTLSConnection(ctx, cfg)
 	// An unreachable host must produce an error for "require" mode.
@@ -92,13 +93,13 @@ func TestProbeTLSConnection_Postgres_RequireMode_ConnectionRefused(t *testing.T)
 // (connection refused is not a TLS error, so fallback does not apply).
 func TestProbeTLSConnection_Postgres_PreferMode_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "postgres",
 		Host:     "127.0.0.1",
 		Port:     1,
 		Username: "nouser",
 		Password: "nopass",
-		TLS:      &tls.Config{Enabled: true, Mode: "prefer"},
+		TLS:      &ports.Config{Enabled: true, Mode: "prefer"},
 	}
 	result, err := tls.ProbeTLSConnection(ctx, cfg)
 	// "prefer" mode with non-TLS error: the probe propagates the error.
@@ -112,13 +113,13 @@ func TestProbeTLSConnection_Postgres_PreferMode_ConnectionRefused(t *testing.T) 
 // probeMySQL is entered and returns an error when the server is unreachable.
 func TestProbeTLSConnection_MySQL_RequireMode_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "mysql",
 		Host:     "127.0.0.1",
 		Port:     1,
 		Username: "nouser",
 		Password: "nopass",
-		TLS:      &tls.Config{Enabled: true, Mode: "require"},
+		TLS:      &ports.Config{Enabled: true, Mode: "require"},
 	}
 	_, err := tls.ProbeTLSConnection(ctx, cfg)
 	if err == nil {
@@ -130,13 +131,13 @@ func TestProbeTLSConnection_MySQL_RequireMode_ConnectionRefused(t *testing.T) {
 // mariadb also routes through probeMySQL (same implementation).
 func TestProbeTLSConnection_MariaDB_RequireMode_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "mariadb",
 		Host:     "127.0.0.1",
 		Port:     1,
 		Username: "nouser",
 		Password: "nopass",
-		TLS:      &tls.Config{Enabled: true, Mode: "require"},
+		TLS:      &ports.Config{Enabled: true, Mode: "require"},
 	}
 	_, err := tls.ProbeTLSConnection(ctx, cfg)
 	if err == nil {
@@ -148,13 +149,13 @@ func TestProbeTLSConnection_MariaDB_RequireMode_ConnectionRefused(t *testing.T) 
 // probeMySQL with mode="prefer" handles unreachable host.
 func TestProbeTLSConnection_MySQL_PreferMode_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
-	cfg := tls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "mysql",
 		Host:     "127.0.0.1",
 		Port:     1,
 		Username: "nouser",
 		Password: "nopass",
-		TLS:      &tls.Config{Enabled: true, Mode: "prefer"},
+		TLS:      &ports.Config{Enabled: true, Mode: "prefer"},
 	}
 	result, err := tls.ProbeTLSConnection(ctx, cfg)
 	t.Logf("mysql prefer mode result: TLSActive=%v FallbackOccurred=%v err=%v",

@@ -4,64 +4,13 @@ package tls
 
 import (
 	"fmt"
-	"slices"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
-
-// ValidModes lists the supported TLS connection modes.
-var ValidModes = []string{"require", "verify-ca", "verify-full", "prefer"}
-
-// Config holds TLS settings for a single database connection.
-// It mirrors the config.TLSConfig YAML struct but is an independent
-// domain type to avoid coupling the tls package to config parsing.
-type Config struct {
-	Enabled              bool
-	Mode                 string // require | verify-ca | verify-full | prefer
-	CACertPath           string
-	ClientCert           string
-	ClientKey            string
-	ClientKeyPasswordEnv string // env-var name holding passphrase for an encrypted ClientKey
-}
-
-// Validate checks that the TLS configuration is internally consistent.
-// It returns a descriptive error for each invalid combination.
-func (c *Config) Validate() error {
-	if c == nil || !c.Enabled {
-		return nil
-	}
-
-	mode := c.Mode
-	if mode == "" {
-		mode = "prefer"
-	}
-
-	if !isValidMode(mode) {
-		return fmt.Errorf(
-			"invalid tls.mode %q: must be one of require, verify-ca, verify-full, prefer",
-			mode,
-		)
-	}
-
-	// verify-ca and verify-full require a CA cert
-	if (mode == "verify-ca" || mode == "verify-full") && c.CACertPath == "" {
-		return fmt.Errorf("tls.ca_cert is required when mode is %q", mode)
-	}
-
-	// client cert and key must be provided together
-	if (c.ClientCert != "") != (c.ClientKey != "") {
-		return fmt.Errorf("tls.client_cert and tls.client_key must both be set for mutual TLS")
-	}
-
-	// passphrase env var requires a client key
-	if c.ClientKeyPasswordEnv != "" && c.ClientKey == "" {
-		return fmt.Errorf("tls.client_key must be set when tls.client_key_password_env is configured")
-	}
-
-	return nil
-}
 
 // BuildTLSArgs returns the engine-specific CLI arguments needed to enable TLS.
 // Returns an empty slice when TLS is disabled or nil.
-func BuildTLSArgs(engine string, c *Config) []string {
+func BuildTLSArgs(engine string, c *ports.Config) []string {
 	if c == nil || !c.Enabled {
 		return nil
 	}
@@ -85,7 +34,7 @@ func BuildTLSArgs(engine string, c *Config) []string {
 	}
 }
 
-func buildPostgresTLSArgs(mode string, c *Config) []string {
+func buildPostgresTLSArgs(mode string, c *ports.Config) []string {
 	// PostgreSQL accepts sslmode as a connection string parameter
 	args := []string{fmt.Sprintf("--sslmode=%s", pgSSLMode(mode))}
 	if c.CACertPath != "" {
@@ -100,7 +49,7 @@ func buildPostgresTLSArgs(mode string, c *Config) []string {
 	return args
 }
 
-func buildMySQLTLSArgs(mode string, c *Config) []string {
+func buildMySQLTLSArgs(mode string, c *ports.Config) []string {
 	args := []string{fmt.Sprintf("--ssl-mode=%s", mysqlSSLMode(mode))}
 	if c.CACertPath != "" {
 		args = append(args, fmt.Sprintf("--ssl-ca=%s", c.CACertPath))
@@ -114,7 +63,7 @@ func buildMySQLTLSArgs(mode string, c *Config) []string {
 	return args
 }
 
-func buildMariaDBTLSArgs(mode string, c *Config) []string {
+func buildMariaDBTLSArgs(mode string, c *ports.Config) []string {
 	args := []string{"--ssl"}
 	if c.CACertPath != "" {
 		args = append(args, fmt.Sprintf("--ssl-ca=%s", c.CACertPath))
@@ -131,7 +80,7 @@ func buildMariaDBTLSArgs(mode string, c *Config) []string {
 	return args
 }
 
-func buildMongoDBTLSArgs(mode string, c *Config) []string {
+func buildMongoDBTLSArgs(mode string, c *ports.Config) []string {
 	if mode == "prefer" {
 		// MongoDB does not have a native "prefer" mode via CLI flags;
 		// omit TLS flags and let the server negotiate.
@@ -178,8 +127,4 @@ func mysqlSSLMode(mode string) string {
 	default: // prefer
 		return "PREFERRED"
 	}
-}
-
-func isValidMode(mode string) bool {
-	return slices.Contains(ValidModes, mode)
 }

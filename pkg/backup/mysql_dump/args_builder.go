@@ -6,6 +6,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/storage"
 	internaltls "github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -17,7 +18,7 @@ type MySqlDumpArgs struct {
 	Database       string          // MySQL database name
 	AdditionalArgs string          // Additional arguments for the mysql_dump command
 	Storage        *storage.Params // Storage parameters
-	TLS            *internaltls.Config
+	TLS            *ports.Config
 }
 
 // argsBuilder builds the arguments for the mysql_dump command

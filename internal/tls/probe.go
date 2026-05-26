@@ -10,32 +10,15 @@ import (
 	// These are already in go.mod as dependencies of the backup packages.
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
-
-// ProbeResult is returned by ProbeTLSConnection.
-type ProbeResult struct {
-	// TLSActive is true if the database connection uses TLS.
-	TLSActive bool
-
-	// FallbackOccurred is true when mode is "prefer" but TLS is not available.
-	FallbackOccurred bool
-}
-
-// DatabaseConfig carries the minimal connection parameters needed for probing.
-type DatabaseConfig struct {
-	Type     string // postgres | mysql | mariadb | mongodb
-	Host     string
-	Port     int
-	Username string
-	Password string
-	TLS      *Config
-}
 
 // ProbeTLSConnection attempts a lightweight database connection using the
 // configured TLS settings and reports whether TLS is active.
 //
 // For mode "prefer": if the TLS-enabled probe fails with a TLS handshake
-// error, ProbeResult.FallbackOccurred is set to true and no error is returned
+// error, ports.ProbeResult.FallbackOccurred is set to true and no error is returned
 // (the caller should emit a WARN log and proceed without TLS).
 //
 // For modes require/verify-ca/verify-full: a TLS failure is returned as an
@@ -43,9 +26,9 @@ type DatabaseConfig struct {
 //
 // MongoDB is skipped (returns TLSActive=false, no error) because mongodump
 // manages its own TLS via the URI/flags; Go has no lightweight mongo probe.
-func ProbeTLSConnection(ctx context.Context, cfg DatabaseConfig) (ProbeResult, error) {
+func ProbeTLSConnection(ctx context.Context, cfg ports.DatabaseConfig) (ports.ProbeResult, error) {
 	if cfg.TLS == nil || !cfg.TLS.Enabled {
-		return ProbeResult{}, nil
+		return ports.ProbeResult{}, nil
 	}
 
 	mode := cfg.TLS.Mode
@@ -60,11 +43,11 @@ func ProbeTLSConnection(ctx context.Context, cfg DatabaseConfig) (ProbeResult, e
 		return probeMySQL(ctx, cfg, mode)
 	default:
 		// mongodb and unknown types: skip probe
-		return ProbeResult{}, nil
+		return ports.ProbeResult{}, nil
 	}
 }
 
-func probePostgres(ctx context.Context, cfg DatabaseConfig, mode string) (ProbeResult, error) {
+func probePostgres(ctx context.Context, cfg ports.DatabaseConfig, mode string) (ports.ProbeResult, error) {
 	host := cfg.Host
 	if host == "" {
 		host = "127.0.0.1"
@@ -88,21 +71,21 @@ func probePostgres(ctx context.Context, cfg DatabaseConfig, mode string) (ProbeR
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return ProbeResult{}, fmt.Errorf("failed to open postgres probe connection: %w", err)
+		return ports.ProbeResult{}, fmt.Errorf("failed to open postgres probe connection: %w", err)
 	}
 	defer db.Close()
 
 	if err := db.PingContext(ctx); err != nil {
 		if mode == "prefer" && isTLSError(err) {
-			return ProbeResult{TLSActive: false, FallbackOccurred: true}, nil
+			return ports.ProbeResult{TLSActive: false, FallbackOccurred: true}, nil
 		}
-		return ProbeResult{}, fmt.Errorf("postgres TLS probe failed: %w", err)
+		return ports.ProbeResult{}, fmt.Errorf("postgres TLS probe failed: %w", err)
 	}
 
-	return ProbeResult{TLSActive: true}, nil
+	return ports.ProbeResult{TLSActive: true}, nil
 }
 
-func probeMySQL(ctx context.Context, cfg DatabaseConfig, mode string) (ProbeResult, error) {
+func probeMySQL(ctx context.Context, cfg ports.DatabaseConfig, mode string) (ports.ProbeResult, error) {
 	host := cfg.Host
 	if host == "" {
 		host = "127.0.0.1"
@@ -120,18 +103,18 @@ func probeMySQL(ctx context.Context, cfg DatabaseConfig, mode string) (ProbeResu
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return ProbeResult{}, fmt.Errorf("failed to open mysql probe connection: %w", err)
+		return ports.ProbeResult{}, fmt.Errorf("failed to open mysql probe connection: %w", err)
 	}
 	defer db.Close()
 
 	if err := db.PingContext(ctx); err != nil {
 		if mode == "prefer" && isTLSError(err) {
-			return ProbeResult{TLSActive: false, FallbackOccurred: true}, nil
+			return ports.ProbeResult{TLSActive: false, FallbackOccurred: true}, nil
 		}
-		return ProbeResult{}, fmt.Errorf("mysql TLS probe failed: %w", err)
+		return ports.ProbeResult{}, fmt.Errorf("mysql TLS probe failed: %w", err)
 	}
 
-	return ProbeResult{TLSActive: true}, nil
+	return ports.ProbeResult{TLSActive: true}, nil
 }
 
 // isTLSError returns true when err is a TLS handshake / certificate error,
