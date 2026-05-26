@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
@@ -24,7 +24,7 @@ func TestExecuteRestoreReturnsLockConflict(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	host, _ := os.Hostname()
-	jl := lock.JobLock{
+	jl := ports.JobLock{
 		PID:       os.Getpid(),
 		JobName:   "restore",
 		StartTime: time.Now(),

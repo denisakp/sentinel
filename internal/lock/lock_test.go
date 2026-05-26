@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sentlock "github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestAcquire_Atomicity(t *testing.T) {
@@ -59,7 +60,7 @@ func TestRelease_DeletesLockFile(t *testing.T) {
 }
 
 func TestCheckStale_DeadPID(t *testing.T) {
-	jl := &sentlock.JobLock{
+	jl := &ports.JobLock{
 		PID:       999999999,
 		JobName:   "test",
 		StartTime: time.Now().Add(-2 * time.Hour),
@@ -73,7 +74,7 @@ func TestCheckStale_DeadPID(t *testing.T) {
 }
 
 func TestCheckStale_LivePID(t *testing.T) {
-	jl := &sentlock.JobLock{
+	jl := &ports.JobLock{
 		PID:       os.Getpid(),
 		JobName:   "test",
 		StartTime: time.Now().Add(-2 * time.Hour),
@@ -223,7 +224,7 @@ func TestAcquire_ConcurrentSingleWinner(t *testing.T) {
 					atomic.AddInt64(&wins, 1)
 					return
 				}
-				if errors.Is(err, sentlock.ErrLockHeld) {
+				if errors.Is(err, ports.ErrLockHeld) {
 					atomic.AddInt64(&heldCount, 1)
 				} else {
 					t.Errorf("unexpected error: %v", err)
@@ -265,7 +266,7 @@ func TestRelease_OrderingSafeAgainstRacingAcquirer(t *testing.T) {
 	}
 
 	var racerErr error
-	var jl *sentlock.JobLock
+	var jl *ports.JobLock
 	done := make(chan struct{})
 	m2 := sentlock.NewManager(dir)
 	go func() {
@@ -284,7 +285,7 @@ func TestRelease_OrderingSafeAgainstRacingAcquirer(t *testing.T) {
 		t.Fatalf("racer error: %v", racerErr)
 	}
 	if jl == nil {
-		t.Fatal("racer got nil JobLock")
+		t.Fatal("racer got nil ports.JobLock")
 	}
 	_ = m2.Release("ord")
 }
@@ -303,15 +304,15 @@ func TestErrorsAreDistinguishable(t *testing.T) {
 	if err == nil {
 		t.Fatal("second acquire: expected error")
 	}
-	if !errors.Is(err, sentlock.ErrLockHeld) {
-		t.Errorf("errors.Is(err, ErrLockHeld) = false")
+	if !errors.Is(err, ports.ErrLockHeld) {
+		t.Errorf("errors.Is(err, ports.ErrLockHeld) = false")
 	}
-	if !errors.Is(err, sentlock.ErrLockExists) {
-		t.Errorf("errors.Is(err, ErrLockExists) = false (alias broken)")
+	if !errors.Is(err, ports.ErrLockExists) {
+		t.Errorf("errors.Is(err, ports.ErrLockExists) = false (alias broken)")
 	}
-	var he *sentlock.HeldError
+	var he *ports.HeldError
 	if !errors.As(err, &he) {
-		t.Errorf("errors.As(err, *HeldError) = false")
+		t.Errorf("errors.As(err, *ports.HeldError) = false")
 	}
 }
 
@@ -321,7 +322,7 @@ func TestAcquire_DoesNotStealOnRecycledPID(t *testing.T) {
 	dir := t.TempDir()
 	m := sentlock.NewManager(dir)
 	host, _ := os.Hostname()
-	jl := sentlock.JobLock{
+	jl := ports.JobLock{
 		PID:       os.Getpid(),
 		JobName:   "recycled",
 		StartTime: time.Now().Add(-10 * time.Second),
@@ -336,11 +337,11 @@ func TestAcquire_DoesNotStealOnRecycledPID(t *testing.T) {
 
 	_, err := m.TryAcquire("recycled", time.Minute)
 	if err == nil {
-		t.Fatal("TryAcquire: expected HeldError, got success")
+		t.Fatal("TryAcquire: expected ports.HeldError, got success")
 	}
-	var he *sentlock.HeldError
+	var he *ports.HeldError
 	if !errors.As(err, &he) {
-		t.Errorf("not HeldError: %v", err)
+		t.Errorf("not ports.HeldError: %v", err)
 	}
 	after, _ := os.ReadFile(path)
 	if string(after) != string(original) {
@@ -354,7 +355,7 @@ func TestAcquire_StaleLockReplacedAtomically(t *testing.T) {
 	dir := t.TempDir()
 	m := sentlock.NewManager(dir)
 	host, _ := os.Hostname()
-	jl := sentlock.JobLock{
+	jl := ports.JobLock{
 		PID:       999999999,
 		JobName:   "stale",
 		StartTime: time.Now().Add(-2 * time.Hour),
@@ -409,7 +410,7 @@ func TestAcquire_BlockingWaitsForRelease(t *testing.T) {
 	_ = m2.Release("blk")
 }
 
-// --- T035: context cancel returns ctx.Err, not ErrLockHeld ---
+// --- T035: context cancel returns ctx.Err, not ports.ErrLockHeld ---
 
 func TestAcquire_ContextCancelReturnsCtxErr(t *testing.T) {
 	dir := t.TempDir()
@@ -429,8 +430,8 @@ func TestAcquire_ContextCancelReturnsCtxErr(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}
-	if errors.Is(err, sentlock.ErrLockHeld) {
-		t.Errorf("err also matches ErrLockHeld; want only context.Canceled")
+	if errors.Is(err, ports.ErrLockHeld) {
+		t.Errorf("err also matches ports.ErrLockHeld; want only context.Canceled")
 	}
 }
 
@@ -456,7 +457,7 @@ func TestAcquireWithTimeoutRespectsDeadline(t *testing.T) {
 	}
 }
 
-// --- T039: Inspect returns LockState without holding ---
+// --- T039: Inspect returns ports.LockState without holding ---
 
 func TestInspect_ReturnsLockStateWithoutHolding(t *testing.T) {
 	dir := t.TempDir()

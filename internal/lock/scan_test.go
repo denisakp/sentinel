@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
-func writeLockFile(t *testing.T, dir, jobName string, jl JobLock) string {
+func writeLockFile(t *testing.T, dir, jobName string, jl ports.JobLock) string {
 	t.Helper()
 	body, err := json.Marshal(jl)
 	if err != nil {
@@ -34,21 +35,21 @@ func TestScanStale_MatchesAcquireSemantics(t *testing.T) {
 	t.Cleanup(func() { _ = m.Release("live") })
 
 	// (b) recent dead-PID — preserved
-	writeLockFile(t, dir, "recent-dead", JobLock{
+	writeLockFile(t, dir, "recent-dead", ports.JobLock{
 		PID: 999999999, JobName: "recent-dead",
 		StartTime: time.Now().Add(-10 * time.Second),
 		Hostname:  host,
 	})
 
 	// (c) ancient dead-PID — removed
-	ancient := writeLockFile(t, dir, "ancient-dead", JobLock{
+	ancient := writeLockFile(t, dir, "ancient-dead", ports.JobLock{
 		PID: 999999999, JobName: "ancient-dead",
 		StartTime: time.Now().Add(-2 * time.Hour),
 		Hostname:  host,
 	})
 
 	// (d) recycled-self young — preserved (live PID)
-	writeLockFile(t, dir, "recycled-self", JobLock{
+	writeLockFile(t, dir, "recycled-self", ports.JobLock{
 		PID: os.Getpid(), JobName: "recycled-self",
 		StartTime: time.Now().Add(-10 * time.Second),
 		Hostname:  host,
@@ -71,7 +72,7 @@ func TestScanStale_MatchesAcquireSemantics(t *testing.T) {
 func TestScanStale_RespectsForeignHost(t *testing.T) {
 	dir := t.TempDir()
 	m := NewManager(dir)
-	path := writeLockFile(t, dir, "foreign", JobLock{
+	path := writeLockFile(t, dir, "foreign", ports.JobLock{
 		PID: 999999999, JobName: "foreign",
 		StartTime: time.Now().Add(-2 * time.Hour),
 		Hostname:  "some-other-host",

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ScanAndCleanStaleLocks delegates to lock.Manager.ScanStale, which applies
@@ -30,7 +31,7 @@ func RunWithLock(ctx context.Context, lockDir, jobName string, fn func() error) 
 	mgr := lock.NewManager(lockDir)
 	_, err := mgr.TryAcquire(jobName, 0)
 	if err != nil {
-		var he *lock.HeldError
+		var he *ports.HeldError
 		if errors.As(err, &he) {
 			slog.InfoContext(ctx, "job already running — skipping",
 				"event", "job_already_running",

@@ -3,6 +3,7 @@ package lock
 import (
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestEvaluateLockState_DualCriterion(t *testing.T) {
@@ -25,7 +26,7 @@ func TestEvaluateLockState_DualCriterion(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			isProcessAlive = func(int) bool { return tc.alive }
-			jl := &JobLock{
+			jl := &ports.JobLock{
 				PID:       1234,
 				StartTime: time.Now().Add(-tc.age),
 			}
@@ -42,7 +43,7 @@ func TestEvaluateLockState_NegativeAgeNotStale(t *testing.T) {
 	t.Cleanup(func() { isProcessAlive = prev })
 	isProcessAlive = func(int) bool { return false }
 
-	jl := &JobLock{PID: 1, StartTime: time.Now().Add(1 * time.Hour)}
+	jl := &ports.JobLock{PID: 1, StartTime: time.Now().Add(1 * time.Hour)}
 	state := EvaluateLockState(jl, time.Minute)
 	if state.Age != 0 {
 		t.Errorf("Age = %s, want 0", state.Age)
