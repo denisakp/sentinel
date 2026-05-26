@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // TestAcquire_AtomicNoHalfWrite swaps writeBody with a failing wrapper and
@@ -12,7 +13,7 @@ import (
 func TestAcquire_AtomicNoHalfWrite(t *testing.T) {
 	prev := writeBody
 	t.Cleanup(func() { writeBody = prev })
-	writeBody = func(_ *Manager, _ *os.File, _ *JobLock) error {
+	writeBody = func(_ *Manager, _ *os.File, _ *ports.JobLock) error {
 		return errors.New("simulated write failure")
 	}
 

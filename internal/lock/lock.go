@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const maxBodyBytes = 4096 // POSIX guarantees atomic writes up to PIPE_BUF.
@@ -38,7 +40,7 @@ func (m *Manager) lockPath(jobName string) string {
 
 // writeBody marshals jl and writes it to f atomically (single Write under
 // flock). Swappable for tests.
-var writeBody = func(_ *Manager, f *os.File, jl *JobLock) error {
+var writeBody = func(_ *Manager, f *os.File, jl *ports.JobLock) error {
 	body, err := json.Marshal(jl)
 	if err != nil {
 		return fmt.Errorf("lock: marshal: %w", err)
@@ -59,28 +61,28 @@ var writeBody = func(_ *Manager, f *os.File, jl *JobLock) error {
 }
 
 // tryAcquireOnce makes a single non-blocking attempt to acquire the lock.
-// On success returns (*JobLock, nil) and the Manager retains the flock'd
-// fd in m.held for later Release. On contention returns *HeldError wrapping
-// ErrLockHeld. On unsupported FS returns an error wrapping ErrLockUnsupported.
-func (m *Manager) tryAcquireOnce(jobName string, staleThreshold time.Duration) (*JobLock, error) {
+// On success returns (*ports.JobLock, nil) and the Manager retains the flock'd
+// fd in m.held for later Release. On contention returns *ports.HeldError wrapping
+// ports.ErrLockHeld. On unsupported FS returns an error wrapping ports.ErrLockUnsupported.
+func (m *Manager) tryAcquireOnce(jobName string, staleThreshold time.Duration) (*ports.JobLock, error) {
 	if err := os.MkdirAll(m.dir, 0o755); err != nil {
-		return nil, fmt.Errorf("%w - mkdir %q: %v", ErrLockIO, m.dir, err)
+		return nil, fmt.Errorf("%w - mkdir %q: %v", ports.ErrLockIO, m.dir, err)
 	}
 
 	path := m.lockPath(jobName)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("%w - open %q: %v", ErrLockIO, path, err)
+		return nil, fmt.Errorf("%w - open %q: %v", ports.ErrLockIO, path, err)
 	}
 
 	if err := tryFlockEx(f); err != nil {
 		_ = f.Close()
-		if errors.Is(err, ErrLockHeld) {
+		if errors.Is(err, ports.ErrLockHeld) {
 			state := m.peekState(path, staleThreshold)
 			m.logContention(jobName, state)
-			return nil, &HeldError{State: state}
+			return nil, &ports.HeldError{State: state}
 		}
-		if errors.Is(err, ErrLockUnsupported) {
+		if errors.Is(err, ports.ErrLockUnsupported) {
 			m.logUnsupported(err)
 		}
 		return nil, err
@@ -94,7 +96,7 @@ func (m *Manager) tryAcquireOnce(jobName string, staleThreshold time.Duration) (
 			_ = funlock(f)
 			_ = f.Close()
 			m.logContention(jobName, state)
-			return nil, &HeldError{State: state}
+			return nil, &ports.HeldError{State: state}
 		}
 		// Stale → replace below.
 		slog.Info("stale lock removed",
@@ -119,19 +121,19 @@ func (m *Manager) tryAcquireOnce(jobName string, staleThreshold time.Duration) (
 	return jl, nil
 }
 
-func (m *Manager) peekState(path string, staleThreshold time.Duration) LockState {
+func (m *Manager) peekState(path string, staleThreshold time.Duration) ports.LockState {
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) == 0 {
-		return LockState{}
+		return ports.LockState{}
 	}
-	var jl JobLock
+	var jl ports.JobLock
 	if err := json.Unmarshal(data, &jl); err != nil {
-		return LockState{}
+		return ports.LockState{}
 	}
 	return EvaluateLockState(&jl, staleThreshold)
 }
 
-func (m *Manager) logContention(jobName string, state LockState) {
+func (m *Manager) logContention(jobName string, state ports.LockState) {
 	slog.Info("lock contention rejected",
 		"event", "lock_contention_rejected",
 		"job", jobName,
@@ -151,14 +153,14 @@ func (m *Manager) logUnsupported(err error) {
 }
 
 // TryAcquire is the non-blocking canonical entry point.
-func (m *Manager) TryAcquire(jobName string, staleThreshold time.Duration) (*JobLock, error) {
+func (m *Manager) TryAcquire(jobName string, staleThreshold time.Duration) (*ports.JobLock, error) {
 	return m.tryAcquireOnce(jobName, staleThreshold)
 }
 
 // AcquireContext blocks until the lock is acquired, ctx is cancelled, or its
-// deadline fires. On ctx fire it returns ctx.Err() (NOT ErrLockHeld). Polls
+// deadline fires. On ctx fire it returns ctx.Err() (NOT ports.ErrLockHeld). Polls
 // with exponential backoff (50 ms → 1 s cap).
-func (m *Manager) AcquireContext(ctx context.Context, jobName string, staleThreshold time.Duration) (*JobLock, error) {
+func (m *Manager) AcquireContext(ctx context.Context, jobName string, staleThreshold time.Duration) (*ports.JobLock, error) {
 	const startDelay = 50 * time.Millisecond
 	const maxDelay = 1 * time.Second
 	delay := startDelay
@@ -167,7 +169,7 @@ func (m *Manager) AcquireContext(ctx context.Context, jobName string, staleThres
 		if err == nil {
 			return jl, nil
 		}
-		if !errors.Is(err, ErrLockHeld) {
+		if !errors.Is(err, ports.ErrLockHeld) {
 			return nil, err
 		}
 		select {
@@ -185,7 +187,7 @@ func (m *Manager) AcquireContext(ctx context.Context, jobName string, staleThres
 }
 
 // AcquireWithTimeout is a bounded-wait wrapper around AcquireContext.
-func (m *Manager) AcquireWithTimeout(ctx context.Context, jobName string, staleThreshold, timeout time.Duration) (*JobLock, error) {
+func (m *Manager) AcquireWithTimeout(ctx context.Context, jobName string, staleThreshold, timeout time.Duration) (*ports.JobLock, error) {
 	if timeout <= 0 {
 		return m.AcquireContext(ctx, jobName, staleThreshold)
 	}
@@ -196,16 +198,16 @@ func (m *Manager) AcquireWithTimeout(ctx context.Context, jobName string, staleT
 
 // Acquire is the legacy non-blocking entry point. It is equivalent to
 // TryAcquire(jobName, 0) — no automatic stale replacement — and returns
-// ErrLockExists (== ErrLockHeld) when contended, preserving the original
+// ports.ErrLockExists (== ports.ErrLockHeld) when contended, preserving the original
 // errors.Is contract.
 //
 // Deprecated: use TryAcquire(jobName, staleThreshold) for new code.
-func (m *Manager) Acquire(jobName string) (*JobLock, error) {
+func (m *Manager) Acquire(jobName string) (*ports.JobLock, error) {
 	jl, err := m.tryAcquireOnce(jobName, 0)
 	if err != nil {
-		var he *HeldError
+		var he *ports.HeldError
 		if errors.As(err, &he) {
-			return nil, ErrLockExists
+			return nil, ports.ErrLockExists
 		}
 		return nil, err
 	}
@@ -240,7 +242,7 @@ func (m *Manager) Release(jobName string) error {
 
 // ReadLock reads the current lock file for jobName without taking any
 // kernel lock. Returns (nil, nil) when absent. Diagnostic only.
-func (m *Manager) ReadLock(jobName string) (*JobLock, error) {
+func (m *Manager) ReadLock(jobName string) (*ports.JobLock, error) {
 	path := m.lockPath(jobName)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -249,16 +251,16 @@ func (m *Manager) ReadLock(jobName string) (*JobLock, error) {
 		}
 		return nil, fmt.Errorf("lock: read %q: %w", path, err)
 	}
-	var jl JobLock
+	var jl ports.JobLock
 	if err := json.Unmarshal(data, &jl); err != nil {
 		return nil, fmt.Errorf("lock: parse %q: %w", path, err)
 	}
 	return &jl, nil
 }
 
-// Inspect takes a transient flock, evaluates LockState, releases the flock,
+// Inspect takes a transient flock, evaluates ports.LockState, releases the flock,
 // and returns. Returns (nil, nil) when the lock file is absent.
-func (m *Manager) Inspect(jobName string, staleThreshold time.Duration) (*LockState, error) {
+func (m *Manager) Inspect(jobName string, staleThreshold time.Duration) (*ports.LockState, error) {
 	path := m.lockPath(jobName)
 	f, err := os.OpenFile(path, os.O_RDWR, 0o600)
 	if err != nil {
@@ -270,7 +272,7 @@ func (m *Manager) Inspect(jobName string, staleThreshold time.Duration) (*LockSt
 	defer f.Close()
 
 	if err := tryFlockEx(f); err != nil {
-		if errors.Is(err, ErrLockHeld) {
+		if errors.Is(err, ports.ErrLockHeld) {
 			state := m.peekState(path, staleThreshold)
 			return &state, nil
 		}
@@ -280,7 +282,7 @@ func (m *Manager) Inspect(jobName string, staleThreshold time.Duration) (*LockSt
 
 	jl, parseErr := readLockFile(f)
 	if parseErr != nil || jl == nil {
-		return &LockState{}, nil
+		return &ports.LockState{}, nil
 	}
 	state := EvaluateLockState(jl, staleThreshold)
 	return &state, nil
@@ -356,7 +358,7 @@ func (m *Manager) ScanStale(staleThreshold time.Duration) (removed []string, err
 
 // readLockFile parses the JSON body from f (does not change file position
 // long-term; caller should expect position == EOF on return for empty files).
-func readLockFile(f *os.File) (*JobLock, error) {
+func readLockFile(f *os.File) (*ports.JobLock, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
@@ -367,16 +369,16 @@ func readLockFile(f *os.File) (*JobLock, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	var jl JobLock
+	var jl ports.JobLock
 	if err := json.Unmarshal(data, &jl); err != nil {
 		return nil, err
 	}
 	return &jl, nil
 }
 
-func newJobLock(jobName string) *JobLock {
+func newJobLock(jobName string) *ports.JobLock {
 	hostname, _ := os.Hostname()
-	return &JobLock{
+	return &ports.JobLock{
 		PID:       os.Getpid(),
 		JobName:   jobName,
 		StartTime: time.Now().UTC(),

@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
-// TestJobLock_JSONShape_v1Stable pins the on-disk JobLock JSON shape so
+// TestJobLock_JSONShape_v1Stable pins the on-disk ports.JobLock JSON shape so
 // any accidental struct edit trips CI (FR-010 / ADR 0007 contract).
 func TestJobLock_JSONShape_v1Stable(t *testing.T) {
-	jl := JobLock{
+	jl := ports.JobLock{
 		PID:       42,
 		JobName:   "demo",
 		StartTime: time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC),

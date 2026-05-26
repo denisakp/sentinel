@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/restore"
 )
 
@@ -122,7 +122,7 @@ func TestFailurePaths_LockConflict_ReturnsSkippedStatus(t *testing.T) {
 	// dual-criterion evaluator treats it as held rather than stale.
 	lockFilePath := filepath.Join(lockDir, "test-lock-conflict.lock")
 	host, _ := os.Hostname()
-	jl := lock.JobLock{
+	jl := ports.JobLock{
 		PID:       os.Getpid(),
 		JobName:   "test-lock-conflict",
 		StartTime: time.Now(),
