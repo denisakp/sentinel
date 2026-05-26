@@ -12,6 +12,7 @@ import (
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
@@ -175,7 +176,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 				slog.String("error", verifyErr.Error()),
 			)
 		}
-	} else if !errors.Is(manifestErr, manifest.ErrNoManifest) {
+	} else if !errors.Is(manifestErr, ports.ErrNoManifest) {
 		rsm.logger.Warn("Could not read backup manifest; skipping integrity check (pre-v1.1 backup)",
 			slog.String("job", config.Name),
 			slog.String("backup_path", config.BackupPath),

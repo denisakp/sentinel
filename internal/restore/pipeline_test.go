@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func testMasterKey() []byte {
@@ -31,7 +31,7 @@ func writePlainBackup(t *testing.T, content []byte) string {
 	return p
 }
 
-func createEncryptedBackup(t *testing.T, filePath string, backupID string, masterKey []byte) *manifest.BackupManifest {
+func createEncryptedBackup(t *testing.T, filePath string, backupID string, masterKey []byte) *ports.BackupManifest {
 	t.Helper()
 	in, err := os.Open(filePath)
 	if err != nil {
@@ -80,17 +80,17 @@ func createEncryptedBackup(t *testing.T, filePath string, backupID string, maste
 		t.Fatalf("stat encrypted file: %v", err)
 	}
 
-	return &manifest.BackupManifest{
+	return &ports.BackupManifest{
 		BackupID:     backupID,
 		Database:     "db",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC(),
 		SizeBytes:    info.Size(),
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     hw.Sum(),
 		},
-		Encryption: &manifest.EncryptionInfo{
+		Encryption: &ports.EncryptionInfo{
 			Algorithm:     "AES-256-GCM",
 			KeyDerivation: "PBKDF2-HMAC-SHA256",
 			Iterations:    100000,
@@ -109,9 +109,9 @@ func TestPreRestoreVerifyAndDecrypt_Plaintext(t *testing.T) {
 		t.Fatalf("computeHash() error = %v", err)
 	}
 
-	m := &manifest.BackupManifest{
+	m := &ports.BackupManifest{
 		BackupID: "plain-1",
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     hash,
 		},

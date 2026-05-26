@@ -8,6 +8,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
 
@@ -27,7 +28,7 @@ const (
 )
 
 // PlanAdvancedRestore computes a high-level restore plan before executor stages artifacts.
-func PlanAdvancedRestore(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *manifest.BackupManifest) (AdvancedRestorePlan, error) {
+func PlanAdvancedRestore(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest) (AdvancedRestorePlan, error) {
 	if request == nil {
 		return AdvancedRestorePlan{}, fmt.Errorf("advanced restore request is required")
 	}
@@ -59,7 +60,7 @@ func PlanAdvancedRestore(job config.RestoreJob, request *config.AdvancedRestoreR
 	}
 }
 
-func planPITR(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *manifest.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
+func planPITR(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
 	plan.Mode = AdvancedRestoreModePITR
 	if job.Type != "postgres" {
 		plan.ReasonCode = ReasonCodeUnsupportedDatabaseType
@@ -102,7 +103,7 @@ func planPITR(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *
 	return plan
 }
 
-func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *manifest.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
+func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
 	plan.Mode = AdvancedRestoreModeIncremental
 	if job.Type != "postgres" {
 		plan.ReasonCode = ReasonCodeUnsupportedDatabaseType
@@ -165,7 +166,7 @@ func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreReque
 func PlanAdvancedRestoreFromManifestPath(job config.RestoreJob, request *config.AdvancedRestoreRequest, manifestPath string) (AdvancedRestorePlan, error) {
 	m, err := manifest.LoadRestoreManifest(manifestPath)
 	if err != nil {
-		if errors.Is(err, manifest.ErrNoManifest) {
+		if errors.Is(err, ports.ErrNoManifest) {
 			return PlanAdvancedRestore(job, request, nil)
 		}
 		return AdvancedRestorePlan{}, fmt.Errorf("failed to load restore manifest: %w", err)

@@ -14,6 +14,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/spf13/cobra"
 )
 
@@ -64,7 +65,7 @@ var backupVerifyCmd = &cobra.Command{
 		manifestPath := exec.FilePath + ".manifest.json"
 		m, err := manifest.ReadManifest(manifestPath)
 		if err != nil {
-			if errors.Is(err, manifest.ErrNoManifest) {
+			if errors.Is(err, ports.ErrNoManifest) {
 				verifyPrintSkipped(outputFmt, backupID)
 				return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 			}

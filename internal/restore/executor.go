@@ -483,7 +483,7 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 
 	m, err := manifest.ReadManifest(artifact.ManifestPath)
 	if err != nil {
-		if errors.Is(err, manifest.ErrNoManifest) {
+		if errors.Is(err, ports.ErrNoManifest) {
 			return artifact.Path, nil
 		}
 		return "", err
@@ -659,7 +659,7 @@ func collectBinlogArtifactsFromManifests(manifestPaths []string) ([]string, erro
 		}
 		m, err := manifest.ReadManifest(manifestPath)
 		if err != nil {
-			if errors.Is(err, manifest.ErrNoManifest) {
+			if errors.Is(err, ports.ErrNoManifest) {
 				continue
 			}
 			return nil, fmt.Errorf("failed to read chain manifest %s: %w", manifestPath, err)
@@ -696,7 +696,7 @@ func collectOplogArtifactsFromManifests(manifestPaths []string) ([]string, error
 		}
 		m, err := manifest.ReadManifest(manifestPath)
 		if err != nil {
-			if errors.Is(err, manifest.ErrNoManifest) {
+			if errors.Is(err, ports.ErrNoManifest) {
 				continue
 			}
 			return nil, fmt.Errorf("failed to read chain manifest %s: %w", manifestPath, err)

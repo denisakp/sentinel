@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestPlanAdvancedRestore(t *testing.T) {
@@ -17,7 +17,7 @@ func TestPlanAdvancedRestore(t *testing.T) {
 		name       string
 		job        config.RestoreJob
 		request    *config.AdvancedRestoreRequest
-		manifest   *manifest.BackupManifest
+		manifest   *ports.BackupManifest
 		wantStatus PlanStatus
 		wantReason string
 		wantMode   AdvancedRestoreMode
@@ -50,9 +50,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 				RestoreMode:      "pitr",
 				PITRTimestampUTC: &now,
 			},
-			manifest: &manifest.BackupManifest{
+			manifest: &ports.BackupManifest{
 				BackupID: "base-001",
-				AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+				AdvancedRestore: &ports.AdvancedRestoreMetadata{
 					Capabilities:                  []string{"full", "pitr"},
 					RecoverableWindowStartUTC:     &start,
 					RecoverableWindowEndUTC:       &end,
@@ -70,10 +70,10 @@ func TestPlanAdvancedRestore(t *testing.T) {
 				RestoreMode:           "incremental",
 				IncrementalFromBackup: "base-001",
 			},
-			manifest: &manifest.BackupManifest{
-				AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			manifest: &ports.BackupManifest{
+				AdvancedRestore: &ports.AdvancedRestoreMetadata{
 					Capabilities: []string{"incremental"},
-					IncrementalLineage: &manifest.IncrementalLineageMetadata{
+					IncrementalLineage: &ports.IncrementalLineageMetadata{
 						BaselineBackupID:   "base-001",
 						ExecutionSupported: false,
 					},
@@ -91,10 +91,10 @@ func TestPlanAdvancedRestore(t *testing.T) {
 				IncrementalFromBackup: "base-001",
 				ConfirmFullFallback:   true,
 			},
-			manifest: &manifest.BackupManifest{
-				AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+			manifest: &ports.BackupManifest{
+				AdvancedRestore: &ports.AdvancedRestoreMetadata{
 					Capabilities: []string{"incremental"},
-					IncrementalLineage: &manifest.IncrementalLineageMetadata{
+					IncrementalLineage: &ports.IncrementalLineageMetadata{
 						BaselineBackupID:   "base-001",
 						ExecutionSupported: false,
 					},

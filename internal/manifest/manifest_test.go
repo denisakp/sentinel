@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestWriteReadManifest_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/test.manifest.json"
 
-	orig := &manifest.BackupManifest{
+	orig := &ports.BackupManifest{
 		BackupID:     "backup-001",
 		Database:     "prod-postgres",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC().Truncate(time.Second),
 		SizeBytes:    1024,
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     "abc123def456",
 		},
@@ -49,13 +50,13 @@ func TestReadManifest_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing manifest")
 	}
-	if !errors.Is(err, manifest.ErrNoManifest) {
+	if !errors.Is(err, ports.ErrNoManifest) {
 		t.Errorf("expected ErrNoManifest, got %v", err)
 	}
 }
 
 func TestWriteManifest_EmptyPath(t *testing.T) {
-	err := manifest.WriteManifest("", &manifest.BackupManifest{})
+	err := manifest.WriteManifest("", &ports.BackupManifest{})
 	if err == nil {
 		t.Error("expected error for empty path")
 	}
@@ -99,7 +100,7 @@ func TestWriteManifest_NilManifest(t *testing.T) {
 }
 
 func TestWriteManifest_EmptyManifestPath(t *testing.T) {
-	err := manifest.WriteManifest("", &manifest.BackupManifest{BackupID: "test"})
+	err := manifest.WriteManifest("", &ports.BackupManifest{BackupID: "test"})
 	if err == nil {
 		t.Error("expected error for empty path")
 	}
@@ -139,17 +140,17 @@ func TestWriteReadManifest_WithEncryption(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/encrypted.manifest.json"
 
-	orig := &manifest.BackupManifest{
+	orig := &ports.BackupManifest{
 		BackupID:     "enc-001",
 		Database:     "testdb",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC().Truncate(time.Second),
 		SizeBytes:    2048,
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     "abcdef1234567890",
 		},
-		Encryption: &manifest.EncryptionInfo{
+		Encryption: &ports.EncryptionInfo{
 			Algorithm:     "AES-256-GCM",
 			KeyDerivation: "PBKDF2-HMAC-SHA256",
 			Iterations:    100000,
@@ -184,21 +185,21 @@ func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
 	start := time.Date(2026, 3, 20, 20, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 3, 20, 23, 59, 0, 0, time.UTC)
 
-	orig := &manifest.BackupManifest{
+	orig := &ports.BackupManifest{
 		BackupID:     "adv-001",
 		Database:     "appdb",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC().Truncate(time.Second),
 		SizeBytes:    4096,
-		Hash:         manifest.HashInfo{Algorithm: "sha256", Value: "feedbeef"},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		Hash:         ports.HashInfo{Algorithm: "sha256", Value: "feedbeef"},
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities:                  []string{"full", "pitr", "incremental"},
 			InitialReleaseSupported:       true,
 			RecoverableWindowStartUTC:     &start,
 			RecoverableWindowEndUTC:       &end,
 			BaseBackupKind:                "physical",
 			RequiresIntegrityVerification: true,
-			PostgresRecovery: &manifest.PostgresRecoveryMetadata{
+			PostgresRecovery: &ports.PostgresRecoveryMetadata{
 				TimelineID:         "1",
 				WALStartLSN:        "0/1000000",
 				WALEndLSN:          "0/2000000",
@@ -206,7 +207,7 @@ func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
 				BackupEndTimeUTC:   end,
 				WALArchivePrefix:   "wal/archive/prefix",
 			},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:            "base-001",
 				RequiredBackupIDs:           []string{"base-001", "delta-001"},
 				CompatibleTargetFingerprint: "fp-123",
@@ -241,11 +242,11 @@ func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
 }
 
 func TestValidateIncrementalLineageContract(t *testing.T) {
-	m := &manifest.BackupManifest{
+	m := &ports.BackupManifest{
 		BackupID: "inc-001",
-		Hash:     manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+		Hash:     ports.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				ChainID:       "chain-1",
 				ChainIndex:    1,
 				MaxChainDepth: 6,

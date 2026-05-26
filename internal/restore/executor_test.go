@@ -121,17 +121,17 @@ func TestExecuteRestoreRequiresVerificationForPITR(t *testing.T) {
 	start := time.Date(2026, 3, 20, 20, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 3, 20, 23, 0, 0, 0, time.UTC)
 	manifestPath := filepath.Join(tmpDir, "backup.manifest.json")
-	if err := manifest.WriteManifest(manifestPath, &manifest.BackupManifest{
+	if err := manifest.WriteManifest(manifestPath, &ports.BackupManifest{
 		BackupID:     "base-001",
 		Database:     "app",
 		DatabaseType: "postgres",
 		CreatedAt:    start,
 		SizeBytes:    6,
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     "d045eb8a208bdba0a4a4dbd2cff08f7a2c12f00339e9d9ed9af08e717dfbd86c",
 		},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities:                  []string{"full", "pitr"},
 			RecoverableWindowStartUTC:     &start,
 			RecoverableWindowEndUTC:       &end,
@@ -203,19 +203,19 @@ func TestExecuteRestoreFallbackConfirmationRequired(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(tmpDir, "backup.manifest.json")
-	if err := manifest.WriteManifest(manifestPath, &manifest.BackupManifest{
+	if err := manifest.WriteManifest(manifestPath, &ports.BackupManifest{
 		BackupID:     "incr-003",
 		Database:     "app",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC(),
 		SizeBytes:    6,
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     "d045eb8a208bdba0a4a4dbd2cff08f7a2c12f00339e9d9ed9af08e717dfbd86c",
 		},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:   "base-001",
 				ExecutionSupported: false,
 			},
@@ -294,16 +294,16 @@ func TestExecuteRestore_CleansAssembledArtifactsOnEngineFailure(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	manifestPath := filepath.Join(tmpDir, "incremental.dump.manifest.json")
-	if err := manifest.WriteManifest(manifestPath, &manifest.BackupManifest{
+	if err := manifest.WriteManifest(manifestPath, &ports.BackupManifest{
 		BackupID:     "incr-002",
 		Database:     "app",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC(),
 		SizeBytes:    6,
-		Hash:         manifest.HashInfo{Algorithm: "sha256", Value: "abc"},
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		Hash:         ports.HashInfo{Algorithm: "sha256", Value: "abc"},
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:   "base-001",
 				RequiredBackupIDs:  []string{"incr-001"},
 				ExecutionSupported: true,
