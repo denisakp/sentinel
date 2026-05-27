@@ -7,7 +7,7 @@
 
 ## Context
 
-Sentinel prevents concurrent execution of the same job by acquiring a per-job file lock before backup or restore. The implementation at `internal/lock/lock.go` works as follows:
+Sentinel prevents concurrent execution of the same job by acquiring a per-job file lock before backup or restore. The implementation at `internal/adapters/lock/lock.go` works as follows:
 
 - One lock file per job: `<lock-dir>/<job-name>.lock`.
 - Lock acquisition opens the file with `O_CREATE|O_EXCL|O_WRONLY` and mode `0600`. The atomicity of `O_EXCL` is the mutual-exclusion mechanism.
@@ -71,7 +71,7 @@ Sentinel freezes the lock file format as **v1**:
 
 - **Filename**: `<lock-dir>/<job-name>.lock`. `job-name` is the operator-defined name from the YAML schedule entry.
 - **Creation**: `os.OpenFile(path, O_CREATE|O_EXCL|O_WRONLY, 0600)`. The atomicity of `O_EXCL` is the only mutual-exclusion mechanism.
-- **Payload**: JSON object with the fields `pid` (int, OS PID), `job_name` (string), `start_time` (RFC 3339 UTC), `hostname` (string). Implemented by `JobLock` in `internal/lock/types.go`.
+- **Payload**: JSON object with the fields `pid` (int, OS PID), `job_name` (string), `start_time` (RFC 3339 UTC), `hostname` (string). Implemented by `JobLock` in `internal/ports/lock.go`.
 - **Release**: `os.Remove(path)`. A missing file on release is not an error.
 - **Stale criteria**: a lock is stale if **both** of the following hold:
   - The PID is not alive on the current host (`os.FindProcess(pid).Signal(syscall.Signal(0))` returns an error, typically `ESRCH`), **and**
@@ -106,13 +106,13 @@ The package moves to `internal/adapters/lock/`. The interface (port) lives at `i
 
 ## Implementation checklist
 
-- [x] Kernel-enforced advisory lock layered over the v1 PID file via `syscall.Flock(LOCK_EX|LOCK_NB)` (`internal/lock/flock_unix.go`); non-POSIX builds fail fast (`flock_other.go`).
-- [x] Dual stale criterion (PID-dead AND age > threshold) enforced inside `internal/lock` via `EvaluateLockState` (`state.go`); callers no longer re-implement it.
+- [x] Kernel-enforced advisory lock layered over the v1 PID file via `syscall.Flock(LOCK_EX|LOCK_NB)` (`internal/adapters/lock/flock_unix.go`); non-POSIX builds fail fast (`flock_other.go`).
+- [x] Dual stale criterion (PID-dead AND age > threshold) enforced inside `internal/adapters/lock` via `EvaluateLockState` (`state.go`); callers no longer re-implement it.
 - [x] Atomic claim via temp-file + `os.Rename`; body write is a single `Write([]byte)` under flock, bounded by `maxBodyBytes = 4096` (≤ PIPE_BUF) — no observer sees a half-written file and empty/malformed lock files are reaped.
 - [x] Typed errors `ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`, `ErrUnsupportedPlatform` (`errors.go`); `ErrLockExists` retained as deprecated alias.
-- [x] On-disk v1 JSON shape pinned by golden test `TestJobLock_JSONShape_v1Stable` (`internal/lock/types_test.go`).
-- [x] Package doc comment on `Manager` summarises the v1 contract (`internal/lock/lock.go`).
-- [ ] Move `internal/lock/` to `internal/adapters/lock/` and create `internal/ports/lock.go` exposing `Locker`, `RunWithLock`, `RunWithTimeout`. Deferred to ADR 0001's hexagonal migration per PRD 10 plan §Structure Decision.
+- [x] On-disk v1 JSON shape pinned by golden test `TestJobLock_JSONShape_v1Stable` (`internal/adapters/lock/types_test.go`).
+- [x] Package doc comment on `Manager` summarises the v1 contract (`internal/adapters/lock/lock.go`).
+- [x] Moved `internal/lock/` to `internal/adapters/lock/` (spec 031, 2026-05-27); `internal/ports/lock.go` exposes `LockManager` (spec 028).
 - [ ] Cross-reference this ADR from `docs/runbooks/` once an incident-response runbook exists.
 
 ## Implementation (PRD 10)
@@ -120,7 +120,7 @@ The package moves to `internal/adapters/lock/`. The interface (port) lives at `i
 Promoted to Accepted on completion of `specs/010-lock-toctou/`. Key changes that close the gap between the contract above and the code:
 
 - Mutual exclusion is now backed by `syscall.Flock(LOCK_EX|LOCK_NB)` on the lock file fd (kernel-enforced); `O_CREATE|O_EXCL` is no longer the sole gate.
-- The dual stale criterion (PID-dead AND age > threshold) is enforced inside `internal/lock` itself via `EvaluateLockState`; callers no longer re-implement it.
+- The dual stale criterion (PID-dead AND age > threshold) is enforced inside `internal/adapters/lock` itself via `EvaluateLockState`; callers no longer re-implement it.
 - Body writes go through a single `Write([]byte)` under the held flock (< 4 KiB / PIPE_BUF), so no observer sees a half-written file.
 - Typed errors `ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`, `ErrUnsupportedPlatform` (plus `ErrLockExists` as a deprecated alias of `ErrLockHeld`) make failure modes distinguishable via `errors.Is`.
 - Three acquisition modes (`TryAcquire`, `AcquireContext`, `AcquireWithTimeout`) share one core path.
@@ -131,5 +131,5 @@ The on-disk v1 JSON shape (`PID`, `JobName`, `StartTime`, `Hostname`) is unchang
 ## References
 
 - ADR 0001 — Adopt hexagonal architecture (port location).
-- `internal/lock/lock.go`, `internal/lock/types.go` — current implementation.
+- `internal/adapters/lock/lock.go`, `internal/ports/lock.go` — current implementation.
 - `.prds/10-lock-toctou.md`, `specs/010-lock-toctou/` — the fix that promoted this ADR to Accepted.

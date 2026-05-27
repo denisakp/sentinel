@@ -45,7 +45,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/adapters/storage/` — storage backends (spec 029). Sub-packages `local/`, `s3/`, `gcs/`, `gdrive/`, `azure/`. Single registry constructor `NewBackend(p *BackendParams) (ports.StorageBackend, error)` covering all five types; legacy driver-side `Storage` interface + `NewStorage` live in `writer.go`. Cross-adapter contract suite `contract_test.go` + `contract_integration_test.go` (latter behind `//go:build integration`).
 - `internal/adapters/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash); implements `ports.EncryptWriter` / `DecryptReader` / `Hasher` / `KeyProvider` (spec 030).
 - `internal/manifest/` — SHA-256 manifest + HashingWriter for integrity
-- `internal/lock/` — file-based concurrency; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup
+- `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
 - `internal/tls/` — `internaltls.Config` (domain) mirrors `config.TLSConfig` (YAML); map manually
 - `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
@@ -60,7 +60,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/` MUST NOT import each other and MUST NOT import the parent `internal/adapters/storage` package (which holds the registry). The registry is allowed to import every adapter sibling. Domain code reaches concrete backends only through `storage.NewBackend(...)` returning `ports.StorageBackend` (and optionally `ports.StatusReporter` via type-assertion). The legacy `internal/storage/` package is gone; see spec 029.
 
 ### Retry / locking
-`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/lock`.
+`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/adapters/lock`.
 
 ### Storage backends
 Implement `ports.StorageBackend` (`internal/ports/storage.go`). Concrete adapters: `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`. Adding a new backend = one new sub-package + one new line in `internal/adapters/storage/registry.go`.
