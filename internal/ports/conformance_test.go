@@ -31,7 +31,9 @@ import (
 )
 
 // Conformance assertions. Each line is one verbatim claim:
-//   "<concrete> satisfies <port>"
+//
+//	"<concrete> satisfies <port>"
+//
 // Add a new line whenever a port or adapter changes shape.
 var (
 	// storage.go — StorageBackend port (5 methods).
