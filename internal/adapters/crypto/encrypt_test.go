@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 )
 
 func TestEncryptDecrypt_RoundTrip(t *testing.T) {

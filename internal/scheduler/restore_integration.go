@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
@@ -156,7 +156,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 	m, manifestErr := manifest.ReadManifest(manifestPath)
 	if manifestErr == nil {
 		// Manifest found: verify hash and handle decryption.
-		var keyProvider crypto.KeyProvider
+		var keyProvider ports.KeyProvider
 		if rsm.cfg != nil && (rsm.cfg.EncryptionKeyEnv != "" || rsm.cfg.EncryptionKeyFile != "") {
 			keyProvider = &crypto.FileKeyProvider{EnvVar: rsm.cfg.EncryptionKeyEnv, FilePath: rsm.cfg.EncryptionKeyFile}
 		}

@@ -43,7 +43,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/scheduler/` — cron loop (`scheduler.go`), execution (`executor.go`), restore hook (`restore_integration.go`)
 - `internal/ports/` — port (hexagonal interface) declarations; spec 028. Contains `StorageBackend`, `StorageObject`, `RepoStatus`, `StatusReporter`, plus the other architectural ports (dump, recorder, notifier, etc.). `internal/ports/storagetesting/` houses an in-memory `MockBackend` test fake reachable from domain test code without importing any adapter.
 - `internal/adapters/storage/` — storage backends (spec 029). Sub-packages `local/`, `s3/`, `gcs/`, `gdrive/`, `azure/`. Single registry constructor `NewBackend(p *BackendParams) (ports.StorageBackend, error)` covering all five types; legacy driver-side `Storage` interface + `NewStorage` live in `writer.go`. Cross-adapter contract suite `contract_test.go` + `contract_integration_test.go` (latter behind `//go:build integration`).
-- `internal/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash)
+- `internal/adapters/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash); implements `ports.EncryptWriter` / `DecryptReader` / `Hasher` / `KeyProvider` (spec 030).
 - `internal/manifest/` — SHA-256 manifest + HashingWriter for integrity
 - `internal/lock/` — file-based concurrency; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
@@ -86,5 +86,5 @@ Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/029-storage-adapters/plan.md`
+`specs/030-crypto-adapter-migration/plan.md`
 <!-- SPECKIT END -->

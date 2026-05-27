@@ -7,7 +7,7 @@
 
 ## Context
 
-Sentinel offers opt-in encryption of backup artefacts via `encryption_key_env`. The key is a 32-byte secret (AES-256). The implementation streams the backup through a `ChunkEncryptWriter` defined at `internal/crypto/encrypt.go`. Concretely:
+Sentinel offers opt-in encryption of backup artefacts via `encryption_key_env`. The key is a 32-byte secret (AES-256). The implementation streams the backup through a `ChunkEncryptWriter` defined at `internal/adapters/crypto/encrypt.go`. Concretely:
 
 - **Cipher**: AES-256-GCM (`crypto/cipher.NewGCM`).
 - **Chunk size**: 64 KB (`chunkSize = 64 * 1024`).
@@ -63,7 +63,7 @@ The implementation Sentinel ships today. One random 12-byte base nonce per strea
 - Unique nonce per chunk by construction; no collision risk under one key/stream.
 - Only the base nonce (12 bytes) is stored, in the manifest, not on the artefact.
 - Each chunk is independently authenticated and the framing length prefix bounds decrypt allocations.
-- Already implemented and tested (`internal/crypto/encrypt_test.go`).
+- Already implemented and tested (`internal/adapters/crypto/encrypt_test.go`).
 
 **Cons**
 - The XOR-counter scheme is a custom construction; it is correct (each chunk has a unique nonce under one key) but is not a named standard.
@@ -135,16 +135,16 @@ A future ADR introducing a v2 envelope must:
 
 ## Implementation checklist
 
-- [x] Defensive assertion in `flushChunk` errors on `chunkIdx == math.MaxUint64` rather than wrapping (`internal/crypto/encrypt.go:135`).
-- [x] Package doc comment in `internal/crypto/encrypt.go` summarises the v1/v2 envelope contract and cross-references this ADR.
+- [x] Defensive assertion in `flushChunk` errors on `chunkIdx == math.MaxUint64` rather than wrapping (`internal/adapters/crypto/encrypt.go:135`).
+- [x] Package doc comment in `internal/adapters/crypto/encrypt.go` summarises the v1/v2 envelope contract and cross-references this ADR.
 - [x] Decrypt bound enforced (`maxChunkSize = chunkSize + 16`) with typed `ErrChunkTooLarge` / `ErrAuthTagFailed` and CLI mapping (`FriendlyDecryptError`).
 - [x] Envelope v2 header bump shipped with `--allow-legacy-envelope` dual-decoder (see Amendments + `specs/007-crypto-nonce-xor-fix/`).
-- [ ] Move `internal/crypto/` to `internal/adapters/crypto/` and add `internal/ports/crypto.go` (`Encrypter`, `Decrypter`). Deferred to ADR 0001's hexagonal migration; not blocking this ADR.
+- [x] Moved `internal/crypto/` to `internal/adapters/crypto/` (spec 030, 2026-05-27); ports `EncryptWriter`/`DecryptReader`/`Hasher`/`KeyProvider` exposed at `internal/ports/{encryption,hasher,crypto}.go` (spec 028).
 - [x] Cross-reference this ADR from `docs/runbooks/enable-encryption.md` and `docs/runbooks/recover-legacy-envelope.md`.
 
 ## Enforcement
 
-The chunk-length-prefix invariant is enforced at the read site by `maxChunkSize = chunkSize + 16` and the bound check in `(*ChunkDecryptReader).readChunk` (`internal/crypto/decrypt.go`). Violations return the sentinel `crypto.ErrChunkTooLarge`; auth-tag failures return `crypto.ErrAuthTagFailed`. CLI surfaces map both to the operator-facing message `file corrupt or wrong key` via `internal/cli.FriendlyDecryptError`. See `specs/008-decrypt-oom-cap/`.
+The chunk-length-prefix invariant is enforced at the read site by `maxChunkSize = chunkSize + 16` and the bound check in `(*ChunkDecryptReader).readChunk` (`internal/adapters/crypto/decrypt.go`). Violations return the sentinel `crypto.ErrChunkTooLarge`; auth-tag failures return `crypto.ErrAuthTagFailed`. CLI surfaces map both to the operator-facing message `file corrupt or wrong key` via `internal/cli.FriendlyDecryptError`. See `specs/008-decrypt-oom-cap/`.
 
 ## Amendments
 
@@ -154,6 +154,6 @@ The chunk-length-prefix invariant is enforced at the read site by `maxChunkSize 
 
 - ADR 0001 — Adopt hexagonal architecture (port location).
 - ADR 0005 — Manifest v1 format (`EncryptionInfo` shape).
-- `internal/crypto/encrypt.go`, `internal/crypto/decrypt.go` — current implementation.
+- `internal/adapters/crypto/encrypt.go`, `internal/adapters/crypto/decrypt.go` — current implementation.
 - `.prds/01-crypto-nonce-xor-fix.md` — historical fix that established the current nonce scheme.
 - NIST SP 800-38D — AES-GCM specification, nonce-uniqueness requirement.

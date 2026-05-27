@@ -102,5 +102,5 @@ To stop producing encrypted backups, remove `encryption_key_env` / `encryption_k
 ## References
 
 - ADR 0006 — Encryption envelope v1 (`docs/adr/0006-encryption-envelope-v1.md`)
-- `internal/crypto/encrypt.go`, `internal/crypto/envelope.go`
+- `internal/adapters/crypto/encrypt.go`, `internal/adapters/crypto/envelope.go`
 - `internal/cli/security.go`

@@ -11,11 +11,6 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-// KeyProvider abstracts master key loading. Enables future KMS integration.
-type KeyProvider interface {
-	GetKey() ([]byte, error)
-}
-
 // FileKeyProvider reads the master encryption key from an environment variable
 // or a file. The key must be a base64-encoded 32-byte value.
 type FileKeyProvider struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 )
 
 func TestFileKeyProvider_EnvVar(t *testing.T) {
