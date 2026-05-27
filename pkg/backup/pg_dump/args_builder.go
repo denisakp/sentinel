@@ -34,6 +34,9 @@ type PgDumpArgs struct {
 	WALEndLSN          string    // Last WAL LSN in backup lineage
 }
 
+// engineOptions satisfies ports.EngineOptions.
+func (*PgDumpArgs) IsEngineOptions() {}
+
 // argsBuilder builds the arguments for the pg_dump command
 func argsBuilder(pda *PgDumpArgs, backupPath string) ([]string, error) {
 	if err := validateRequiredArgs(pda); err != nil {

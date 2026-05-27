@@ -21,6 +21,9 @@ type MySqlDumpArgs struct {
 	TLS            *ports.Config
 }
 
+// engineOptions satisfies ports.EngineOptions.
+func (*MySqlDumpArgs) IsEngineOptions() {}
+
 // argsBuilder builds the arguments for the mysql_dump command
 func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 	if err := validateRequiredArgs(mda); err != nil {
