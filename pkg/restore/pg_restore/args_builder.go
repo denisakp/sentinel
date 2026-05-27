@@ -2,7 +2,7 @@ package pg_restore
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 

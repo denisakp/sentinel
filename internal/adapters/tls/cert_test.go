@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 // generateSelfSignedCert creates a temporary self-signed cert PEM file.

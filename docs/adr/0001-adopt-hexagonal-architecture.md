@@ -137,7 +137,7 @@ The migration is staged. Each move listed in `docs/architecture/project-layout.m
 - [x] Move `internal/crypto/` to `internal/adapters/crypto/` (spec 030, 2026-05-27); ports `Hasher`/`KeyProvider`/`EncryptWriter`/`DecryptReader` already exposed in `internal/ports/{crypto,encryption,hasher}.go` by spec 028.
 - [x] Move `internal/lock/` to `internal/adapters/lock/` (spec 031, 2026-05-27); port `LockManager` already exposed in `internal/ports/lock.go` by spec 028.
 - [x] Move `internal/monitor/` to `internal/adapters/monitor/` (spec 032, 2026-05-27); port `Recorder` already exposed in `internal/ports/recorder.go` by spec 028.
-- [ ] Move `internal/tls/` to `internal/adapters/tls/`.
+- [x] Move `internal/tls/` to `internal/adapters/tls/` (spec 033, 2026-05-27); port `Prober` already exposed in `internal/ports/tls.go` by spec 028.
 - [ ] Move `internal/manifest/` and `internal/retention/` to `internal/domain/{manifest,retention}/`.
 - [ ] Extract orchestration from `internal/cli/backup.go` (1475 lines) into `internal/domain/backup/`; the CLI command becomes a thin flag-parser + domain call.
 - [ ] Extract orchestration from `internal/scheduler/restore_integration.go` into `internal/domain/restore/`; the scheduler integration becomes a thin wrapper.

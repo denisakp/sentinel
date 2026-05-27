@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/ports"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 func TestRegisterUnregisterCloseAll(t *testing.T) {

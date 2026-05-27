@@ -23,7 +23,7 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage/gdrive"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
-	"github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"

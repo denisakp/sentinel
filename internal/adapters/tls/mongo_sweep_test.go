@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 func TestSweepOrphanMaterial(t *testing.T) {
