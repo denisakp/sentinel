@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage/azure"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
-	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 )
 
 const reasonProtectedActiveBaseline = "protected active baseline"
@@ -138,7 +138,7 @@ type s3DeleteBackend interface {
 }
 
 var newS3DeleteBackend = func(cfg config.StorageConfig) (s3DeleteBackend, error) {
-	client, err := sentinel_s3.NewS3Storage(&sentinel_s3.AmazonS3Storage{
+	client, err := s3.NewS3Storage(&s3.AmazonS3Storage{
 		Bucket:    cfg.S3Bucket,
 		Region:    cfg.S3Region,
 		EndPoint:  cfg.S3BucketEndpoint,
@@ -148,7 +148,7 @@ var newS3DeleteBackend = func(cfg config.StorageConfig) (s3DeleteBackend, error)
 	if err != nil {
 		return nil, err
 	}
-	return sentinel_s3.NewS3Backend(client), nil
+	return s3.NewS3Backend(client), nil
 }
 
 type gcsDeleteBackend interface {

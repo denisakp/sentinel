@@ -25,7 +25,7 @@ import (
 	"github.com/denisakp/sentinel/internal/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/retention"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"

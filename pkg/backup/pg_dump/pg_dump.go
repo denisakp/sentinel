@@ -9,7 +9,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 // checkConnectivity is overridable in tests.

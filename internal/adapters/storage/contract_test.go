@@ -37,14 +37,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/storage/local"
-	"github.com/denisakp/sentinel/internal/storage/storagetesting"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/ports/storagetesting"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Compile-time assertion that MockBackend satisfies the port. Kept here
 // rather than in storagetesting/ to honour the import-cycle rule
-// (sub-packages of internal/storage must not import internal/storage).
+// (sub-packages of internal/adapters/storage must not import internal/adapters/storage).
 var _ ports.StorageBackend = (*storagetesting.MockBackend)(nil)
 
 // ContractCase is one row of the contract table. Adding a case = adding a row.

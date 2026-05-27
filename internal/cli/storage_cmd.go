@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/denisakp/sentinel/internal/storage/azure"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
-	"github.com/denisakp/sentinel/internal/storage/gdrive"
-	"github.com/denisakp/sentinel/internal/storage/local"
-	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gdrive"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 )
 
 // StorageCmd is the root command for storage backend management.
@@ -69,19 +69,19 @@ var storageStatusCmd = &cobra.Command{
 				}
 
 			case "s3":
-				s3Storage := &sentinel_s3.AmazonS3Storage{
+				s3Storage := &s3.AmazonS3Storage{
 					Bucket:    storageCfg.S3Bucket,
 					Region:    storageCfg.S3Region,
 					EndPoint:  storageCfg.S3BucketEndpoint,
 					AccessKey: storageCfg.S3AccessKeyID,
 					SecretKey: storageCfg.S3SecretAccessKey,
 				}
-				client, err := sentinel_s3.NewS3Storage(s3Storage)
+				client, err := s3.NewS3Storage(s3Storage)
 				if err != nil {
 					entry.Reachable = false
 					entry.Error = err.Error()
 				} else {
-					backend := sentinel_s3.NewS3Backend(client)
+					backend := s3.NewS3Backend(client)
 					status, _ := backend.Status(ctx)
 					entry.Reachable = status.Reachable
 					entry.BackupCount = status.BackupCount

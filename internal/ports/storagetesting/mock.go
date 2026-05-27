@@ -91,6 +91,28 @@ func (m *MockBackend) Exists(_ context.Context, path string) (bool, error) {
 	return ok, nil
 }
 
+// Status implements ports.StatusReporter using the in-memory state. Reachable
+// is always true; counts and total size are derived from the stored objects.
+func (m *MockBackend) Status(_ context.Context) (ports.RepoStatus, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var total int64
+	var last *time.Time
+	for _, obj := range m.objects {
+		total += int64(len(obj.data))
+		if last == nil || obj.modTime.After(*last) {
+			t := obj.modTime
+			last = &t
+		}
+	}
+	return ports.RepoStatus{
+		Reachable:      true,
+		BackupCount:    len(m.objects),
+		TotalSizeBytes: total,
+		LastBackup:     last,
+	}, nil
+}
+
 // PutBytes seeds the store without going through a temp file.
 func (m *MockBackend) PutBytes(key string, data []byte) {
 	cp := append([]byte(nil), data...)

@@ -10,7 +10,7 @@ import (
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 var runSharedRestoreExecution = internalrestore.ExecuteRestore

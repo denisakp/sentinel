@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
 )
 

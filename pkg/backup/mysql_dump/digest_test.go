@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 func installFakeEngine(t *testing.T, engineName, payload string) {

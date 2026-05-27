@@ -12,7 +12,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 	backupincremental "github.com/denisakp/sentinel/internal/backup/incremental"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 var allowedPostgresOptions = map[string]bool{

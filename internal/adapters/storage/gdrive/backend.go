@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -110,10 +109,10 @@ func (b *GDriveBackend) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 // Status returns the repository status for this Google Drive backend.
-func (b *GDriveBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
+func (b *GDriveBackend) Status(ctx context.Context) (ports.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return storagetypes.RepoStatus{Reachable: false, Error: err.Error()}, nil
+		return ports.RepoStatus{Reachable: false, Error: err.Error()}, nil
 	}
 	var total int64
 	var lastMod *time.Time
@@ -124,7 +123,7 @@ func (b *GDriveBackend) Status(ctx context.Context) (storagetypes.RepoStatus, er
 			lastMod = &t
 		}
 	}
-	return storagetypes.RepoStatus{
+	return ports.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,
