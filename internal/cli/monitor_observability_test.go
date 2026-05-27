@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/spf13/cobra"
 	"github.com/denisakp/sentinel/internal/ports"
 )

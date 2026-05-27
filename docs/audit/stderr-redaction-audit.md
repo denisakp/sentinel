@@ -28,7 +28,7 @@ the extended `credentialPatterns` set (P1–P7).
 The monitor and notifier sinks serialize the dump-adapter error string
 verbatim; redaction MUST therefore happen upstream. Identity covered by:
 
-- `internal/monitor/sink_identity_test.go::TestRecordExecution_ErrorMessageIsIdentity`
+- `internal/adapters/monitor/sink_identity_test.go::TestRecordExecution_ErrorMessageIsIdentity`
 - `internal/notifier/webhook_sink_identity_test.go::TestWebhookPayload_ErrorFieldIsIdentity`
 
 ## CI gate

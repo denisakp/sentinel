@@ -3,7 +3,7 @@ package incremental_test
 import (
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 

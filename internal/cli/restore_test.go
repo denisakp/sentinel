@@ -16,7 +16,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/spf13/cobra"
 )

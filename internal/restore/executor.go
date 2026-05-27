@@ -17,7 +17,7 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
@@ -49,7 +49,7 @@ type ExecutionRequest struct {
 	Job               config.RestoreJob
 	Config            *config.Configuration
 	LockDir           string
-	Monitor           *monitor.Monitor
+	Monitor           ports.Recorder
 	VerifyAfterRun    func(context.Context, config.RestoreJob) (bool, error)
 	PostRestoreHook   func(context.Context, config.RestoreJob, string) error
 	ConflictEvaluator func(context.Context, config.RestoreJob, string) error
