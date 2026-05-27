@@ -6,15 +6,10 @@ package types
 
 import "time"
 
-// StorageObject represents a single object returned by a StorageBackend List call.
-type StorageObject struct {
-	Path         string
-	SizeBytes    int64
-	LastModified time.Time
-	ETag         string
-}
-
 // RepoStatus summarises the current state of a storage repository.
+//
+// Used only by the `sentinel storage status` command; not part of the
+// StorageBackend port surface.
 type RepoStatus struct {
 	Reachable      bool
 	BackupCount    int

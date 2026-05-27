@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	storage "github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
@@ -18,11 +19,11 @@ import (
 // Compile-time interface compliance assertions.
 // These will fail at compile time if any backend type no longer satisfies the interface.
 var (
-	_ storage.StorageBackend = (*local.LocalBackend)(nil)
-	_ storage.StorageBackend = (*sentinel_s3.S3Backend)(nil)
-	_ storage.StorageBackend = (*gdrive.GDriveBackend)(nil)
-	_ storage.StorageBackend = (*azure.AzureBlobBackend)(nil)
-	_ storage.StorageBackend = (*gcs.GCSBackend)(nil)
+	_ ports.StorageBackend = (*local.LocalBackend)(nil)
+	_ ports.StorageBackend = (*sentinel_s3.S3Backend)(nil)
+	_ ports.StorageBackend = (*gdrive.GDriveBackend)(nil)
+	_ ports.StorageBackend = (*azure.AzureBlobBackend)(nil)
+	_ ports.StorageBackend = (*gcs.GCSBackend)(nil)
 )
 
 // TestLocalBackend_InterfaceSmoke verifies the LocalBackend honours the

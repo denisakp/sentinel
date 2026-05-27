@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/local"
@@ -34,7 +35,7 @@ type StagedArtifact struct {
 	Retained     bool
 }
 
-var newS3RestoreBackend = func(src config.RestoreBackupSource) (storage.StorageBackend, error) {
+var newS3RestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBackend, error) {
 	return storage.NewRestoreBackend(storage.RestoreBackendParams{
 		Type:              "s3",
 		S3Bucket:          src.S3Bucket,
@@ -45,7 +46,7 @@ var newS3RestoreBackend = func(src config.RestoreBackupSource) (storage.StorageB
 	})
 }
 
-var newGCSRestoreBackend = func(src config.RestoreBackupSource) (storage.StorageBackend, error) {
+var newGCSRestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBackend, error) {
 	return storage.NewRestoreBackend(storage.RestoreBackendParams{
 		Type:               "gcs",
 		GCSBucket:          src.GCSBucket,
@@ -125,7 +126,7 @@ func StageChainArtifacts(ctx context.Context, job config.RestoreJob, backupIDs [
 		return nil, err
 	}
 
-	selected := make([]storage.StorageObject, 0, len(backupIDs))
+	selected := make([]ports.StorageObject, 0, len(backupIDs))
 	sizes := make([]int64, 0, len(backupIDs))
 	for _, backupID := range backupIDs {
 		obj, err := resolveChainObject(backupID, objects)
@@ -217,7 +218,7 @@ func resolveSourceObject(ctx context.Context, source config.RestoreBackupSource)
 	if err != nil {
 		return "", 0, err
 	}
-	var matches []storage.StorageObject
+	var matches []ports.StorageObject
 	for _, object := range objects {
 		matched, matchErr := filepath.Match(source.BackupPath, object.Path)
 		if matchErr == nil && matched {
@@ -233,7 +234,7 @@ func resolveSourceObject(ctx context.Context, source config.RestoreBackupSource)
 	return matches[0].Path, matches[0].SizeBytes, nil
 }
 
-func listSourceObjects(ctx context.Context, source config.RestoreBackupSource) ([]storage.StorageObject, error) {
+func listSourceObjects(ctx context.Context, source config.RestoreBackupSource) ([]ports.StorageObject, error) {
 	switch source.Type {
 	case "local":
 		backend := local.NewLocalBackend(source.LocalPath)
@@ -357,12 +358,12 @@ func EnsureStagingCapacityForArtifacts(dir string, artifactSizes []int64) error 
 // matched. Returns ErrAmbiguousBackupID (wrapped with the candidate list) when
 // two or more objects satisfy the boundary rule and no exact full-path match
 // exists, ErrSourceObjectNotFound when no object satisfies the rule.
-func resolveChainObject(backupID string, objects []storage.StorageObject) (storage.StorageObject, error) {
+func resolveChainObject(backupID string, objects []ports.StorageObject) (ports.StorageObject, error) {
 	if backupID == "" {
-		return storage.StorageObject{}, fmt.Errorf("resolve chain object: empty backup id")
+		return ports.StorageObject{}, fmt.Errorf("resolve chain object: empty backup id")
 	}
 
-	var exact []storage.StorageObject
+	var exact []ports.StorageObject
 	for _, obj := range objects {
 		if obj.Path == backupID {
 			exact = append(exact, obj)
@@ -372,7 +373,7 @@ func resolveChainObject(backupID string, objects []storage.StorageObject) (stora
 		return exact[0], nil
 	}
 
-	var candidates []storage.StorageObject
+	var candidates []ports.StorageObject
 	for _, obj := range objects {
 		if matchesBackupIDBoundary(filepath.Base(obj.Path), backupID) {
 			candidates = append(candidates, obj)
@@ -381,7 +382,7 @@ func resolveChainObject(backupID string, objects []storage.StorageObject) (stora
 
 	switch len(candidates) {
 	case 0:
-		return storage.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
+		return ports.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
 	case 1:
 		return candidates[0], nil
 	default:
@@ -390,7 +391,7 @@ func resolveChainObject(backupID string, objects []storage.StorageObject) (stora
 			paths = append(paths, c.Path)
 		}
 		sort.Strings(paths)
-		return storage.StorageObject{}, fmt.Errorf("%w: %s matches multiple objects: %s", ErrAmbiguousBackupID, backupID, strings.Join(paths, ", "))
+		return ports.StorageObject{}, fmt.Errorf("%w: %s matches multiple objects: %s", ErrAmbiguousBackupID, backupID, strings.Join(paths, ", "))
 	}
 }
 

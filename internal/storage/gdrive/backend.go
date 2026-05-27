@@ -10,6 +10,7 @@ import (
 	"time"
 
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // GDriveBackend implements StorageBackend for Google Drive storage.
@@ -67,7 +68,7 @@ func (b *GDriveBackend) Delete(ctx context.Context, path string) error {
 }
 
 // List returns all files in the Google Drive folder matching the given prefix.
-func (b *GDriveBackend) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
+func (b *GDriveBackend) List(ctx context.Context, prefix string) ([]ports.StorageObject, error) {
 	query := fmt.Sprintf("'%s' in parents and trashed=false", b.client.folderId)
 	fileList, err := b.client.service.Files.List().
 		Q(query).
@@ -78,12 +79,12 @@ func (b *GDriveBackend) List(ctx context.Context, prefix string) ([]storagetypes
 		return nil, fmt.Errorf("gdrive: failed to list files: %w", err)
 	}
 
-	var objects []storagetypes.StorageObject
+	var objects []ports.StorageObject
 	for _, f := range fileList.Files {
 		if prefix != "" && !strings.HasPrefix(f.Name, prefix) {
 			continue
 		}
-		obj := storagetypes.StorageObject{
+		obj := ports.StorageObject{
 			Path:      f.Name,
 			SizeBytes: f.Size,
 		}

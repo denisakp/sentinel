@@ -10,6 +10,7 @@ import (
 	"time"
 
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // LocalBackend implements StorageBackend for local filesystem storage.
@@ -49,8 +50,8 @@ func (b *LocalBackend) Delete(_ context.Context, path string) error {
 }
 
 // List returns all files under the base path matching the given prefix.
-func (b *LocalBackend) List(_ context.Context, prefix string) ([]storagetypes.StorageObject, error) {
-	var objects []storagetypes.StorageObject
+func (b *LocalBackend) List(_ context.Context, prefix string) ([]ports.StorageObject, error) {
+	var objects []ports.StorageObject
 	err := filepath.Walk(b.basePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err
@@ -59,7 +60,7 @@ func (b *LocalBackend) List(_ context.Context, prefix string) ([]storagetypes.St
 		if prefix != "" && !strings.HasPrefix(rel, prefix) {
 			return nil
 		}
-		objects = append(objects, storagetypes.StorageObject{
+		objects = append(objects, ports.StorageObject{
 			Path:         rel,
 			SizeBytes:    info.Size(),
 			LastModified: info.ModTime().UTC(),

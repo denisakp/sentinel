@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/option"
 
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const gcsEmulatorHostEnv = "STORAGE_EMULATOR_HOST"
@@ -49,7 +50,7 @@ type gcsBucketClient interface {
 	Upload(ctx context.Context, srcPath, object string) error
 	Download(ctx context.Context, object, destPath string) error
 	Delete(ctx context.Context, object string) error
-	List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error)
+	List(ctx context.Context, prefix string) ([]ports.StorageObject, error)
 	Exists(ctx context.Context, object string) (bool, error)
 }
 
@@ -137,7 +138,7 @@ func (b *GCSBackend) Delete(ctx context.Context, path string) error {
 }
 
 // List returns objects under prefix.
-func (b *GCSBackend) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
+func (b *GCSBackend) List(ctx context.Context, prefix string) ([]ports.StorageObject, error) {
 	objects, err := b.client.List(ctx, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("gcs: failed to list objects: %w", err)
@@ -284,9 +285,9 @@ func (s *sdkBucketClient) Delete(ctx context.Context, object string) error {
 	return err
 }
 
-func (s *sdkBucketClient) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
+func (s *sdkBucketClient) List(ctx context.Context, prefix string) ([]ports.StorageObject, error) {
 	it := s.bucket.Objects(ctx, &gcsapi.Query{Prefix: prefix})
-	objects := make([]storagetypes.StorageObject, 0)
+	objects := make([]ports.StorageObject, 0)
 	for {
 		attrs, err := it.Next()
 		if errors.Is(err, iterator.Done) {
@@ -295,7 +296,7 @@ func (s *sdkBucketClient) List(ctx context.Context, prefix string) ([]storagetyp
 		if err != nil {
 			return nil, err
 		}
-		objects = append(objects, storagetypes.StorageObject{
+		objects = append(objects, ports.StorageObject{
 			Path:         attrs.Name,
 			SizeBytes:    attrs.Size,
 			LastModified: attrs.Updated,

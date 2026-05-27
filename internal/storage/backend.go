@@ -1,51 +1,36 @@
 package storage
 
 import (
-	"context"
 	"fmt"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 )
 
-// StorageObject is re-exported from storage/types for backward compatibility.
-type StorageObject = storagetypes.StorageObject
-
-// StorageBackend is the v1.1.0 unified interface for all storage destinations.
-// The existing Storage interface remains for backward compatibility.
-type StorageBackend interface {
-	Upload(ctx context.Context, src, dest string) error
-	Download(ctx context.Context, src, dest string) error
-	Delete(ctx context.Context, path string) error
-	List(ctx context.Context, prefix string) ([]StorageObject, error)
-	Exists(ctx context.Context, path string) (bool, error)
-}
-
-// RestoreBackendParams holds the parameters needed to construct a restore StorageBackend.
+// RestoreBackendParams carries the factory inputs for NewRestoreBackend.
+// Not part of the StorageBackend port — factory is internal to the
+// storage dispatcher.
 type RestoreBackendParams struct {
 	Type string
 
-	// Local
 	LocalPath string
 
-	// S3
 	S3Bucket          string
 	S3Region          string
 	S3BucketEndpoint  string
 	S3AccessKeyID     string
 	S3SecretAccessKey string
 
-	// GCS
 	GCSBucket          string
 	GCSProjectID       string
 	GCSCredentialsFile string
 }
 
-// NewRestoreBackend returns a StorageBackend for the given restore source parameters.
-// Supported types: local, s3, gcs.
-func NewRestoreBackend(p RestoreBackendParams) (StorageBackend, error) {
+// NewRestoreBackend constructs a concrete backend matching p.Type. The
+// returned value satisfies ports.StorageBackend.
+func NewRestoreBackend(p RestoreBackendParams) (ports.StorageBackend, error) {
 	switch p.Type {
 	case "local":
 		return local.NewLocalBackend(p.LocalPath), nil

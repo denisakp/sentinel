@@ -34,7 +34,7 @@ func TestStorageContract_Integration(t *testing.T) {
 // MinIO (S3)
 // ────────────────────────────────────────────────────────────────────────────
 
-func setupMinIO(t *testing.T) storage.StorageBackend {
+func setupMinIO(t *testing.T) ports.StorageBackend {
 	t.Helper()
 	storagetesting.DockerAvailable(t)
 	ctx := context.Background()
@@ -90,7 +90,7 @@ func setupMinIO(t *testing.T) storage.StorageBackend {
 // fake-gcs-server (GCS)
 // ────────────────────────────────────────────────────────────────────────────
 
-func setupFakeGCS(t *testing.T) storage.StorageBackend {
+func setupFakeGCS(t *testing.T) ports.StorageBackend {
 	t.Helper()
 	storagetesting.DockerAvailable(t)
 	ctx := context.Background()
@@ -138,7 +138,7 @@ func setupFakeGCS(t *testing.T) storage.StorageBackend {
 // Azurite image — public, not a secret.
 const azuriteAccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
 
-func setupAzurite(t *testing.T) storage.StorageBackend {
+func setupAzurite(t *testing.T) ports.StorageBackend {
 	t.Helper()
 	storagetesting.DockerAvailable(t)
 	ctx := context.Background()
