@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ---- US1: happy path ----
@@ -78,8 +79,8 @@ func TestSlackSendBackup_Status500(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "500") || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("err missing 500/boom: %q", err.Error())
@@ -102,8 +103,8 @@ func TestSlackSendBackup_Status429RetryAfter(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 	for _, s := range []string{"429", "30", "slow down"} {
 		if !strings.Contains(err.Error(), s) {

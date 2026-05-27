@@ -265,11 +265,11 @@ func (rsm *RestoreScheduleManager) notifyRestoreSuccess(ctx context.Context, res
 		return
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:        restoreScheduleConfig.Name,
 		DatabaseType:       restoreScheduleConfig.RestoreConfig.DatabaseType,
 		DatabaseName:       restoreScheduleConfig.RestoreConfig.Database,
-		Status:             notifier.StatusSuccess,
+		Status:             ports.NotifyStatusSuccess,
 		StartTime:          startTime,
 		EndTime:            time.Now(),
 		BytesRestored:      result.BytesRestored,
@@ -306,11 +306,11 @@ func (rsm *RestoreScheduleManager) notifyRestoreFailure(ctx context.Context, res
 		return
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:      restoreScheduleConfig.Name,
 		DatabaseType:     restoreScheduleConfig.RestoreConfig.DatabaseType,
 		DatabaseName:     restoreScheduleConfig.RestoreConfig.Database,
-		Status:           notifier.StatusFailure,
+		Status:           ports.NotifyStatusFailure,
 		StartTime:        startTime,
 		EndTime:          time.Now(),
 		Error:            errorMsg,

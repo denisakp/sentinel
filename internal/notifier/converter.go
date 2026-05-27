@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // NewDispatcherFromConfig creates a dispatcher and adds notifiers from config.
@@ -25,7 +26,7 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve webhook_url_env for channel %d - %w", i, err)
 			}
-			webhookConfig := &WebhookNotificationConfig{
+			webhookConfig := &ports.WebhookNotificationConfig{
 				Type:           notifCfg.Type,
 				WebhookURLEnv:  notifCfg.WebhookURLEnv,
 				WebhookURL:     webhookURL,
@@ -64,7 +65,7 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 				useTLS = *notifCfg.UseTLS
 			}
 
-			emailConfig := &EmailNotificationConfig{
+			emailConfig := &ports.EmailNotificationConfig{
 				Type:            "email",
 				SMTPHost:        notifCfg.SMTPHost,
 				SMTPPort:        smtpPort,
@@ -98,16 +99,16 @@ func NewDispatcherFromRestoreConfig(notifications []config.NotificationChannel) 
 
 // NotificationStatusFromRestoreStatus maps restore execution status values to
 // notifier event categories used by channel event filters.
-func NotificationStatusFromRestoreStatus(status string) BackupStatus {
+func NotificationStatusFromRestoreStatus(status string) ports.BackupStatus {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "success", "completed":
-		return StatusSuccess
+		return ports.NotifyStatusSuccess
 	case "skipped":
-		return StatusWarning
+		return ports.NotifyStatusWarning
 	case "failed", "failure", "timeout", "interrupted":
-		return StatusFailure
+		return ports.NotifyStatusFailure
 	default:
-		return StatusWarning
+		return ports.NotifyStatusWarning
 	}
 }
 

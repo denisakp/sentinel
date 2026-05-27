@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestEmailNotifier_TypeAndEnabled(t *testing.T) {
-	config := &notifier.EmailNotificationConfig{
+	config := &ports.EmailNotificationConfig{
 		SMTPHost:    "smtp.example.com",
 		SMTPPort:    587,
 		FromAddress: "sender@example.com",
@@ -28,7 +29,7 @@ func TestEmailNotifier_TypeAndEnabled(t *testing.T) {
 }
 
 func TestEmailNotifier_Send_Disabled(t *testing.T) {
-	config := &notifier.EmailNotificationConfig{
+	config := &ports.EmailNotificationConfig{
 		SMTPHost:    "smtp.example.com",
 		SMTPPort:    587,
 		FromAddress: "sender@example.com",
@@ -38,11 +39,11 @@ func TestEmailNotifier_Send_Disabled(t *testing.T) {
 	}
 
 	n := notifier.NewEmailNotifier(config)
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "nightly",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		StartTime:    time.Now().Add(-2 * time.Minute),
 		EndTime:      time.Now(),
 		FilePath:     "/backups/db.sql",
@@ -56,7 +57,7 @@ func TestEmailNotifier_Send_Disabled(t *testing.T) {
 }
 
 func TestEmailNotifier_Send_IgnoresUnsubscribedEvents(t *testing.T) {
-	config := &notifier.EmailNotificationConfig{
+	config := &ports.EmailNotificationConfig{
 		SMTPHost:    "smtp.example.com",
 		SMTPPort:    587,
 		FromAddress: "sender@example.com",
@@ -66,11 +67,11 @@ func TestEmailNotifier_Send_IgnoresUnsubscribedEvents(t *testing.T) {
 	}
 
 	n := notifier.NewEmailNotifier(config)
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "nightly",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess, // send success when only failures subscribed
+		Status:       ports.NotifyStatusSuccess, // send success when only failures subscribed
 		StartTime:    time.Now().Add(-2 * time.Minute),
 		EndTime:      time.Now(),
 		FilePath:     "/backups/db.sql",

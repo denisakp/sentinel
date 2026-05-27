@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Dispatcher handles sending notifications to multiple channels
 type Dispatcher struct {
-	notifiers []Notifier
+	notifiers []ports.Notifier
 	logger    *slog.Logger
 	timeout   time.Duration
 }
@@ -21,14 +22,14 @@ func NewDispatcher(logger *slog.Logger) *Dispatcher {
 		logger = slog.Default()
 	}
 	return &Dispatcher{
-		notifiers: []Notifier{},
+		notifiers: []ports.Notifier{},
 		logger:    logger,
 		timeout:   30 * time.Second,
 	}
 }
 
 // AddWebhookNotifier adds a webhook-based notifier (Slack, Discord, or generic webhook)
-func (d *Dispatcher) AddWebhookNotifier(config *WebhookNotificationConfig) error {
+func (d *Dispatcher) AddWebhookNotifier(config *ports.WebhookNotificationConfig) error {
 	if config == nil {
 		return fmt.Errorf("webhook notification config is nil")
 	}
@@ -37,7 +38,7 @@ func (d *Dispatcher) AddWebhookNotifier(config *WebhookNotificationConfig) error
 		return fmt.Errorf("webhook URL is empty")
 	}
 
-	var notifier Notifier
+	var notifier ports.Notifier
 	switch config.Type {
 	case "slack":
 		notifier = NewSlackNotifier(config)
@@ -55,7 +56,7 @@ func (d *Dispatcher) AddWebhookNotifier(config *WebhookNotificationConfig) error
 }
 
 // AddEmailNotifier adds an email notifier
-func (d *Dispatcher) AddEmailNotifier(config *EmailNotificationConfig) error {
+func (d *Dispatcher) AddEmailNotifier(config *ports.EmailNotificationConfig) error {
 	if config == nil {
 		return fmt.Errorf("email notification config is nil")
 	}
@@ -76,7 +77,7 @@ func (d *Dispatcher) AddEmailNotifier(config *EmailNotificationConfig) error {
 
 // NotifyAsync sends notifications asynchronously to all configured channels
 // Returns a channel that closes when all notifications are sent
-func (d *Dispatcher) NotifyAsync(backup *BackupContext) <-chan error {
+func (d *Dispatcher) NotifyAsync(backup *ports.BackupContext) <-chan error {
 	resultChan := make(chan error, len(d.notifiers))
 
 	if len(d.notifiers) == 0 {
@@ -89,7 +90,7 @@ func (d *Dispatcher) NotifyAsync(backup *BackupContext) <-chan error {
 	var wg sync.WaitGroup
 	for _, notifier := range d.notifiers {
 		wg.Add(1)
-		go func(n Notifier) {
+		go func(n ports.Notifier) {
 			defer wg.Done()
 			if !n.IsEnabled() {
 				return
@@ -110,7 +111,7 @@ func (d *Dispatcher) NotifyAsync(backup *BackupContext) <-chan error {
 }
 
 // NotifyRestoreAsync sends notifications asynchronously for restore operations
-func (d *Dispatcher) NotifyRestoreAsync(restore *RestoreContext) <-chan error {
+func (d *Dispatcher) NotifyRestoreAsync(restore *ports.RestoreContext) <-chan error {
 	resultChan := make(chan error, len(d.notifiers))
 
 	if len(d.notifiers) == 0 {
@@ -123,7 +124,7 @@ func (d *Dispatcher) NotifyRestoreAsync(restore *RestoreContext) <-chan error {
 	var wg sync.WaitGroup
 	for _, notifier := range d.notifiers {
 		wg.Add(1)
-		go func(n Notifier) {
+		go func(n ports.Notifier) {
 			defer wg.Done()
 			if !n.IsEnabled() {
 				return
@@ -145,7 +146,7 @@ func (d *Dispatcher) NotifyRestoreAsync(restore *RestoreContext) <-chan error {
 
 // Notify sends notifications synchronously to all configured channels
 // Collects and returns all errors (non-blocking - continues sending even if one fails)
-func (d *Dispatcher) Notify(backup *BackupContext) error {
+func (d *Dispatcher) Notify(backup *ports.BackupContext) error {
 	if len(d.notifiers) == 0 {
 		return nil
 	}
@@ -166,7 +167,7 @@ func (d *Dispatcher) Notify(backup *BackupContext) error {
 }
 
 // NotifyRestore sends notifications synchronously for restore operations
-func (d *Dispatcher) NotifyRestore(restore *RestoreContext) error {
+func (d *Dispatcher) NotifyRestore(restore *ports.RestoreContext) error {
 	if len(d.notifiers) == 0 {
 		return nil
 	}
@@ -188,7 +189,7 @@ func (d *Dispatcher) NotifyRestore(restore *RestoreContext) error {
 
 // Clear removes all registered notifiers
 func (d *Dispatcher) Clear() {
-	d.notifiers = []Notifier{}
+	d.notifiers = []ports.Notifier{}
 }
 
 // Count returns the number of registered notifiers

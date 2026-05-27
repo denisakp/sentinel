@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ---- Type / IsEnabled accessors ----
@@ -43,25 +44,25 @@ func TestChannel_TypeAndIsEnabled(t *testing.T) {
 // ---- Constructor defaults (TimeoutSeconds=0 → 10, SMTPPort=0 → 587) ----
 
 func TestNew_DefaultsApplied(t *testing.T) {
-	wcfg := &WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
+	wcfg := &ports.WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
 	NewSlackNotifier(wcfg)
 	if wcfg.TimeoutSeconds != 10 {
 		t.Fatalf("slack default timeout: got %d", wcfg.TimeoutSeconds)
 	}
 
-	wcfg2 := &WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
+	wcfg2 := &ports.WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
 	NewDiscordNotifier(wcfg2)
 	if wcfg2.TimeoutSeconds != 10 {
 		t.Fatalf("discord default timeout: got %d", wcfg2.TimeoutSeconds)
 	}
 
-	wcfg3 := &WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
+	wcfg3 := &ports.WebhookNotificationConfig{WebhookURL: "http://x", Events: []string{"success"}, Enabled: true}
 	NewWebhookNotifier(wcfg3)
 	if wcfg3.TimeoutSeconds != 10 {
 		t.Fatalf("webhook default timeout: got %d", wcfg3.TimeoutSeconds)
 	}
 
-	ecfg := &EmailNotificationConfig{Enabled: true}
+	ecfg := &ports.EmailNotificationConfig{Enabled: true}
 	NewEmailNotifier(ecfg)
 	if ecfg.SMTPPort != 587 {
 		t.Fatalf("email default port: got %d", ecfg.SMTPPort)
@@ -78,8 +79,8 @@ func TestSlackSendRestore_Status500(t *testing.T) {
 	defer fake.Close()
 	n := NewSlackNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 }
 
@@ -91,8 +92,8 @@ func TestDiscordSendRestore_Status500(t *testing.T) {
 	defer fake.Close()
 	n := NewDiscordNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 }
 
@@ -104,8 +105,8 @@ func TestWebhookSendRestore_Status500(t *testing.T) {
 	defer fake.Close()
 	n := NewWebhookNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 }
 
@@ -118,8 +119,8 @@ func TestSlackSendRestore_Status429RetryAfter(t *testing.T) {
 	defer fake.Close()
 	n := NewSlackNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 	for _, s := range []string{"429", "30", "slow down"} {
 		if !strings.Contains(err.Error(), s) {
@@ -137,8 +138,8 @@ func TestDiscordSendRestore_Status429RetryAfter(t *testing.T) {
 	defer fake.Close()
 	n := NewDiscordNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 }
 
@@ -151,8 +152,8 @@ func TestWebhookSendRestore_Status429RetryAfter(t *testing.T) {
 	defer fake.Close()
 	n := NewWebhookNotifier(allEventsWebhook(fake.URL()))
 	err := n.SendRestore(context.Background(), newSuccessRestore())
-	if err == nil || !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if err == nil || !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 }
 
@@ -218,7 +219,7 @@ func TestEmailSendBackup_WarningStatus(t *testing.T) {
 	n := NewEmailNotifier(allEventsEmail())
 	recs, _ := captureSend(n)
 	b := newSuccessBackup()
-	b.Status = StatusWarning
+	b.Status = ports.NotifyStatusWarning
 	if err := n.SendBackup(context.Background(), b); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

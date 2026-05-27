@@ -7,16 +7,17 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // EmailNotifier sends notifications via SMTP email
 type EmailNotifier struct {
-	config *EmailNotificationConfig
+	config *ports.EmailNotificationConfig
 	send   func(addr, from string, to []string, msg []byte, useTLS bool, host, user, pass string) error
 }
 
 // NewEmailNotifier creates a new email notifier
-func NewEmailNotifier(config *EmailNotificationConfig) *EmailNotifier {
+func NewEmailNotifier(config *ports.EmailNotificationConfig) *EmailNotifier {
 	if config.SMTPPort == 0 {
 		config.SMTPPort = 587
 	}
@@ -26,7 +27,7 @@ func NewEmailNotifier(config *EmailNotificationConfig) *EmailNotifier {
 }
 
 // SendBackup sends a backup notification via email
-func (e *EmailNotifier) SendBackup(ctx context.Context, backup *BackupContext) error {
+func (e *EmailNotifier) SendBackup(ctx context.Context, backup *ports.BackupContext) error {
 	if !e.config.Enabled || !ShouldNotify(e.config.Events, backup.Status) {
 		return nil
 	}
@@ -48,7 +49,7 @@ func (e *EmailNotifier) SendBackup(ctx context.Context, backup *BackupContext) e
 }
 
 // SendRestore sends a restore notification via email
-func (e *EmailNotifier) SendRestore(ctx context.Context, restore *RestoreContext) error {
+func (e *EmailNotifier) SendRestore(ctx context.Context, restore *ports.RestoreContext) error {
 	if !e.config.Enabled || !ShouldNotify(e.config.Events, restore.Status) {
 		return nil
 	}
@@ -70,7 +71,7 @@ func (e *EmailNotifier) SendRestore(ctx context.Context, restore *RestoreContext
 }
 
 // Send is deprecated, use SendBackup instead
-func (e *EmailNotifier) Send(ctx context.Context, backup *BackupContext) error {
+func (e *EmailNotifier) Send(ctx context.Context, backup *ports.BackupContext) error {
 	return e.SendBackup(ctx, backup)
 }
 
@@ -138,7 +139,7 @@ func (e *EmailNotifier) IsEnabled() bool {
 }
 
 // buildEmailBodyFromBackup builds the email body text for backups
-func (e *EmailNotifier) buildEmailBodyFromBackup(backup *BackupContext, msg *FormattedMessage) string {
+func (e *EmailNotifier) buildEmailBodyFromBackup(backup *ports.BackupContext, msg *FormattedMessage) string {
 	body := fmt.Sprintf(`Backup Execution Report
 
 Status: %s %s
@@ -173,7 +174,7 @@ File Path: %s
 }
 
 // buildEmailBodyFromRestore builds the email body text for restores
-func (e *EmailNotifier) buildEmailBodyFromRestore(restore *RestoreContext, msg *FormattedMessage) string {
+func (e *EmailNotifier) buildEmailBodyFromRestore(restore *ports.RestoreContext, msg *FormattedMessage) string {
 	body := fmt.Sprintf(`Restore Execution Report
 
 Status: %s %s

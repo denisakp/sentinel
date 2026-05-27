@@ -624,15 +624,15 @@ func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job confi
 		return nil
 	}
 
-	status := notifier.StatusSuccess
+	status := ports.NotifyStatusSuccess
 	errorMessage := ""
 	if backupErr != nil {
-		status = notifier.StatusFailure
+		status = ports.NotifyStatusFailure
 		errorMessage = backupErr.Error()
 	}
 
 	filePath, fileSize := localBackupInfo(storageParams)
-	ctx := &notifier.BackupContext{
+	ctx := &ports.BackupContext{
 		BackupName:   job.Name,
 		DatabaseType: job.Type,
 		DatabaseName: job.Database,

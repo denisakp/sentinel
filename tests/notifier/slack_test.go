@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestSlackNotifier_Send_Success(t *testing.T) {
@@ -31,7 +32,7 @@ func TestSlackNotifier_Send_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:           "slack",
 		WebhookURL:     server.URL,
 		Events:         []string{"success", "failure"},
@@ -41,11 +42,11 @@ func TestSlackNotifier_Send_Success(t *testing.T) {
 
 	slack := notifier.NewSlackNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test-backup",
 		DatabaseType: "postgres",
 		DatabaseName: "mydb",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		StartTime:    time.Now().Add(-5 * time.Minute),
 		EndTime:      time.Now(),
 		FileSize:     1024 * 1024 * 100, // 100MB
@@ -59,7 +60,7 @@ func TestSlackNotifier_Send_Success(t *testing.T) {
 }
 
 func TestSlackNotifier_Send_NotEnabled(t *testing.T) {
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: "http://example.com/webhook",
 		Events:     []string{"success"},
@@ -68,11 +69,11 @@ func TestSlackNotifier_Send_NotEnabled(t *testing.T) {
 
 	slack := notifier.NewSlackNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test-backup",
 		DatabaseType: "postgres",
 		DatabaseName: "mydb",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		EndTime:      time.Now(),
 	}
 
@@ -88,7 +89,7 @@ func TestSlackNotifier_Send_IgnoresUnsubscribedEvents(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: server.URL,
 		Events:     []string{"failure"}, // only subscribe to failures
@@ -97,11 +98,11 @@ func TestSlackNotifier_Send_IgnoresUnsubscribedEvents(t *testing.T) {
 
 	slack := notifier.NewSlackNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test-backup",
 		DatabaseType: "postgres",
 		DatabaseName: "mydb",
-		Status:       notifier.StatusSuccess, // send success (which is not subscribed)
+		Status:       ports.NotifyStatusSuccess, // send success (which is not subscribed)
 		EndTime:      time.Now(),
 	}
 
@@ -112,7 +113,7 @@ func TestSlackNotifier_Send_IgnoresUnsubscribedEvents(t *testing.T) {
 }
 
 func TestSlackNotifier_Type(t *testing.T) {
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: "http://example.com/webhook",
 		Events:     []string{"success"},
@@ -135,7 +136,7 @@ func TestSlackNotifier_IsEnabled(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		config := &notifier.WebhookNotificationConfig{
+		config := &ports.WebhookNotificationConfig{
 			Type:       "slack",
 			WebhookURL: "http://example.com/webhook",
 			Enabled:    tt.enabled,
@@ -148,7 +149,7 @@ func TestSlackNotifier_IsEnabled(t *testing.T) {
 }
 
 func TestSlackNotifier_Send_DefaultTimeout(t *testing.T) {
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:           "slack",
 		WebhookURL:     "http://example.com/webhook",
 		Events:         []string{"success"},
