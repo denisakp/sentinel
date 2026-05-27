@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/adapters/lock"
 )
 
 const (

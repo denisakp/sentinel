@@ -41,10 +41,11 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/config/` — `types.go` (YAML schema), `loader.go`, `validator.go`
 - `internal/monitor/` — SQLite execution history. `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`. Schema is version-gated via `BinarySchemaVersion`; migrations run under a file lock on every open and forward-incompat DBs are refused (`ErrForwardIncompatible`). Inspect with `sentinel monitor doctor [--repair]`.
 - `internal/scheduler/` — cron loop (`scheduler.go`), execution (`executor.go`), restore hook (`restore_integration.go`)
-- `internal/storage/` — backend dispatcher; sub-packages `local/`, `sentinel_s3/`, `gcs/`, `gdrive/`, `azure/`, shared types in `types/`
-- `internal/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash)
+- `internal/ports/` — port (hexagonal interface) declarations; spec 028. Contains `StorageBackend`, `StorageObject`, `RepoStatus`, `StatusReporter`, plus the other architectural ports (dump, recorder, notifier, etc.). `internal/ports/storagetesting/` houses an in-memory `MockBackend` test fake reachable from domain test code without importing any adapter.
+- `internal/adapters/storage/` — storage backends (spec 029). Sub-packages `local/`, `s3/`, `gcs/`, `gdrive/`, `azure/`. Single registry constructor `NewBackend(p *BackendParams) (ports.StorageBackend, error)` covering all five types; legacy driver-side `Storage` interface + `NewStorage` live in `writer.go`. Cross-adapter contract suite `contract_test.go` + `contract_integration_test.go` (latter behind `//go:build integration`).
+- `internal/adapters/crypto/` — AES-256-GCM streaming (key, encrypt, decrypt, hash); implements `ports.EncryptWriter` / `DecryptReader` / `Hasher` / `KeyProvider` (spec 030).
 - `internal/manifest/` — SHA-256 manifest + HashingWriter for integrity
-- `internal/lock/` — file-based concurrency; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup
+- `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
 - `internal/tls/` — `internaltls.Config` (domain) mirrors `config.TLSConfig` (YAML); map manually
 - `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
@@ -56,13 +57,13 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `pkg/restore/{pg,mysql,mariadb,mongo}_restore/args_builder.go` — restore arg builders
 
 ### Import-cycle rule
-`internal/storage/storage.go` imports its sub-packages (local, s3, gdrive, ...). Sub-packages MUST NOT import `internal/storage`. Use `internal/storage/types` for shared types.
+Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/` MUST NOT import each other and MUST NOT import the parent `internal/adapters/storage` package (which holds the registry). The registry is allowed to import every adapter sibling. Domain code reaches concrete backends only through `storage.NewBackend(...)` returning `ports.StorageBackend` (and optionally `ports.StatusReporter` via type-assertion). The legacy `internal/storage/` package is gone; see spec 029.
 
 ### Retry / locking
-`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/lock`.
+`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/adapters/lock`.
 
 ### Storage backends
-Implement `StorageBackend` interface (`internal/storage/backend.go`). Local, S3-compatible, GCS, Google Drive, Azure Blob.
+Implement `ports.StorageBackend` (`internal/ports/storage.go`). Concrete adapters: `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`. Adding a new backend = one new sub-package + one new line in `internal/adapters/storage/registry.go`.
 
 ### Incremental + PITR
 - Postgres: WAL-based (PG17+), PITR via `restore_mode: pitr` + `pitr_timestamp`
@@ -85,5 +86,5 @@ Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/028-ports-skeleton/plan.md`
+`specs/030-crypto-adapter-migration/plan.md`
 <!-- SPECKIT END -->

@@ -60,4 +60,4 @@ Not applicable — this runbook is itself a recovery path. Do not re-enable `--a
 
 - ADR 0006 — Encryption envelope v1 (`docs/adr/0006-encryption-envelope-v1.md`)
 - Feature spec: `specs/007-crypto-nonce-xor-fix/`
-- `internal/crypto/envelope.go`, `internal/crypto/decrypt.go`
+- `internal/adapters/crypto/envelope.go`, `internal/adapters/crypto/decrypt.go`

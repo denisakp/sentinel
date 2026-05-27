@@ -16,7 +16,7 @@ Every call to `monitor.NewMonitor(path)` invokes the migration runner before any
 2. Reads the current version.
 3. Forward-incompatible (`current > BinarySchemaVersion`) → returns `monitor.ErrForwardIncompatible`. No writes.
 4. Current (`current == BinarySchemaVersion`) → no-op.
-5. Stale (`current < BinarySchemaVersion`) → acquires `<db>.migrate.lock` via `internal/lock`, re-checks under the lock, applies each pending migration in its own transaction, stamps `schema_version`.
+5. Stale (`current < BinarySchemaVersion`) → acquires `<db>.migrate.lock` via `internal/adapters/lock`, re-checks under the lock, applies each pending migration in its own transaction, stamps `schema_version`.
 
 Backup, restore, schedule, retention, and monitor commands all hit this path on startup.
 

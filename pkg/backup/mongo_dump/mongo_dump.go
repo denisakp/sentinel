@@ -11,14 +11,13 @@ import (
 
 	"github.com/denisakp/sentinel/internal/backup/mongo"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/internal/storage/factory"
-	"github.com/denisakp/sentinel/internal/storage/local"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 )
 
 // backupBackendFactory and checkConnectivity are overridable in tests.
 var (
-	backupBackendFactory = factory.NewBackupBackend
+	backupBackendFactory = storage.NewBackend
 	checkConnectivity    = mongo.CheckConnectivity
 )
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 // fakeMysqldumpOnPath installs a fake `mysqldump` script in a temp dir and

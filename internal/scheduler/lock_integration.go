@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
 )

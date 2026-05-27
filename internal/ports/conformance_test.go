@@ -12,17 +12,17 @@
 package ports_test
 
 import (
-	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/lock"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/storage/azure"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
-	"github.com/denisakp/sentinel/internal/storage/gdrive"
-	"github.com/denisakp/sentinel/internal/storage/local"
-	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gdrive"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 	"github.com/denisakp/sentinel/internal/tls"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
@@ -38,10 +38,17 @@ import (
 var (
 	// storage.go — StorageBackend port (5 methods).
 	_ ports.StorageBackend = (*local.LocalBackend)(nil)
-	_ ports.StorageBackend = (*sentinel_s3.S3Backend)(nil)
+	_ ports.StorageBackend = (*s3.S3Backend)(nil)
 	_ ports.StorageBackend = (*gcs.GCSBackend)(nil)
 	_ ports.StorageBackend = (*gdrive.GDriveBackend)(nil)
 	_ ports.StorageBackend = (*azure.AzureBlobBackend)(nil)
+
+	// storage.go — StatusReporter sibling port (1 method). Spec 029 T007.
+	_ ports.StatusReporter = (*local.LocalBackend)(nil)
+	_ ports.StatusReporter = (*s3.S3Backend)(nil)
+	_ ports.StatusReporter = (*gcs.GCSBackend)(nil)
+	_ ports.StatusReporter = (*gdrive.GDriveBackend)(nil)
+	_ ports.StatusReporter = (*azure.AzureBlobBackend)(nil)
 
 	// hasher.go — Hasher port (io.Writer + Sum() string).
 	_ ports.Hasher = (*crypto.HashingWriter)(nil)

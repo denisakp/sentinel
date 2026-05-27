@@ -23,11 +23,41 @@ type StorageBackend interface {
 // StorageObject represents a single object returned by a StorageBackend List call.
 //
 // Relocated from internal/storage/types/types.go (single source of truth per
-// spec 028 FR-003a). RepoStatus stays in internal/storage/types/ — it is a
-// status-command rendering artefact, not a port-method parameter or return.
+// spec 028 FR-003a).
 type StorageObject struct {
 	Path         string
 	SizeBytes    int64
 	LastModified time.Time
 	ETag         string
+}
+
+// RepoStatus summarises the current state of a storage repository.
+//
+// Returned by the Status method on the StatusReporter sibling port (see
+// below). Relocated from internal/storage/types/types.go by spec 029;
+// internal/storage/types/ is fully removed once every importer points here.
+type RepoStatus struct {
+	Reachable      bool
+	BackupCount    int
+	TotalSizeBytes int64
+	LastBackup     *time.Time // nil if no backups exist
+	Error          string
+}
+
+// StatusReporter is a sibling port to StorageBackend exposing the
+// Status(ctx) (RepoStatus, error) method that all five concrete backends
+// already implement. Kept as a separate interface (rather than embedded in
+// StorageBackend) so test fakes can opt in and so spec 028's StorageBackend
+// shape stays verbatim; see specs/029-storage-adapters/research.md §3
+// (Decision B).
+//
+// Driving adapters that need status type-assert on the result of
+// internal/adapters/storage.NewBackend:
+//
+//	if sr, ok := backend.(ports.StatusReporter); ok {
+//	    st, _ := sr.Status(ctx)
+//	    // render st
+//	}
+type StatusReporter interface {
+	Status(ctx context.Context) (RepoStatus, error)
 }

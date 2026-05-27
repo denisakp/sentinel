@@ -134,7 +134,9 @@ The migration is staged. Each move listed in `docs/architecture/project-layout.m
 - [ ] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/dump/{mysqlbinlog,pg_combine}/`.
 - [ ] Move `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` to `internal/adapters/restore/{pg,mysql,mariadb,mongo}/`.
 - [ ] Move `internal/notifier/{slack,discord,email,webhook}.go` to `internal/adapters/notifier/{slack,discord,email,webhook}/`; the dispatcher stays at `internal/adapters/notifier/dispatcher.go`.
-- [ ] Move `internal/crypto/`, `internal/lock/`, `internal/tls/`, `internal/monitor/` to `internal/adapters/{crypto,lock,tls,monitor}/`; expose ports at `internal/ports/{crypto,lock,recorder}.go`.
+- [x] Move `internal/crypto/` to `internal/adapters/crypto/` (spec 030, 2026-05-27); ports `Hasher`/`KeyProvider`/`EncryptWriter`/`DecryptReader` already exposed in `internal/ports/{crypto,encryption,hasher}.go` by spec 028.
+- [x] Move `internal/lock/` to `internal/adapters/lock/` (spec 031, 2026-05-27); port `LockManager` already exposed in `internal/ports/lock.go` by spec 028.
+- [ ] Move `internal/tls/`, `internal/monitor/` to `internal/adapters/{tls,monitor}/`; expose ports at `internal/ports/recorder.go`.
 - [ ] Move `internal/manifest/` and `internal/retention/` to `internal/domain/{manifest,retention}/`.
 - [ ] Extract orchestration from `internal/cli/backup.go` (1475 lines) into `internal/domain/backup/`; the CLI command becomes a thin flag-parser + domain call.
 - [ ] Extract orchestration from `internal/scheduler/restore_integration.go` into `internal/domain/restore/`; the scheduler integration becomes a thin wrapper.

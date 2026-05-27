@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
 	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"

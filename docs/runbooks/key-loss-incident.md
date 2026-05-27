@@ -77,4 +77,4 @@ There is no rollback for a lost key. The only recovery path is fresh data from s
 
 - ADR 0006 — Encryption envelope v1 (`docs/adr/0006-encryption-envelope-v1.md`)
 - [enable-encryption](./enable-encryption.md), [key-rotation](./key-rotation.md)
-- `internal/crypto/encrypt.go`, `internal/crypto/decrypt.go`
+- `internal/adapters/crypto/encrypt.go`, `internal/adapters/crypto/decrypt.go`

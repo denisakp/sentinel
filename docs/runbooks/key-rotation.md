@@ -93,4 +93,4 @@ If the new key is compromised mid-rotation, treat as [key-loss-incident](./key-l
 ## References
 
 - ADR 0006 — Encryption envelope v1 (`docs/adr/0006-encryption-envelope-v1.md`)
-- `internal/cli/security.go`, `internal/crypto/key.go`
+- `internal/cli/security.go`, `internal/adapters/crypto/key.go`
