@@ -78,4 +78,4 @@ For artifacts produced by a partially-successful retry: verify integrity per [ve
 ## References
 
 - [inspect-monitor-history](./inspect-monitor-history.md)
-- `internal/monitor/`, `internal/sanitize/` (error formatting)
+- `internal/adapters/monitor/`, `internal/sanitize/` (error formatting)

@@ -39,7 +39,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 ### Package layout
 - `internal/cli/` — Cobra commands (one file per command group)
 - `internal/config/` — `types.go` (YAML schema), `loader.go`, `validator.go`
-- `internal/monitor/` — SQLite execution history. `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`. Schema is version-gated via `BinarySchemaVersion`; migrations run under a file lock on every open and forward-incompat DBs are refused (`ErrForwardIncompatible`). Inspect with `sentinel monitor doctor [--repair]`.
+- `internal/adapters/monitor/` — SQLite execution history adapter implementing `ports.Recorder` (spec 032). `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`. Schema is version-gated via `BinarySchemaVersion`; migrations run under a file lock on every open and forward-incompat DBs are refused (`ErrForwardIncompatible`). Inspect with `sentinel monitor doctor [--repair]`.
 - `internal/scheduler/` — cron loop (`scheduler.go`), execution (`executor.go`), restore hook (`restore_integration.go`)
 - `internal/ports/` — port (hexagonal interface) declarations; spec 028. Contains `StorageBackend`, `StorageObject`, `RepoStatus`, `StatusReporter`, plus the other architectural ports (dump, recorder, notifier, etc.). `internal/ports/storagetesting/` houses an in-memory `MockBackend` test fake reachable from domain test code without importing any adapter.
 - `internal/adapters/storage/` — storage backends (spec 029). Sub-packages `local/`, `s3/`, `gcs/`, `gdrive/`, `azure/`. Single registry constructor `NewBackend(p *BackendParams) (ports.StorageBackend, error)` covering all five types; legacy driver-side `Storage` interface + `NewStorage` live in `writer.go`. Cross-adapter contract suite `contract_test.go` + `contract_integration_test.go` (latter behind `//go:build integration`).
@@ -86,5 +86,5 @@ Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/031-lock-adapter-migration/plan.md`
+`specs/032-monitor-adapter-migration/plan.md`
 <!-- SPECKIT END -->

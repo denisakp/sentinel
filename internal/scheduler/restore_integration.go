@@ -10,7 +10,6 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
@@ -56,7 +55,7 @@ type RestoreScheduleManager struct {
 	verifier      PostRestoreVerifier
 	backupStorage BackupStorage
 	cfg           *config.Configuration
-	monitor       *monitor.Monitor
+	monitor       ports.Recorder
 	retention     *retention.Manager
 }
 
@@ -73,7 +72,7 @@ func NewRestoreScheduleManager(
 	verifier PostRestoreVerifier,
 	backupStorage BackupStorage,
 	cfg *config.Configuration,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	ret *retention.Manager,
 ) *RestoreScheduleManager {
 	restoreExec := NewRestoreExecutor(nil) // will be set with actual implementation

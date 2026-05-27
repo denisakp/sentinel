@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Executor runs jobs with bounded concurrency.
@@ -91,7 +90,7 @@ func ExecuteBackupWithCleanup(
 	executionID string,
 	backupPath string,
 	store storage.Storage,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	backupFn func(context.Context) error,
 ) *BackupExecutionResult {
 	return ExecuteBackupWithCleanupContext(ctx, executionID, backupPath, "", "", store, mon, backupFn)
@@ -107,7 +106,7 @@ func ExecuteBackupWithCleanupContext(
 	jobName string,
 	database string,
 	store storage.Storage,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	backupFn func(context.Context) error,
 ) (result *BackupExecutionResult) {
 	result = &BackupExecutionResult{
@@ -191,7 +190,7 @@ func ExecuteBackupWithCleanupContext(
 
 // synthesizeRunStart persists a "running" record for an execution that
 // panicked before its start could be recorded. Used by *WithCleanup helpers.
-func synthesizeRunStart(ctx context.Context, mon *monitor.Monitor, jobName, database string) (string, error) {
+func synthesizeRunStart(ctx context.Context, mon ports.Recorder, jobName, database string) (string, error) {
 	exec := &ports.Execution{
 		BackupName:   jobName,
 		DatabaseType: database,

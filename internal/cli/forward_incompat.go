@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 )
 
 // printForwardIncompatible renders a constitution III (what / why / how)

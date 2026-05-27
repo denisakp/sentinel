@@ -84,7 +84,7 @@ internal/
 │   │   ├── slack/  discord/  email/  webhook/
 │   │   └── dispatcher.go    # fan-out (still calls into domain notifier model)
 │   ├── crypto/              # AES-256-GCM streaming impl
-│   ├── monitor/             # SQLite recorder + queries (was internal/monitor)
+│   ├── monitor/             # SQLite recorder + queries (spec 032)
 │   ├── lock/                # file-based locker
 │   └── tls/                 # TLS config builder
 │
@@ -206,7 +206,8 @@ The current tree diverges from this target. Tracked moves:
 | `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | same                    | pending              |
 | `internal/crypto`                                   | `internal/adapters/crypto`                      | spec 030                | **complete 2026-05-27** |
 | `internal/lock`                                     | `internal/adapters/lock`                        | spec 031                | **complete 2026-05-27** |
-| `internal/tls`, `internal/monitor`                  | `internal/adapters/{tls,monitor}`               | same                    | pending              |
+| `internal/monitor`                                  | `internal/adapters/monitor`                     | spec 032                | **complete 2026-05-27** |
+| `internal/tls`                                      | `internal/adapters/tls`                         | same                    | pending              |
 | `internal/manifest`, `internal/retention`           | `internal/domain/{manifest,retention}`          | same                    | pending              |
 | Orchestration inside `internal/cli/backup.go` (1475 LOC) | `internal/domain/backup/`                  | god-file split (PRD 14) | pending              |
 | Orchestration inside `internal/scheduler/restore_integration.go` (18 KB) | `internal/domain/restore/`         | same                    | pending              |

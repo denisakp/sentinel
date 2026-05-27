@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-// Recorder abstracts *internal/monitor.Monitor (current concrete implementation).
+// Recorder abstracts *internal/adapters/monitor.Monitor (current concrete implementation).
 //
 // Implementations persist backup and restore execution history. The SQLite
 // schema is implementation-private and stays in the adapter (see
-// internal/monitor/migrate.go); only the read/write API surface is exposed
+// internal/adapters/monitor/migrate.go); only the read/write API surface is exposed
 // here.
 type Recorder interface {
 	RecordExecution(ctx context.Context, exec *Execution) error

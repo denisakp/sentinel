@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
@@ -186,7 +185,7 @@ func TestExecuteRestoreJob_UsesCLIRestoreRunner(t *testing.T) {
 		cfg *config.Configuration,
 		jobName string,
 		job config.RestoreJob,
-		mon *monitor.Monitor,
+		mon ports.Recorder,
 		limiter chan struct{},
 		runner scheduler.SharedRestoreRunner,
 	) (*internalrestore.ExecutionResult, error) {
