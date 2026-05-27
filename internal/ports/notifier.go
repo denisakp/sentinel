@@ -34,9 +34,9 @@ type Notifier interface {
 	IsEnabled() bool
 }
 
-// NotificationContext is the unifying interface implemented by both
-// *BackupContext and *RestoreContext. Channel implementations switch on
-// IsRestore to render the right payload.
+// NotificationContext abstracts *BackupContext and *RestoreContext (current
+// concrete implementations). Channel implementations switch on IsRestore to
+// render the right payload.
 type NotificationContext interface {
 	GetStatus() BackupStatus
 	GetStartTime() time.Time
