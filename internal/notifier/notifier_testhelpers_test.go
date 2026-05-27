@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // sentinelSecrets are the canonical leak-detection secret values. Each is
@@ -90,12 +91,12 @@ var (
 	fixedEnd   = time.Date(2026, 5, 21, 10, 0, 5, 0, time.UTC)
 )
 
-func newSuccessBackup() *BackupContext {
-	return &BackupContext{
+func newSuccessBackup() *ports.BackupContext {
+	return &ports.BackupContext{
 		BackupName:   "bk-001",
 		DatabaseType: "postgres",
 		DatabaseName: "appdb",
-		Status:       StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		StartTime:    fixedStart,
 		EndTime:      fixedEnd,
 		FilePath:     "/var/backups/bk-001.sql",
@@ -103,19 +104,19 @@ func newSuccessBackup() *BackupContext {
 	}
 }
 
-func newFailureBackup() *BackupContext {
+func newFailureBackup() *ports.BackupContext {
 	b := newSuccessBackup()
-	b.Status = StatusFailure
+	b.Status = ports.NotifyStatusFailure
 	b.Error = sentinelErrorPayload
 	return b
 }
 
-func newSuccessRestore() *RestoreContext {
-	return &RestoreContext{
+func newSuccessRestore() *ports.RestoreContext {
+	return &ports.RestoreContext{
 		RestoreName:        "rs-001",
 		DatabaseType:       "postgres",
 		DatabaseName:       "appdb",
-		Status:             StatusSuccess,
+		Status:             ports.NotifyStatusSuccess,
 		StartTime:          fixedStart,
 		EndTime:            fixedEnd,
 		BytesRestored:      2048,
@@ -124,9 +125,9 @@ func newSuccessRestore() *RestoreContext {
 	}
 }
 
-func newFailureRestore() *RestoreContext {
+func newFailureRestore() *ports.RestoreContext {
 	r := newSuccessRestore()
-	r.Status = StatusFailure
+	r.Status = ports.NotifyStatusFailure
 	r.Error = sentinelErrorPayload
 	r.VerificationPassed = false
 	return r
@@ -166,8 +167,8 @@ func assertNoSentinelLeak(t *testing.T, payloads ...any) {
 }
 
 // allEventsWebhook returns a config that accepts every event status.
-func allEventsWebhook(url string) *WebhookNotificationConfig {
-	return &WebhookNotificationConfig{
+func allEventsWebhook(url string) *ports.WebhookNotificationConfig {
+	return &ports.WebhookNotificationConfig{
 		WebhookURL:     url,
 		Events:         []string{"success", "failure", "warning"},
 		TimeoutSeconds: 5,
@@ -175,9 +176,9 @@ func allEventsWebhook(url string) *WebhookNotificationConfig {
 	}
 }
 
-// allEventsEmail returns an EmailNotificationConfig that accepts every status.
-func allEventsEmail() *EmailNotificationConfig {
-	return &EmailNotificationConfig{
+// allEventsEmail returns an ports.EmailNotificationConfig that accepts every status.
+func allEventsEmail() *ports.EmailNotificationConfig {
+	return &ports.EmailNotificationConfig{
 		SMTPHost:     "smtp.example.com",
 		SMTPPort:     587,
 		SMTPUsername: "user",

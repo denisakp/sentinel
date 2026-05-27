@@ -78,11 +78,11 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 }
 
 func BenchmarkAdvancedRestoreTransferMetricReporting(b *testing.B) {
-	restoreContext := &notifier.RestoreContext{
+	restoreContext := &ports.RestoreContext{
 		RestoreName:        "postgres-incident-recovery",
 		DatabaseType:       "postgres",
 		DatabaseName:       "appdb",
-		Status:             notifier.StatusSuccess,
+		Status:             ports.NotifyStatusSuccess,
 		StartTime:          time.Date(2026, time.March, 20, 23, 55, 0, 0, time.UTC),
 		EndTime:            time.Date(2026, time.March, 21, 0, 9, 32, 0, time.UTC),
 		BytesRestored:      25 * 1024 * 1024 * 1024,

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ---- US1: happy path ----
@@ -84,8 +85,8 @@ func TestWebhookSendBackup_Status500(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 	for _, s := range []string{"500", "boom", "webhook"} {
 		if !strings.Contains(err.Error(), s) {
@@ -110,8 +111,8 @@ func TestWebhookSendBackup_Status429RetryAfter(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, ErrNon2xxResponse) {
-		t.Fatalf("expected ErrNon2xxResponse, got %v", err)
+	if !errors.Is(err, ports.ErrNon2xxResponse) {
+		t.Fatalf("expected ports.ErrNon2xxResponse, got %v", err)
 	}
 	for _, s := range []string{"429", "30", "slow down", "webhook"} {
 		if !strings.Contains(err.Error(), s) {

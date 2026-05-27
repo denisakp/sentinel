@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestDispatcher_Notify_Success(t *testing.T) {
@@ -21,14 +22,14 @@ func TestDispatcher_Notify_Success(t *testing.T) {
 
 	dispatcher := notifier.NewDispatcher(nil)
 
-	config1 := &notifier.WebhookNotificationConfig{
+	config1 := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: server.URL,
 		Events:     []string{"success"},
 		Enabled:    true,
 	}
 
-	config2 := &notifier.WebhookNotificationConfig{
+	config2 := &ports.WebhookNotificationConfig{
 		Type:       "discord",
 		WebhookURL: server.URL,
 		Events:     []string{"success"},
@@ -38,11 +39,11 @@ func TestDispatcher_Notify_Success(t *testing.T) {
 	dispatcher.AddWebhookNotifier(config1)
 	dispatcher.AddWebhookNotifier(config2)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		EndTime:      time.Now(),
 	}
 
@@ -59,11 +60,11 @@ func TestDispatcher_Notify_Success(t *testing.T) {
 func TestDispatcher_Notify_Empty(t *testing.T) {
 	dispatcher := notifier.NewDispatcher(nil)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		EndTime:      time.Now(),
 	}
 
@@ -80,7 +81,7 @@ func TestDispatcher_Count(t *testing.T) {
 		t.Fatalf("expected 0 notifiers, got %d", dispatcher.Count())
 	}
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: "http://example.com/webhook",
 		Enabled:    true,
@@ -105,7 +106,7 @@ func TestDispatcher_Notify_IgnoresDisabledChannels(t *testing.T) {
 
 	dispatcher := notifier.NewDispatcher(nil)
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: server.URL,
 		Events:     []string{"success"},
@@ -114,11 +115,11 @@ func TestDispatcher_Notify_IgnoresDisabledChannels(t *testing.T) {
 
 	dispatcher.AddWebhookNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		EndTime:      time.Now(),
 	}
 
@@ -138,7 +139,7 @@ func TestDispatcher_NotifyAsync(t *testing.T) {
 
 	dispatcher := notifier.NewDispatcher(nil)
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: server.URL,
 		Events:     []string{"success"},
@@ -147,11 +148,11 @@ func TestDispatcher_NotifyAsync(t *testing.T) {
 
 	dispatcher.AddWebhookNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test",
 		DatabaseType: "postgres",
 		DatabaseName: "db",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		EndTime:      time.Now(),
 	}
 
@@ -180,7 +181,7 @@ func TestDispatcher_SetTimeout(t *testing.T) {
 func TestDispatcher_AddWebhookNotifier_InvalidURL(t *testing.T) {
 	dispatcher := notifier.NewDispatcher(nil)
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "slack",
 		WebhookURL: "",
 		Enabled:    true,

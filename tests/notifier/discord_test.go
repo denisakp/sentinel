@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestDiscordNotifier_Send_Success(t *testing.T) {
@@ -27,7 +28,7 @@ func TestDiscordNotifier_Send_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:           "discord",
 		WebhookURL:     server.URL,
 		Events:         []string{"success", "failure"},
@@ -37,11 +38,11 @@ func TestDiscordNotifier_Send_Success(t *testing.T) {
 
 	discord := notifier.NewDiscordNotifier(config)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "test-backup",
 		DatabaseType: "mysql",
 		DatabaseName: "proddb",
-		Status:       notifier.StatusFailure,
+		Status:       ports.NotifyStatusFailure,
 		StartTime:    time.Now().Add(-10 * time.Minute),
 		EndTime:      time.Now(),
 		Error:        "connection timeout",
@@ -56,7 +57,7 @@ func TestDiscordNotifier_Send_Success(t *testing.T) {
 }
 
 func TestDiscordNotifier_Type(t *testing.T) {
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "discord",
 		WebhookURL: "http://example.com/webhook",
 		Enabled:    true,
@@ -69,7 +70,7 @@ func TestDiscordNotifier_Type(t *testing.T) {
 }
 
 func TestDiscordNotifier_IsEnabled(t *testing.T) {
-	config := &notifier.WebhookNotificationConfig{
+	config := &ports.WebhookNotificationConfig{
 		Type:       "discord",
 		WebhookURL: "http://example.com/webhook",
 		Enabled:    false,

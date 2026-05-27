@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // TestWebhookPayload_ErrorFieldIsIdentity proves the webhook payload builder
-// serializes the BackupContext.Error string verbatim. The notifier sink does
+// serializes the ports.BackupContext.Error string verbatim. The notifier sink does
 // not redact; redaction MUST happen upstream (in the dump adapter via
 // sanitize.RedactStderr). Closes FR-008 notifier-sink coverage.
 func TestWebhookPayload_ErrorFieldIsIdentity(t *testing.T) {
@@ -31,14 +32,14 @@ func TestWebhookPayload_ErrorFieldIsIdentity(t *testing.T) {
 		},
 	}
 
-	w := &WebhookNotifier{config: &WebhookNotificationConfig{Type: "webhook"}}
+	w := &WebhookNotifier{config: &ports.WebhookNotificationConfig{Type: "webhook"}}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			bc := &BackupContext{
+			bc := &ports.BackupContext{
 				BackupName:   "leak-probe",
 				DatabaseType: "postgres",
-				Status:       StatusFailure,
+				Status:       ports.NotifyStatusFailure,
 				StartTime:    time.Now().UTC(),
 				EndTime:      time.Now().UTC(),
 				Error:        tc.errMsg,
@@ -66,9 +67,9 @@ func TestWebhookPayload_ErrorFieldIsIdentity(t *testing.T) {
 	// Additional contract assertion: a payload built from an UPSTREAM-redacted
 	// error must never carry the raw secret.
 	t.Run("redacted_payload_has_no_secret", func(t *testing.T) {
-		bc := &BackupContext{
+		bc := &ports.BackupContext{
 			BackupName: "leak-probe",
-			Status:     StatusFailure,
+			Status:     ports.NotifyStatusFailure,
 			StartTime:  time.Now().UTC(),
 			EndTime:    time.Now().UTC(),
 			Error:      "failed to execute pg_dump command - exit 1, password=*****",

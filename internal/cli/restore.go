@@ -544,7 +544,7 @@ func notifyRestoreResult(ctx context.Context, jobName string, job config.Restore
 		return
 	}
 
-	status := notifier.StatusWarning
+	status := ports.NotifyStatusWarning
 	start := time.Now().UTC()
 	end := time.Now().UTC()
 	bytesRestored := int64(0)
@@ -571,12 +571,12 @@ func notifyRestoreResult(ctx context.Context, jobName string, job config.Restore
 		if errMsg == "" && result.Error != nil {
 			errMsg = result.Error.Error()
 		}
-		if errMsg == "" && result.Reason != "" && status != notifier.StatusSuccess {
+		if errMsg == "" && result.Reason != "" && status != ports.NotifyStatusSuccess {
 			errMsg = result.Reason
 		}
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:        jobName,
 		DatabaseType:       job.Type,
 		DatabaseName:       job.Database,

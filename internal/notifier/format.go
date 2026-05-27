@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // FormattedMessage contains the formatted notification message
@@ -11,12 +12,12 @@ type FormattedMessage struct {
 	Title       string
 	MessageText string
 	Details     map[string]string
-	Status      BackupStatus
+	Status      ports.BackupStatus
 	Timestamp   time.Time
 }
 
 // FormatMessage formats a backup context into a notification message
-func FormatMessage(backup *BackupContext) *FormattedMessage {
+func FormatMessage(backup *ports.BackupContext) *FormattedMessage {
 	title := fmt.Sprintf("Backup %s: %s", backup.BackupName, backup.Status)
 
 	details := map[string]string{
@@ -56,7 +57,7 @@ Path: %s`, backup.DatabaseName, backup.DatabaseType, backup.Status,
 }
 
 // FormatRestoreMessage formats a restore context into a notification message
-func FormatRestoreMessage(restore *RestoreContext) *FormattedMessage {
+func FormatRestoreMessage(restore *ports.RestoreContext) *FormattedMessage {
 	title := fmt.Sprintf("Restore %s: %s", restore.RestoreName, restore.Status)
 
 	details := map[string]string{
@@ -146,13 +147,13 @@ func SanitizeForSlack(text string) string {
 }
 
 // StatusEmoji returns an emoji based on backup status
-func StatusEmoji(status BackupStatus) string {
+func StatusEmoji(status ports.BackupStatus) string {
 	switch status {
-	case StatusSuccess:
+	case ports.NotifyStatusSuccess:
 		return "OK"
-	case StatusFailure:
+	case ports.NotifyStatusFailure:
 		return "FAIL"
-	case StatusWarning:
+	case ports.NotifyStatusWarning:
 		return "WARN"
 	default:
 		return "INFO"

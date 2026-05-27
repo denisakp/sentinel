@@ -8,16 +8,17 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // DiscordNotifier sends notifications to Discord via webhook
 type DiscordNotifier struct {
-	config *WebhookNotificationConfig
+	config *ports.WebhookNotificationConfig
 	client *http.Client
 }
 
 // NewDiscordNotifier creates a new Discord notifier
-func NewDiscordNotifier(config *WebhookNotificationConfig) *DiscordNotifier {
+func NewDiscordNotifier(config *ports.WebhookNotificationConfig) *DiscordNotifier {
 	if config.TimeoutSeconds == 0 {
 		config.TimeoutSeconds = 10
 	}
@@ -30,7 +31,7 @@ func NewDiscordNotifier(config *WebhookNotificationConfig) *DiscordNotifier {
 }
 
 // SendBackup sends a backup notification to Discord
-func (d *DiscordNotifier) SendBackup(ctx context.Context, backup *BackupContext) error {
+func (d *DiscordNotifier) SendBackup(ctx context.Context, backup *ports.BackupContext) error {
 	if !d.config.Enabled || !ShouldNotify(d.config.Events, backup.Status) {
 		return nil
 	}
@@ -60,17 +61,17 @@ func (d *DiscordNotifier) SendBackup(ctx context.Context, backup *BackupContext)
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("discord webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("discord webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // SendRestore sends a restore notification to Discord
-func (d *DiscordNotifier) SendRestore(ctx context.Context, restore *RestoreContext) error {
+func (d *DiscordNotifier) SendRestore(ctx context.Context, restore *ports.RestoreContext) error {
 	if !d.config.Enabled || !ShouldNotify(d.config.Events, restore.Status) {
 		return nil
 	}
@@ -100,17 +101,17 @@ func (d *DiscordNotifier) SendRestore(ctx context.Context, restore *RestoreConte
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("discord webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("discord webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // Send is deprecated, use SendBackup instead
-func (d *DiscordNotifier) Send(ctx context.Context, backup *BackupContext) error {
+func (d *DiscordNotifier) Send(ctx context.Context, backup *ports.BackupContext) error {
 	return d.SendBackup(ctx, backup)
 }
 

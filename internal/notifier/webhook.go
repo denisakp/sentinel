@@ -8,16 +8,17 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // WebhookNotifier sends notifications to a generic webhook endpoint
 type WebhookNotifier struct {
-	config *WebhookNotificationConfig
+	config *ports.WebhookNotificationConfig
 	client *http.Client
 }
 
 // NewWebhookNotifier creates a new generic webhook notifier
-func NewWebhookNotifier(config *WebhookNotificationConfig) *WebhookNotifier {
+func NewWebhookNotifier(config *ports.WebhookNotificationConfig) *WebhookNotifier {
 	if config.TimeoutSeconds == 0 {
 		config.TimeoutSeconds = 10
 	}
@@ -30,7 +31,7 @@ func NewWebhookNotifier(config *WebhookNotificationConfig) *WebhookNotifier {
 }
 
 // SendBackup sends a backup notification to the webhook endpoint
-func (w *WebhookNotifier) SendBackup(ctx context.Context, backup *BackupContext) error {
+func (w *WebhookNotifier) SendBackup(ctx context.Context, backup *ports.BackupContext) error {
 	if !w.config.Enabled || !ShouldNotify(w.config.Events, backup.Status) {
 		return nil
 	}
@@ -61,17 +62,17 @@ func (w *WebhookNotifier) SendBackup(ctx context.Context, backup *BackupContext)
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // SendRestore sends a restore notification to the webhook endpoint
-func (w *WebhookNotifier) SendRestore(ctx context.Context, restore *RestoreContext) error {
+func (w *WebhookNotifier) SendRestore(ctx context.Context, restore *ports.RestoreContext) error {
 	if !w.config.Enabled || !ShouldNotify(w.config.Events, restore.Status) {
 		return nil
 	}
@@ -102,17 +103,17 @@ func (w *WebhookNotifier) SendRestore(ctx context.Context, restore *RestoreConte
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // Send is deprecated, use SendBackup instead
-func (w *WebhookNotifier) Send(ctx context.Context, backup *BackupContext) error {
+func (w *WebhookNotifier) Send(ctx context.Context, backup *ports.BackupContext) error {
 	return w.SendBackup(ctx, backup)
 }
 
@@ -127,7 +128,7 @@ func (w *WebhookNotifier) IsEnabled() bool {
 }
 
 // buildBackupPayload builds a generic webhook payload for backups
-func (w *WebhookNotifier) buildBackupPayload(backup *BackupContext, msg *FormattedMessage) map[string]interface{} {
+func (w *WebhookNotifier) buildBackupPayload(backup *ports.BackupContext, msg *FormattedMessage) map[string]interface{} {
 	return map[string]interface{}{
 		"event":         string(backup.Status),
 		"timestamp":     msg.Timestamp.Format(time.RFC3339),
@@ -144,7 +145,7 @@ func (w *WebhookNotifier) buildBackupPayload(backup *BackupContext, msg *Formatt
 }
 
 // buildRestorePayload builds a generic webhook payload for restores
-func (w *WebhookNotifier) buildRestorePayload(restore *RestoreContext, msg *FormattedMessage) map[string]interface{} {
+func (w *WebhookNotifier) buildRestorePayload(restore *ports.RestoreContext, msg *FormattedMessage) map[string]interface{} {
 	return map[string]interface{}{
 		"event":               string(restore.Status),
 		"timestamp":           msg.Timestamp.Format(time.RFC3339),

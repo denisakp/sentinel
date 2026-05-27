@@ -8,16 +8,17 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // SlackNotifier sends notifications to Slack via webhook
 type SlackNotifier struct {
-	config *WebhookNotificationConfig
+	config *ports.WebhookNotificationConfig
 	client *http.Client
 }
 
 // NewSlackNotifier creates a new Slack notifier
-func NewSlackNotifier(config *WebhookNotificationConfig) *SlackNotifier {
+func NewSlackNotifier(config *ports.WebhookNotificationConfig) *SlackNotifier {
 	if config.TimeoutSeconds == 0 {
 		config.TimeoutSeconds = 10
 	}
@@ -30,7 +31,7 @@ func NewSlackNotifier(config *WebhookNotificationConfig) *SlackNotifier {
 }
 
 // SendBackup sends a backup notification to Slack
-func (s *SlackNotifier) SendBackup(ctx context.Context, backup *BackupContext) error {
+func (s *SlackNotifier) SendBackup(ctx context.Context, backup *ports.BackupContext) error {
 	if !s.config.Enabled || !ShouldNotify(s.config.Events, backup.Status) {
 		return nil
 	}
@@ -60,17 +61,17 @@ func (s *SlackNotifier) SendBackup(ctx context.Context, backup *BackupContext) e
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("slack webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("slack webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // SendRestore sends a restore notification to Slack
-func (s *SlackNotifier) SendRestore(ctx context.Context, restore *RestoreContext) error {
+func (s *SlackNotifier) SendRestore(ctx context.Context, restore *ports.RestoreContext) error {
 	if !s.config.Enabled || !ShouldNotify(s.config.Events, restore.Status) {
 		return nil
 	}
@@ -100,17 +101,17 @@ func (s *SlackNotifier) SendRestore(ctx context.Context, restore *RestoreContext
 		respBody, _ := io.ReadAll(resp.Body)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
 			return fmt.Errorf("slack webhook returned status %d (Retry-After: %s): %s: %w",
-				resp.StatusCode, ra, string(respBody), ErrNon2xxResponse)
+				resp.StatusCode, ra, string(respBody), ports.ErrNon2xxResponse)
 		}
 		return fmt.Errorf("slack webhook returned status %d: %s: %w",
-			resp.StatusCode, string(respBody), ErrNon2xxResponse)
+			resp.StatusCode, string(respBody), ports.ErrNon2xxResponse)
 	}
 
 	return nil
 }
 
 // Send is deprecated, use SendBackup instead
-func (s *SlackNotifier) Send(ctx context.Context, backup *BackupContext) error {
+func (s *SlackNotifier) Send(ctx context.Context, backup *ports.BackupContext) error {
 	return s.SendBackup(ctx, backup)
 }
 

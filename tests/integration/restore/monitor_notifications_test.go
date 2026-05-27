@@ -64,7 +64,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 	defer server.Close()
 
 	dispatcher := notifier.NewDispatcher(nil)
-	if err := dispatcher.AddWebhookNotifier(&notifier.WebhookNotificationConfig{
+	if err := dispatcher.AddWebhookNotifier(&ports.WebhookNotificationConfig{
 		Type:       "webhook",
 		WebhookURL: server.URL,
 		Events:     []string{"failure", "warning", "success"},
@@ -73,7 +73,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 		t.Fatalf("AddWebhookNotifier() error = %v", err)
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:        "nightly-restore",
 		DatabaseType:       "postgres",
 		DatabaseName:       "app",
