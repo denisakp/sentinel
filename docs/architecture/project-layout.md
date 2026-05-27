@@ -193,19 +193,22 @@ Until then: `internal/` everywhere.
 
 The current tree diverges from this target. Tracked moves:
 
-| From                                                | To                                              | Driver                  |
-|-----------------------------------------------------|-------------------------------------------------|-------------------------|
-| `pkg/backup/{pg,mysql,mariadb,mongo}_dump`          | `internal/adapters/dump/{pg,mysql,mariadb,mongo}` | hexagonal commit        |
-| `pkg/backup/{mysqlbinlog,pg_combine}`               | `internal/adapters/dump/{mysqlbinlog,pg_combine}` | same                    |
-| `pkg/restore/*`                                     | `internal/adapters/restore/*`                   | same                    |
-| `internal/storage/{local,s3,gcs,gdrive,azure}`      | `internal/adapters/storage/*`                   | same                    |
-| `internal/storage/backend.go` (interface)           | `internal/ports/storage.go`                     | same                    |
-| `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | same                    |
-| `internal/crypto`, `internal/lock`, `internal/tls`, `internal/monitor` | `internal/adapters/{crypto,lock,tls,monitor}` | same                    |
-| `internal/manifest`, `internal/retention`           | `internal/domain/{manifest,retention}`          | same                    |
-| Orchestration inside `internal/cli/backup.go` (1475 LOC) | `internal/domain/backup/`                  | god-file split (PRD 14) |
-| Orchestration inside `internal/scheduler/restore_integration.go` (18 KB) | `internal/domain/restore/`         | same                    |
-| `internal/utils/`                                   | redistributed; package deleted                  | layout cleanup          |
+| From                                                | To                                              | Driver                  | Status               |
+|-----------------------------------------------------|-------------------------------------------------|-------------------------|----------------------|
+| `pkg/backup/{pg,mysql,mariadb,mongo}_dump`          | `internal/adapters/dump/{pg,mysql,mariadb,mongo}` | hexagonal commit        | pending              |
+| `pkg/backup/{mysqlbinlog,pg_combine}`               | `internal/adapters/dump/{mysqlbinlog,pg_combine}` | same                    | pending              |
+| `pkg/restore/*`                                     | `internal/adapters/restore/*`                   | same                    | pending              |
+| `internal/storage/{local,sentinel_s3,gcs,gdrive,azure}` | `internal/adapters/storage/{local,s3,gcs,gdrive,azure}` | same           | **complete 2026-05-27** (spec 029; `sentinel_s3` renamed to `s3`) |
+| `internal/storage/backend.go` (interface)           | `internal/ports/storage.go`                     | same                    | **complete 2026-05-22** (spec 028) |
+| `internal/storage/types/RepoStatus` (struct)        | `internal/ports/storage.go` (`RepoStatus` + sibling port `StatusReporter`) | spec 029 | **complete 2026-05-27** |
+| `internal/storage/storagetesting/`                  | `internal/ports/storagetesting/`                | spec 029                | **complete 2026-05-27** |
+| `internal/storage/{storage.go,backend.go,factory/}` (three legacy factories) | `internal/adapters/storage/registry.go` (`NewBackend` + `NewStorage`, single switch) | spec 029 | **complete 2026-05-27** |
+| `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | same                    | pending              |
+| `internal/crypto`, `internal/lock`, `internal/tls`, `internal/monitor` | `internal/adapters/{crypto,lock,tls,monitor}` | same             | pending              |
+| `internal/manifest`, `internal/retention`           | `internal/domain/{manifest,retention}`          | same                    | pending              |
+| Orchestration inside `internal/cli/backup.go` (1475 LOC) | `internal/domain/backup/`                  | god-file split (PRD 14) | pending              |
+| Orchestration inside `internal/scheduler/restore_integration.go` (18 KB) | `internal/domain/restore/`         | same                    | pending              |
+| `internal/utils/`                                   | redistributed; package deleted                  | layout cleanup          | pending              |
 
 Each move is governed by its own ADR.
 

@@ -3,7 +3,7 @@ package pg_dump
 import (
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 func Test_setOutName(t *testing.T) {

@@ -1,4 +1,4 @@
-package sentinel_s3
+package s3
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -120,10 +119,10 @@ func (b *S3Backend) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 // Status returns the repository status for this S3 backend.
-func (b *S3Backend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
+func (b *S3Backend) Status(ctx context.Context) (ports.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return storagetypes.RepoStatus{Reachable: false, Error: err.Error()}, nil
+		return ports.RepoStatus{Reachable: false, Error: err.Error()}, nil
 	}
 	var total int64
 	var lastMod *time.Time
@@ -134,7 +133,7 @@ func (b *S3Backend) Status(ctx context.Context) (storagetypes.RepoStatus, error)
 			lastMod = &t
 		}
 	}
-	return storagetypes.RepoStatus{
+	return ports.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,

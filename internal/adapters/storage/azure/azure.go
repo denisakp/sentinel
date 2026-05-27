@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -196,10 +195,10 @@ func (b *AzureBlobBackend) Exists(ctx context.Context, path string) (bool, error
 }
 
 // Status returns the repository status for this Azure backend.
-func (b *AzureBlobBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
+func (b *AzureBlobBackend) Status(ctx context.Context) (ports.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return storagetypes.RepoStatus{
+		return ports.RepoStatus{
 			Reachable: false,
 			Error:     err.Error(),
 		}, nil
@@ -215,7 +214,7 @@ func (b *AzureBlobBackend) Status(ctx context.Context) (storagetypes.RepoStatus,
 		}
 	}
 
-	return storagetypes.RepoStatus{
+	return ports.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,

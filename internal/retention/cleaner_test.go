@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
 )
 
 type fakeS3DeleteBackend struct {

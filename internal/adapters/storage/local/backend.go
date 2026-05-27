@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -80,10 +79,10 @@ func (b *LocalBackend) Exists(_ context.Context, path string) (bool, error) {
 }
 
 // Status returns the repository status for this local backend.
-func (b *LocalBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
+func (b *LocalBackend) Status(ctx context.Context) (ports.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return storagetypes.RepoStatus{Reachable: false, Error: err.Error()}, nil
+		return ports.RepoStatus{Reachable: false, Error: err.Error()}, nil
 	}
 	var total int64
 	var lastMod *time.Time
@@ -94,7 +93,7 @@ func (b *LocalBackend) Status(ctx context.Context) (storagetypes.RepoStatus, err
 			lastMod = &t
 		}
 	}
-	return storagetypes.RepoStatus{
+	return ports.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,

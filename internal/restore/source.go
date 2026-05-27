@@ -15,9 +15,9 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
-	"github.com/denisakp/sentinel/internal/storage/local"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 )
 
 var (
@@ -36,19 +36,19 @@ type StagedArtifact struct {
 }
 
 var newS3RestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBackend, error) {
-	return storage.NewRestoreBackend(storage.RestoreBackendParams{
-		Type:              "s3",
-		S3Bucket:          src.S3Bucket,
-		S3Region:          src.S3Region,
-		S3BucketEndpoint:  src.S3BucketEndpoint,
-		S3AccessKeyID:     src.S3AccessKeyID,
-		S3SecretAccessKey: src.S3SecretAccessKey,
+	return storage.NewBackend(&storage.BackendParams{
+		StorageType:        "s3",
+		AWSBucket:          src.S3Bucket,
+		AWSRegion:          src.S3Region,
+		AWSBucketEndpoint:  src.S3BucketEndpoint,
+		AWSAccessKeyID:     src.S3AccessKeyID,
+		AWSSecretAccessKey: src.S3SecretAccessKey,
 	})
 }
 
 var newGCSRestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBackend, error) {
-	return storage.NewRestoreBackend(storage.RestoreBackendParams{
-		Type:               "gcs",
+	return storage.NewBackend(&storage.BackendParams{
+		StorageType:        "gcs",
 		GCSBucket:          src.GCSBucket,
 		GCSProjectID:       src.GCSProjectID,
 		GCSCredentialsFile: src.GCSCredentialsFile,

@@ -14,7 +14,6 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -160,10 +159,10 @@ func (b *GCSBackend) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 // Status returns repository status for this GCS backend.
-func (b *GCSBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error) {
+func (b *GCSBackend) Status(ctx context.Context) (ports.RepoStatus, error) {
 	objects, err := b.List(ctx, "")
 	if err != nil {
-		return storagetypes.RepoStatus{Reachable: false, Error: err.Error()}, nil
+		return ports.RepoStatus{Reachable: false, Error: err.Error()}, nil
 	}
 
 	var total int64
@@ -176,7 +175,7 @@ func (b *GCSBackend) Status(ctx context.Context) (storagetypes.RepoStatus, error
 		}
 	}
 
-	return storagetypes.RepoStatus{
+	return ports.RepoStatus{
 		Reachable:      true,
 		BackupCount:    len(objects),
 		TotalSizeBytes: total,

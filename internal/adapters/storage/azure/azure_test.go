@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

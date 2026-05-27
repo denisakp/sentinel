@@ -10,7 +10,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
 )
 
 func TestManagerApplyGCSDeletesRecordsAfterArtifactDelete(t *testing.T) {

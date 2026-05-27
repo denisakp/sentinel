@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 func TestPgDumpArgsBuilder(t *testing.T) {

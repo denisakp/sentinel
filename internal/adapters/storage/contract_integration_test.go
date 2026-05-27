@@ -14,11 +14,11 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	storage "github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/internal/storage/azure"
-	"github.com/denisakp/sentinel/internal/storage/gcs"
-	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
-	"github.com/denisakp/sentinel/internal/storage/storagetesting"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/ports/storagetesting"
 )
 
 // TestStorageContract_Integration runs the same contract case table against
@@ -70,7 +70,7 @@ func setupMinIO(t *testing.T) ports.StorageBackend {
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 	bucket := fmt.Sprintf("sentinel-contract-%d", time.Now().UnixNano())
 
-	client, err := sentinel_s3.NewS3Storage(&sentinel_s3.AmazonS3Storage{
+	client, err := s3.NewS3Storage(&s3.AmazonS3Storage{
 		Bucket:    bucket,
 		Region:    "us-east-1",
 		EndPoint:  endpoint,
@@ -83,7 +83,7 @@ func setupMinIO(t *testing.T) ports.StorageBackend {
 	if _, err := client.Client.CreateBucket(ctx, &awss3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 		t.Fatalf("CreateBucket: %v", err)
 	}
-	return sentinel_s3.NewS3Backend(client)
+	return s3.NewS3Backend(client)
 }
 
 // ────────────────────────────────────────────────────────────────────────────

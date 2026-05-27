@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 // installFakePgDump installs a fake `pg_dump` (or pg_dumpall) on PATH that
