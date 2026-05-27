@@ -69,5 +69,5 @@ Migrations are forward-only. To recover from a corrupt schema: restore `history.
 
 ## References
 
-- `internal/monitor/` — schema and migration runner
+- `internal/adapters/monitor/` — schema and migration runner
 - [upgrade-sentinel-binary](./upgrade-sentinel-binary.md)

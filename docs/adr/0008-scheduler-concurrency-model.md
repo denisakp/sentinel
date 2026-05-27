@@ -104,7 +104,7 @@ The scheduler package is a driving adapter under ADR 0001. It depends on `intern
 - **No on-disk format change**: this ADR documents the existing v1.1+ behaviour.
 - **No `sentinel.yaml` change**: `max_concurrent` and lock-related fields stay where they are.
 - **No CLI change**: scheduler invocation and output are unchanged.
-- **Monitor schema**: the `skipped` outcome is already a recognised state in `internal/monitor/`; no migration required.
+- **Monitor schema**: the `skipped` outcome is already a recognised state in `internal/adapters/monitor/`; no migration required.
 
 ## Implementation checklist
 

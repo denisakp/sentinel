@@ -14,7 +14,7 @@
 - `time.go` (~2.8 KB) — time formatting helpers.
 - `scheduled_output.go` (~1.9 KB) — output formatting for scheduled-job results.
 
-These files share no domain. They were grouped under `utils/` because they did not obviously belong anywhere when first written. The package is imported from `internal/config/`, `internal/cli/`, `internal/scheduler/`, and `internal/monitor/`, creating an implicit dependency on a junk drawer.
+These files share no domain. They were grouped under `utils/` because they did not obviously belong anywhere when first written. The package is imported from `internal/config/`, `internal/cli/`, `internal/scheduler/`, and `internal/adapters/monitor/`, creating an implicit dependency on a junk drawer.
 
 Under the hexagonal layout adopted in ADR 0001, every package must answer the question "which port or which domain do I serve?". `internal/utils/` cannot.
 

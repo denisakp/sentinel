@@ -68,5 +68,5 @@ Each `--config` run should appear within seconds of completion.
 
 ## References
 
-- `internal/monitor/recorder.go`, `internal/monitor/querier.go`
+- `internal/adapters/monitor/recorder.go`, `internal/adapters/monitor/querier.go`
 - [db-migration-status](./db-migration-status.md) for schema migration semantics

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
@@ -186,7 +185,7 @@ func ExecuteRestoreWithCleanup(
 	executionID string,
 	backupPath string,
 	store storage.Storage,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	restoreFn func(context.Context) error,
 ) (result *RestoreExecutionResult) {
 	result = &RestoreExecutionResult{
@@ -261,7 +260,7 @@ func ExecuteScheduledRestore(
 	cfg *config.Configuration,
 	jobName string,
 	job config.RestoreJob,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	limiter chan struct{},
 ) (*internalrestore.ExecutionResult, error) {
 	return ExecuteScheduledRestoreWithRunner(ctx, cfg, jobName, job, mon, limiter, runSharedRestoreExecution)
@@ -274,7 +273,7 @@ func ExecuteScheduledRestoreWithRunner(
 	cfg *config.Configuration,
 	jobName string,
 	job config.RestoreJob,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	limiter chan struct{},
 	runner SharedRestoreRunner,
 ) (*internalrestore.ExecutionResult, error) {
