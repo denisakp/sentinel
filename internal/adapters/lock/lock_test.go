@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	sentlock "github.com/denisakp/sentinel/internal/lock"
+	sentlock "github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 

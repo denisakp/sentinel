@@ -109,7 +109,7 @@ The scheduler package is a driving adapter under ADR 0001. It depends on `intern
 ## Implementation checklist
 
 - [x] Semaphore-leak-under-panic regression covered by `TestExecute_StressMixed` and `TestExecuteBackupWithCleanup_RecordsPanic` (`internal/scheduler/panic_*_test.go`); `-race` clean (feature `009-scheduler-semaphore-leak`).
-- [x] Per-job lock acquisition now goes through the hardened `internal/lock` package (PRD 10): `ErrLockHeld` short-circuits to a `skipped` outcome without consuming a semaphore slot for any wait.
+- [x] Per-job lock acquisition now goes through the hardened `internal/adapters/lock` package (PRD 10, relocated by spec 031): `ErrLockHeld` short-circuits to a `skipped` outcome without consuming a semaphore slot for any wait.
 - [ ] Add a package doc comment on `internal/scheduler/executor.go` summarising the acquire/release order (semaphore-then-lock, reverse defer release) from this ADR.
 - [ ] Once ADR 0001's migration completes, `internal/scheduler/executor.go` depends on `internal/ports/lock` and `internal/ports/recorder` rather than concrete packages.
 - [x] Cross-reference this ADR from `docs/runbooks/start-scheduler.md` and `docs/runbooks/scheduler-crash-recovery.md`.

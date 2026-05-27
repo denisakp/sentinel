@@ -40,7 +40,7 @@ The package marks a lock removable only when **both** hold:
 1. The recorded PID is **not alive** on the current host (`signal(0)` returns `ESRCH`).
 2. Lock **age > operator-configured threshold** (`now − start_time`).
 
-Reference: `EvaluateLockState` in `internal/lock/state.go`.
+Reference: `EvaluateLockState` in `internal/adapters/lock/state.go`.
 
 Check the PID:
 
@@ -67,7 +67,7 @@ Empty or malformed lock files are also reaped at startup.
 
 ## Typed errors operators may see
 
-From `internal/lock/errors.go`:
+From `internal/adapters/lock/errors.go` (and `internal/ports/lock.go` for `ErrLockHeld` / `ErrLockUnsupported` / `ErrLockIO` / `ErrLockExists`):
 
 - `ErrLockHeld` — another holder owns the lock (live PID, non-stale recorded holder, or uncontended flock).
 - `ErrLockUnsupported` — underlying filesystem does not support advisory file locks (some NFS configs).
@@ -93,5 +93,5 @@ Deleting an actively-held lock corrupts running jobs. **Never** `rm` a lock with
 ## References
 
 - ADR 0007 — Lock file format v1 (`docs/adr/0007-lock-file-format.md`)
-- `internal/lock/lock.go`, `internal/lock/state.go`, `internal/lock/errors.go`
+- `internal/adapters/lock/lock.go`, `internal/adapters/lock/state.go`, `internal/adapters/lock/errors.go`, `internal/ports/lock.go`
 - Spec: `specs/010-lock-toctou/`
