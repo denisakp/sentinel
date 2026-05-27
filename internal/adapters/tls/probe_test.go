@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/tls"
+	"github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 func TestProbeTLSConnection_NilTLS(t *testing.T) {

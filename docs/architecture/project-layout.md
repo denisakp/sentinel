@@ -207,7 +207,7 @@ The current tree diverges from this target. Tracked moves:
 | `internal/crypto`                                   | `internal/adapters/crypto`                      | spec 030                | **complete 2026-05-27** |
 | `internal/lock`                                     | `internal/adapters/lock`                        | spec 031                | **complete 2026-05-27** |
 | `internal/monitor`                                  | `internal/adapters/monitor`                     | spec 032                | **complete 2026-05-27** |
-| `internal/tls`                                      | `internal/adapters/tls`                         | same                    | pending              |
+| `internal/tls`                                      | `internal/adapters/tls`                         | spec 033                | **complete 2026-05-27** |
 | `internal/manifest`, `internal/retention`           | `internal/domain/{manifest,retention}`          | same                    | pending              |
 | Orchestration inside `internal/cli/backup.go` (1475 LOC) | `internal/domain/backup/`                  | god-file split (PRD 14) | pending              |
 | Orchestration inside `internal/scheduler/restore_integration.go` (18 KB) | `internal/domain/restore/`         | same                    | pending              |

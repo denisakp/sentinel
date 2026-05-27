@@ -47,7 +47,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/manifest/` — SHA-256 manifest + HashingWriter for integrity
 - `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
-- `internal/tls/` — `internaltls.Config` (domain) mirrors `config.TLSConfig` (YAML); map manually
+- `internal/adapters/tls/` — TLS adapter implementing `ports.Prober` (spec 033). `Adapter` satisfies the port; `BuildTLSArgs`, `ProbeTLSConnection`, `SweepOrphanMaterial`, and Mongo PEM helpers remain reachable as package-level functions. Domain type `internaltls.Config` lives in `internal/ports/tls.go` (spec 028); the adapter maps from `config.TLSConfig` (YAML).
 - `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
 - `internal/restore/` — restore arg validation (`args.go`, `validator.go`) + `incremental/`
 - `internal/utils/` — shared helpers (`file.go`, `time.go`, `scheduled_output.go`)
@@ -86,5 +86,5 @@ Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/032-monitor-adapter-migration/plan.md`
+`specs/033-tls-adapter-migration/plan.md`
 <!-- SPECKIT END -->

@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/internal/version"
 	"github.com/spf13/cobra"
 )

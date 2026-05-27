@@ -6,7 +6,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/backup"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )

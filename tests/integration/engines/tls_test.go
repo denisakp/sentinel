@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 // tlsModeSubtest is a common helper that:

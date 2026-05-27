@@ -18,7 +18,7 @@ import (
 	"github.com/youmark/pkcs8"
 
 	"github.com/denisakp/sentinel/internal/ports"
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 )
 
 // --- fixtures --------------------------------------------------------------
