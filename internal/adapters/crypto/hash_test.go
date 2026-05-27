@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 )
 
 func TestHashingWriter_SingleChunk(t *testing.T) {

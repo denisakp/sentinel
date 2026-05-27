@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// EncryptWriter abstracts *internal/crypto.ChunkEncryptWriter (current concrete implementation).
+// EncryptWriter abstracts *internal/adapters/crypto.ChunkEncryptWriter (current concrete implementation).
 //
 // Implementations consume bytes via io.Writer and emit Sentinel's chunked
 // AES-256-GCM envelope. BaseNonce returns the IV stored in the backup
@@ -19,15 +19,15 @@ type EncryptWriter interface {
 	LastAuthTag() []byte
 }
 
-// DecryptReader abstracts *internal/crypto.ChunkDecryptReader (current concrete implementation).
+// DecryptReader abstracts *internal/adapters/crypto.ChunkDecryptReader (current concrete implementation).
 type DecryptReader interface {
 	io.Reader
 }
 
 // DecryptOptions controls how the decrypt path handles envelope versioning.
 //
-// Relocated from internal/crypto/decrypt.go (single source of truth per spec
-// 028 FR-003a).
+// Relocated to internal/ports (single source of truth per spec 028 FR-003a);
+// concrete adapter lives in internal/adapters/crypto/ (spec 030).
 type DecryptOptions struct {
 	// AllowLegacy permits decrypting pre-v2 (unversioned) artifacts. Off by default.
 	AllowLegacy bool
@@ -37,9 +37,9 @@ type DecryptOptions struct {
 	BackupID string
 }
 
-// Encryption envelope sentinels — relocated from internal/crypto/envelope.go
-// (single source of truth per spec 028 FR-003a). Callers MUST import these
-// from this package; aliasing back into internal/crypto/ is forbidden.
+// Encryption envelope sentinels — single source of truth per spec 028
+// FR-003a. Callers MUST import these from this package; aliasing back into
+// internal/adapters/crypto/ is forbidden.
 
 // ErrShortNonce indicates the AEAD's nonce size is too small to host the 8-byte counter region.
 var ErrShortNonce = errors.New("crypto: AEAD nonce shorter than 8-byte counter region")

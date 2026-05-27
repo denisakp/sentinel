@@ -204,7 +204,8 @@ The current tree diverges from this target. Tracked moves:
 | `internal/storage/storagetesting/`                  | `internal/ports/storagetesting/`                | spec 029                | **complete 2026-05-27** |
 | `internal/storage/{storage.go,backend.go,factory/}` (three legacy factories) | `internal/adapters/storage/registry.go` (`NewBackend` + `NewStorage`, single switch) | spec 029 | **complete 2026-05-27** |
 | `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | same                    | pending              |
-| `internal/crypto`, `internal/lock`, `internal/tls`, `internal/monitor` | `internal/adapters/{crypto,lock,tls,monitor}` | same             | pending              |
+| `internal/crypto`                                   | `internal/adapters/crypto`                      | spec 030                | **complete 2026-05-27** |
+| `internal/lock`, `internal/tls`, `internal/monitor` | `internal/adapters/{lock,tls,monitor}`          | same                    | pending              |
 | `internal/manifest`, `internal/retention`           | `internal/domain/{manifest,retention}`          | same                    | pending              |
 | Orchestration inside `internal/cli/backup.go` (1475 LOC) | `internal/domain/backup/`                  | god-file split (PRD 14) | pending              |
 | Orchestration inside `internal/scheduler/restore_integration.go` (18 KB) | `internal/domain/restore/`         | same                    | pending              |

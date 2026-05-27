@@ -12,7 +12,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -30,7 +30,7 @@ func PreRestoreVerifyAndDecrypt(
 	ctx context.Context,
 	m *ports.BackupManifest,
 	filePath string,
-	keyProvider crypto.KeyProvider,
+	keyProvider ports.KeyProvider,
 ) (io.Reader, error) {
 	return PreRestoreVerifyAndDecryptWithOptions(ctx, m, filePath, keyProvider, ports.DecryptOptions{})
 }
@@ -41,7 +41,7 @@ func PreRestoreVerifyAndDecryptWithOptions(
 	ctx context.Context,
 	m *ports.BackupManifest,
 	filePath string,
-	keyProvider crypto.KeyProvider,
+	keyProvider ports.KeyProvider,
 	decryptOpts ports.DecryptOptions,
 ) (io.Reader, error) {
 	// Verify hash

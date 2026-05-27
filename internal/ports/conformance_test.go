@@ -12,7 +12,7 @@
 package ports_test
 
 import (
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"

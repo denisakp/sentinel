@@ -19,7 +19,7 @@ import (
 	backupMongo "github.com/denisakp/sentinel/internal/backup/mongo"
 	backupSQL "github.com/denisakp/sentinel/internal/backup/sql"
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/notifier"

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
@@ -489,7 +489,7 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 		return "", err
 	}
 
-	var keyProvider crypto.KeyProvider
+	var keyProvider ports.KeyProvider
 	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
 		keyProvider = &crypto.FileKeyProvider{EnvVar: cfg.EncryptionKeyEnv, FilePath: cfg.EncryptionKeyFile}
 	}

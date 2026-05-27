@@ -7,11 +7,10 @@ package ports
 // environment variable or a key file; a future KMS-backed implementation
 // would satisfy the same contract.
 //
-// The free helpers GenerateKey, DeriveKey, GenerateSalt intentionally remain
-// in internal/crypto/ (and will move to internal/adapters/crypto/ in spec
-// 030). They are stateless utility functions that callers can import
-// directly from the adapter without violating the dependency rule, so they
-// do not need a port surface.
+// The free helpers GenerateKey, DeriveKey, GenerateSalt live in
+// internal/adapters/crypto/ (moved by spec 030). They are stateless utility
+// functions that callers can import directly from the adapter without
+// violating the dependency rule, so they do not need a port surface.
 type KeyProvider interface {
 	GetKey() ([]byte, error)
 }
