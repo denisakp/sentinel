@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestExportHistoryCSV_IncludesIncrementalObservabilityFields(t *testing.T) {
@@ -17,11 +19,11 @@ func TestExportHistoryCSV_IncludesIncrementalObservabilityFields(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	rec := &Execution{
+	rec := &ports.Execution{
 		BackupName:          "backup-incremental",
 		DatabaseType:        "postgres",
 		Timestamp:           now,
-		Status:              StatusCompleted,
+		Status:              ports.StatusCompleted,
 		StorageBackend:      "local",
 		FilePath:            "backup.sql",
 		BackupType:          "incremental",
@@ -35,7 +37,7 @@ func TestExportHistoryCSV_IncludesIncrementalObservabilityFields(t *testing.T) {
 		t.Fatalf("RecordExecution() error = %v", err)
 	}
 
-	data, err := mon.ExportHistory(context.Background(), "csv", &Filter{BackupName: "backup-incremental"})
+	data, err := mon.ExportHistory(context.Background(), "csv", &ports.Filter{BackupName: "backup-incremental"})
 	if err != nil {
 		t.Fatalf("ExportHistory() error = %v", err)
 	}

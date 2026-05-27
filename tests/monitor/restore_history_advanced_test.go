@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestRestoreHistoryIncludesAdvancedFields(t *testing.T) {
@@ -14,7 +14,7 @@ func TestRestoreHistoryIncludesAdvancedFields(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Second)
 	target := now.Add(-30 * time.Minute)
-	rec := &monitor.RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:          "restore-pitr",
 		DatabaseType:         "postgres",
 		DatabaseName:         "app",
@@ -28,7 +28,7 @@ func TestRestoreHistoryIncludesAdvancedFields(t *testing.T) {
 		ConflictStrategy:     "error",
 		Timestamp:            now,
 		DurationMs:           1000,
-		Status:               monitor.StatusSuccess,
+		Status:               ports.StatusSuccess,
 		SourceBackupPath:     "backup.sql",
 		VerificationPassed:   true,
 		CreatedAt:            now,
@@ -39,7 +39,7 @@ func TestRestoreHistoryIncludesAdvancedFields(t *testing.T) {
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	items, err := mon.ListRestoreExecutions(context.Background(), &monitor.RestoreFilter{RestoreName: "restore-pitr"}, 10, 0)
+	items, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-pitr"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}

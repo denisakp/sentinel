@@ -11,11 +11,12 @@ import (
 
 	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/spf13/cobra"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	timestamp := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	executions := []monitor.Execution{
+	executions := []ports.Execution{
 		{
 			ID:             "exec-001",
 			BackupName:     "prod-postgres",
@@ -84,7 +85,7 @@ func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
 	t.Cleanup(func() { _ = mon.Close() })
 
 	now := time.Now().UTC()
-	records := []monitor.RestoreExecution{
+	records := []ports.RestoreExecution{
 		{RestoreName: "r-success", DatabaseType: "postgres", DatabaseName: "db", Status: "completed", Timestamp: now, CreatedAt: now},
 		{RestoreName: "r-failed", DatabaseType: "postgres", DatabaseName: "db", Status: "failure", Timestamp: now, CreatedAt: now},
 	}
@@ -115,11 +116,11 @@ func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
 		}
 	}
 
-	if got := normalizeRestoreStatus(monitor.StatusTimeout); got != monitor.StatusTimeout {
-		t.Fatalf("normalizeRestoreStatus(timeout) = %q, want %q", got, monitor.StatusTimeout)
+	if got := normalizeRestoreStatus(ports.StatusTimeout); got != ports.StatusTimeout {
+		t.Fatalf("normalizeRestoreStatus(timeout) = %q, want %q", got, ports.StatusTimeout)
 	}
-	if got := normalizeRestoreStatus(monitor.StatusSkipped); got != monitor.StatusSkipped {
-		t.Fatalf("normalizeRestoreStatus(skipped) = %q, want %q", got, monitor.StatusSkipped)
+	if got := normalizeRestoreStatus(ports.StatusSkipped); got != ports.StatusSkipped {
+		t.Fatalf("normalizeRestoreStatus(skipped) = %q, want %q", got, ports.StatusSkipped)
 	}
 }
 
@@ -269,7 +270,7 @@ func newCLITestMonitor(t *testing.T) *monitor.Monitor {
 
 func recordCLITestExecution(t *testing.T, mon *monitor.Monitor, job, status string, timestamp time.Time, size int64) {
 	t.Helper()
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:     job,
 		DatabaseType:   "postgres",
 		Timestamp:      timestamp,

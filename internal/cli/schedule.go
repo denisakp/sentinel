@@ -12,6 +12,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 )
@@ -305,7 +306,7 @@ func executeRestoreJob(
 		return err
 	}
 
-	if result != nil && result.Status == monitor.StatusSkipped && cmd != nil {
+	if result != nil && result.Status == ports.StatusSkipped && cmd != nil {
 		cmd.Printf("Restore job %s skipped: %s\\n", job.Name, result.Reason)
 	}
 

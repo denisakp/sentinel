@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func newTestMonitor(t *testing.T) *monitor.Monitor {
@@ -25,7 +26,7 @@ func newTestMonitor(t *testing.T) *monitor.Monitor {
 
 func seedRunning(t *testing.T, mon *monitor.Monitor, execID, jobName, dbType string) {
 	t.Helper()
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		ID:           execID,
 		BackupName:   jobName,
 		DatabaseType: dbType,
@@ -36,7 +37,7 @@ func seedRunning(t *testing.T, mon *monitor.Monitor, execID, jobName, dbType str
 }
 
 func isFailureStatus(s string) bool {
-	return s == monitor.StatusFailed || s == monitor.LegacyStatusFailure
+	return s == ports.StatusFailed || s == monitor.LegacyStatusFailure
 }
 
 // --- T015 ---

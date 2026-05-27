@@ -338,7 +338,7 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 		if result != nil && result.PlanningStatus == string(internalrestore.PlanStatusConfirmationRequired) {
 			return fmt.Errorf("restore execution requires explicit fallback confirmation; set confirm_full_fallback: true for job %q", jobName)
 		}
-		if result != nil && result.Status == monitor.StatusSkipped {
+		if result != nil && result.Status == ports.StatusSkipped {
 			return fmt.Errorf("restore execution skipped: %s", result.Reason)
 		}
 		return mapRestoreSourceError(job, err)
@@ -457,9 +457,9 @@ func handleRestoreHistory(cmd *cobra.Command, args []string) error {
 	}
 	defer mon.Close()
 
-	var filter *monitor.RestoreFilter
+	var filter *ports.RestoreFilter
 	if len(args) == 1 {
-		filter = &monitor.RestoreFilter{RestoreName: args[0]}
+		filter = &ports.RestoreFilter{RestoreName: args[0]}
 	}
 
 	ctx := context.Background()
@@ -519,9 +519,9 @@ func normalizeRestoreStatus(status string) string {
 	status = strings.ToLower(strings.TrimSpace(status))
 	switch status {
 	case "completed":
-		return monitor.StatusSuccess
+		return ports.StatusSuccess
 	case "failure":
-		return monitor.StatusFailed
+		return ports.StatusFailed
 	default:
 		return status
 	}

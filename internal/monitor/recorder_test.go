@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestRecordExecution_PersistsIncrementalObservabilityFields(t *testing.T) {
@@ -16,12 +17,12 @@ func TestRecordExecution_PersistsIncrementalObservabilityFields(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	exec := &Execution{
+	exec := &ports.Execution{
 		BackupName:          "backup-incremental",
 		DatabaseType:        "postgres",
 		Timestamp:           now,
 		DurationMs:          1250,
-		Status:              StatusCompleted,
+		Status:              ports.StatusCompleted,
 		StorageBackend:      "local",
 		FilePath:            "backup.sql",
 		FileSizeBytes:       2048,
@@ -66,7 +67,7 @@ func TestRecordRestoreExecution_PersistsIncrementalObservabilityFields(t *testin
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	rec := &RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:        "restore-incremental",
 		DatabaseType:       "postgres",
 		DatabaseName:       "app",
@@ -82,7 +83,7 @@ func TestRecordRestoreExecution_PersistsIncrementalObservabilityFields(t *testin
 		SourceType:         "local",
 		ConflictStrategy:   "error",
 		Timestamp:          now,
-		Status:             StatusCompleted,
+		Status:             ports.StatusCompleted,
 		SourceBackupPath:   "backup.sql",
 		CreatedAt:          now,
 	}
@@ -90,7 +91,7 @@ func TestRecordRestoreExecution_PersistsIncrementalObservabilityFields(t *testin
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-incremental"}, 10, 0)
+	rows, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-incremental"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}

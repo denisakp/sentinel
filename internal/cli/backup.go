@@ -666,7 +666,7 @@ func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, stor
 		storageBackend = storageParams.StorageType
 	}
 
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:     job.Name,
 		DatabaseType:   job.Type,
 		Timestamp:      start.UTC(),
@@ -1180,7 +1180,7 @@ func deriveIncrementalBackupContext(cfg *config.Configuration, job config.Backup
 	return ctx
 }
 
-func latestIncrementalExecution(cfg *config.Configuration, jobName string) *monitor.Execution {
+func latestIncrementalExecution(cfg *config.Configuration, jobName string) *ports.Execution {
 	if cfg == nil || strings.TrimSpace(cfg.HistoryDBPath) == "" || strings.TrimSpace(jobName) == "" {
 		return nil
 	}
@@ -1191,14 +1191,14 @@ func latestIncrementalExecution(cfg *config.Configuration, jobName string) *moni
 	}
 	defer mon.Close()
 
-	executions, err := mon.ListExecutions(context.Background(), &monitor.Filter{BackupName: jobName}, 100, 0)
+	executions, err := mon.ListExecutions(context.Background(), &ports.Filter{BackupName: jobName}, 100, 0)
 	if err != nil {
 		return nil
 	}
 
 	for i := range executions {
 		exec := executions[i]
-		if exec.Status != "success" && exec.Status != monitor.StatusCompleted {
+		if exec.Status != "success" && exec.Status != ports.StatusCompleted {
 			continue
 		}
 		if strings.TrimSpace(exec.ChainID) == "" {
@@ -1213,7 +1213,7 @@ func latestIncrementalExecution(cfg *config.Configuration, jobName string) *moni
 	return nil
 }
 
-func resolveBaselineBackupID(cfg *config.Configuration, jobName string, latest *monitor.Execution) string {
+func resolveBaselineBackupID(cfg *config.Configuration, jobName string, latest *ports.Execution) string {
 	if latest == nil {
 		return ""
 	}
@@ -1235,14 +1235,14 @@ func resolveBaselineBackupID(cfg *config.Configuration, jobName string, latest *
 	}
 	defer mon.Close()
 
-	executions, err := mon.ListExecutions(context.Background(), &monitor.Filter{BackupName: jobName}, 300, 0)
+	executions, err := mon.ListExecutions(context.Background(), &ports.Filter{BackupName: jobName}, 300, 0)
 	if err != nil {
 		return latest.ID
 	}
 
 	for i := range executions {
 		exec := executions[i]
-		if exec.Status != "success" && exec.Status != monitor.StatusCompleted {
+		if exec.Status != "success" && exec.Status != ports.StatusCompleted {
 			continue
 		}
 		if exec.ChainID != latest.ChainID {
@@ -1306,7 +1306,7 @@ func handleBackupChainStatus(cmd *cobra.Command, args []string) error {
 	}
 	defer mon.Close()
 
-	executions, err := mon.ListExecutions(cmd.Context(), &monitor.Filter{BackupName: jobName}, 300, 0)
+	executions, err := mon.ListExecutions(cmd.Context(), &ports.Filter{BackupName: jobName}, 300, 0)
 	if err != nil {
 		return fmt.Errorf("failed to list backup history: %w", err)
 	}
@@ -1367,7 +1367,7 @@ func handleBackupChainList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list backup history: %w", err)
 	}
 
-	chainExecutions := make([]monitor.Execution, 0)
+	chainExecutions := make([]ports.Execution, 0)
 	for i := range executions {
 		exec := executions[i]
 		if !isSuccessfulStatus(exec.Status) {
@@ -1397,7 +1397,7 @@ func handleBackupChainList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func latestSuccessfulExecution(executions []monitor.Execution) *monitor.Execution {
+func latestSuccessfulExecution(executions []ports.Execution) *ports.Execution {
 	for i := range executions {
 		exec := executions[i]
 		if isSuccessfulStatus(exec.Status) {
@@ -1408,7 +1408,7 @@ func latestSuccessfulExecution(executions []monitor.Execution) *monitor.Executio
 }
 
 func isSuccessfulStatus(status string) bool {
-	return status == "success" || status == monitor.StatusCompleted
+	return status == "success" || status == ports.StatusCompleted
 }
 
 // encryptBackupFile encrypts filePath in-place using AES-256-GCM via ChunkEncryptWriter.

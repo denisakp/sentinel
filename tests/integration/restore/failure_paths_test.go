@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/restore"
 )
@@ -99,8 +98,8 @@ func TestFailurePaths_TimeoutExceeded_ReturnsTimeoutStatus(t *testing.T) {
 	}
 	// If engine timed out, status must be StatusTimeout.
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		if result.Status != monitor.StatusTimeout {
-			t.Errorf("expected status=%s for deadline exceeded, got %q", monitor.StatusTimeout, result.Status)
+		if result.Status != ports.StatusTimeout {
+			t.Errorf("expected status=%s for deadline exceeded, got %q", ports.StatusTimeout, result.Status)
 		}
 		if result.Reason != "timeout" {
 			t.Errorf("expected Reason=timeout, got %q", result.Reason)
@@ -163,8 +162,8 @@ func TestFailurePaths_LockConflict_ReturnsSkippedStatus(t *testing.T) {
 	if result == nil {
 		t.Fatal("result must not be nil")
 	}
-	if result.Status != monitor.StatusSkipped {
-		t.Errorf("expected status=%s for lock conflict, got %q", monitor.StatusSkipped, result.Status)
+	if result.Status != ports.StatusSkipped {
+		t.Errorf("expected status=%s for lock conflict, got %q", ports.StatusSkipped, result.Status)
 	}
 	if result.Reason != "lock_conflict" {
 		t.Errorf("expected Reason=lock_conflict, got %q", result.Reason)

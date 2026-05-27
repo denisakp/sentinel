@@ -4,19 +4,20 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestIncrementalObservabilityMetricsSnapshot(t *testing.T) {
 	monitor.ResetIncrementalMetrics()
 	t.Cleanup(monitor.ResetIncrementalMetrics)
 
-	monitor.ObserveIncrementalBackup("backup-job", &monitor.Execution{
+	monitor.ObserveIncrementalBackup("backup-job", &ports.Execution{
 		BackupType:          "incremental",
 		ChainIndex:          3,
 		DeltaSizeBytes:      2048,
 		FullBackupSizeBytes: 8192,
 	})
-	monitor.ObserveIncrementalRestore("restore-job", &monitor.RestoreExecution{
+	monitor.ObserveIncrementalRestore("restore-job", &ports.RestoreExecution{
 		RestoreMode:        "incremental",
 		ChainDepth:         4,
 		AssemblyDurationMs: 650,

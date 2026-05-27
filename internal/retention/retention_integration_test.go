@@ -9,6 +9,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
 )
 
@@ -45,7 +46,7 @@ func TestManagerApplyGCSDeletesRecordsAfterArtifactDelete(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	fixtures := []*monitor.Execution{
+	fixtures := []*ports.Execution{
 		{
 			BackupName:    "gcs-job",
 			DatabaseType:  "postgres",
@@ -137,7 +138,7 @@ func TestManagerApplyPreservesActiveChainBaseline(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	fixtures := []*monitor.Execution{
+	fixtures := []*ports.Execution{
 		{
 			BackupName:    "pg-job",
 			DatabaseType:  "postgres",

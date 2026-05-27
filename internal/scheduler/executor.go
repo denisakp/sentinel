@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
@@ -191,7 +192,7 @@ func ExecuteBackupWithCleanupContext(
 // synthesizeRunStart persists a "running" record for an execution that
 // panicked before its start could be recorded. Used by *WithCleanup helpers.
 func synthesizeRunStart(ctx context.Context, mon *monitor.Monitor, jobName, database string) (string, error) {
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:   jobName,
 		DatabaseType: database,
 		Timestamp:    time.Now().UTC(),

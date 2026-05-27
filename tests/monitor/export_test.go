@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestExportHistoryJSON(t *testing.T) {
@@ -15,7 +15,7 @@ func TestExportHistoryJSON(t *testing.T) {
 
 	insertExecution(t, mon, "job-a", "postgres", "success", time.Now(), 100)
 
-	data, err := mon.ExportHistory(context.Background(), "json", &monitor.Filter{BackupName: "job-a"})
+	data, err := mon.ExportHistory(context.Background(), "json", &ports.Filter{BackupName: "job-a"})
 	if err != nil {
 		t.Fatalf("export history json failed: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestExportHistoryCSV(t *testing.T) {
 
 	insertExecution(t, mon, "job-b", "mysql", "failure", time.Now(), 200)
 
-	data, err := mon.ExportHistory(context.Background(), "csv", &monitor.Filter{BackupName: "job-b"})
+	data, err := mon.ExportHistory(context.Background(), "csv", &ports.Filter{BackupName: "job-b"})
 	if err != nil {
 		t.Fatalf("export history csv failed: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestExportNewStatuses(t *testing.T) {
 	}
 
 	// Export to JSON and verify all statuses are present
-	jsonData, err := mon.ExportHistory(context.Background(), "json", &monitor.Filter{})
+	jsonData, err := mon.ExportHistory(context.Background(), "json", &ports.Filter{})
 	if err != nil {
 		t.Fatalf("export history json failed: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestExportNewStatuses(t *testing.T) {
 	}
 
 	// Export to CSV and verify all statuses are present
-	csvData, err := mon.ExportHistory(context.Background(), "csv", &monitor.Filter{})
+	csvData, err := mon.ExportHistory(context.Background(), "csv", &ports.Filter{})
 	if err != nil {
 		t.Fatalf("export history csv failed: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestExportCleanupFields(t *testing.T) {
 	insertExecution(t, mon, "job-cleanup", "postgres", "failed", time.Now(), 100)
 
 	// Export to JSON
-	jsonData, err := mon.ExportHistory(context.Background(), "json", &monitor.Filter{})
+	jsonData, err := mon.ExportHistory(context.Background(), "json", &ports.Filter{})
 	if err != nil {
 		t.Fatalf("export history json failed: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestExportCleanupFields(t *testing.T) {
 	}
 
 	// Export to CSV
-	csvData, err := mon.ExportHistory(context.Background(), "csv", &monitor.Filter{})
+	csvData, err := mon.ExportHistory(context.Background(), "csv", &ports.Filter{})
 	if err != nil {
 		t.Fatalf("export history csv failed: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestExportPreservesFullErrorMessage(t *testing.T) {
 	defer mon.Close()
 
 	fullErr := "dial tcp 10.0.0.5:5432: connect: connection refused after multiple retries and timeout"
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:     "job-errors",
 		DatabaseType:   "postgres",
 		Timestamp:      time.Now().UTC(),
@@ -142,7 +142,7 @@ func TestExportPreservesFullErrorMessage(t *testing.T) {
 		t.Fatalf("record execution failed: %v", err)
 	}
 
-	jsonData, err := mon.ExportHistory(context.Background(), "json", &monitor.Filter{BackupName: "job-errors"})
+	jsonData, err := mon.ExportHistory(context.Background(), "json", &ports.Filter{BackupName: "job-errors"})
 	if err != nil {
 		t.Fatalf("export json failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestExportPreservesFullErrorMessage(t *testing.T) {
 		t.Fatalf("expected json export to include full error message")
 	}
 
-	csvData, err := mon.ExportHistory(context.Background(), "csv", &monitor.Filter{BackupName: "job-errors"})
+	csvData, err := mon.ExportHistory(context.Background(), "csv", &ports.Filter{BackupName: "job-errors"})
 	if err != nil {
 		t.Fatalf("export csv failed: %v", err)
 	}

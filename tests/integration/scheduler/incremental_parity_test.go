@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/scheduler"
 )
@@ -45,7 +45,7 @@ func TestIncrementalSchedulerExecutionRequestParityWithCLIRequest(t *testing.T) 
 		nil,
 		func(_ context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 			captured = req
-			return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+			return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
 		},
 	)
 	if err != nil {

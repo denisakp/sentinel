@@ -99,7 +99,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 	defer stop()
 
 	result := &ExecutionResult{
-		Status:           monitor.StatusFailed,
+		Status:           ports.StatusFailed,
 		StartedAt:        time.Now().UTC(),
 		SourceType:       job.BackupSource.Type,
 		ConflictStrategy: effectiveConflictStrategy(job),
@@ -110,7 +110,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		lockMgr := lock.NewManager(req.LockDir)
 		if _, err := lockMgr.TryAcquire(req.JobName, time.Hour); err != nil {
 			if errors.Is(err, ports.ErrLockHeld) {
-				result.Status = monitor.StatusSkipped
+				result.Status = ports.StatusSkipped
 				result.Reason = "lock_conflict"
 				result.CompletedAt = time.Now().UTC()
 				result.Duration = result.CompletedAt.Sub(result.StartedAt)
@@ -204,7 +204,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 	}
 	if plan.Status == PlanStatusConfirmationRequired {
 		err := fmt.Errorf("fallback_required_confirmation: %s", plan.ReasonCode)
-		result.Status = monitor.StatusSkipped
+		result.Status = ports.StatusSkipped
 		result.Reason = plan.ReasonCode
 		result.RestoreMode = string(plan.Mode)
 		result.PlanningStatus = string(plan.Status)
@@ -339,7 +339,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		result.Reason = classifyRestoreError(err)
 		result.Error = err
 		if errors.Is(err, context.DeadlineExceeded) {
-			result.Status = monitor.StatusTimeout
+			result.Status = ports.StatusTimeout
 		}
 		if errors.Is(err, context.Canceled) {
 			result.Reason = "interrupted"
@@ -466,7 +466,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 		result.VerificationPassed = true
 	}
 
-	result.Status = monitor.StatusSuccess
+	result.Status = ports.StatusSuccess
 	result.CompletedAt = time.Now().UTC()
 	result.Duration = result.CompletedAt.Sub(result.StartedAt)
 	recordRestoreExecution(ctx, req, job, result)
@@ -565,7 +565,7 @@ func recordRestoreExecution(ctx context.Context, req *ExecutionRequest, job conf
 	if req == nil || result == nil {
 		return
 	}
-	entry := &monitor.RestoreExecution{
+	entry := &ports.RestoreExecution{
 		ID:                   result.ExecutionID,
 		RestoreName:          req.JobName,
 		DatabaseType:         job.Type,

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // TestNewMonitor_FreshDB_StampsCurrentVersion verifies that opening against a
@@ -275,7 +276,7 @@ func TestRecordRestoreExecution_NoFallbackPath(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	rec := &RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:      "no-fallback",
 		DatabaseType:     "postgres",
 		DatabaseName:     "db",
@@ -284,7 +285,7 @@ func TestRecordRestoreExecution_NoFallbackPath(t *testing.T) {
 		SourceType:       "local",
 		ConflictStrategy: "error",
 		Timestamp:        now,
-		Status:           StatusCompleted,
+		Status:           ports.StatusCompleted,
 		SourceBackupPath: "/tmp/backup.sql",
 		CreatedAt:        now,
 	}

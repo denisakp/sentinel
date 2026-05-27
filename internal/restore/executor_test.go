@@ -13,7 +13,6 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
 	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
 )
 
@@ -264,8 +263,8 @@ func TestExecuteRestoreFallbackConfirmationRequired(t *testing.T) {
 	if result == nil {
 		t.Fatal("result is nil")
 	}
-	if result.Status != monitor.StatusSkipped {
-		t.Fatalf("Status = %q, want %q", result.Status, monitor.StatusSkipped)
+	if result.Status != ports.StatusSkipped {
+		t.Fatalf("Status = %q, want %q", result.Status, ports.StatusSkipped)
 	}
 	if result.Reason != ReasonCodeFullFallbackConfirmationRequired {
 		t.Fatalf("Reason = %q", result.Reason)

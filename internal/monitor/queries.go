@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ListExecutions retrieves backup history with filtering.
-func (m *Monitor) ListExecutions(ctx context.Context, filter *Filter, limit int, offset int) ([]Execution, error) {
+func (m *Monitor) ListExecutions(ctx context.Context, filter *ports.Filter, limit int, offset int) ([]ports.Execution, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("monitor database is not initialized")
 	}
@@ -33,7 +34,7 @@ func (m *Monitor) ListExecutions(ctx context.Context, filter *Filter, limit int,
 	}
 	defer rows.Close()
 
-	var executions []Execution
+	var executions []ports.Execution
 	for rows.Next() {
 		exec, err := scanFullExecution(rows)
 		if err != nil {
@@ -49,7 +50,7 @@ func (m *Monitor) ListExecutions(ctx context.Context, filter *Filter, limit int,
 }
 
 // GetExecution retrieves detailed info for a single execution.
-func (m *Monitor) GetExecution(ctx context.Context, id string) (*Execution, error) {
+func (m *Monitor) GetExecution(ctx context.Context, id string) (*ports.Execution, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("monitor database is not initialized")
 	}
@@ -71,7 +72,7 @@ func (m *Monitor) GetExecution(ctx context.Context, id string) (*Execution, erro
 }
 
 // ListRestoreExecutions retrieves restore history with filtering.
-func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilter, limit int, offset int) ([]RestoreExecution, error) {
+func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *ports.RestoreFilter, limit int, offset int) ([]ports.RestoreExecution, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("monitor database is not initialized")
 	}
@@ -105,7 +106,7 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 			}
 			defer legacyRows.Close()
 
-			var legacyExecutions []RestoreExecution
+			var legacyExecutions []ports.RestoreExecution
 			for legacyRows.Next() {
 				exec, scanErr := scanRestoreExecutionLegacy(legacyRows)
 				if scanErr != nil {
@@ -122,7 +123,7 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 	}
 	defer rows.Close()
 
-	var executions []RestoreExecution
+	var executions []ports.RestoreExecution
 	for rows.Next() {
 		exec, err := scanRestoreExecution(rows)
 		if err != nil {
@@ -137,7 +138,7 @@ func (m *Monitor) ListRestoreExecutions(ctx context.Context, filter *RestoreFilt
 	return executions, nil
 }
 
-func buildFilter(filter *Filter) (string, []interface{}) {
+func buildFilter(filter *ports.Filter) (string, []interface{}) {
 	if filter == nil {
 		return "", nil
 	}
@@ -177,7 +178,7 @@ func buildFilter(filter *Filter) (string, []interface{}) {
 	return "WHERE " + strings.Join(clauses, " AND "), args
 }
 
-func buildRestoreFilter(filter *RestoreFilter) (string, []interface{}) {
+func buildRestoreFilter(filter *ports.RestoreFilter) (string, []interface{}) {
 	if filter == nil {
 		return "", nil
 	}
@@ -217,8 +218,8 @@ type rowScanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func scanExecution(row rowScanner) (*Execution, error) {
-	var exec Execution
+func scanExecution(row rowScanner) (*ports.Execution, error) {
+	var exec ports.Execution
 	var timestamp time.Time
 	var createdAt time.Time
 	var durationMs sql.NullInt64
@@ -292,7 +293,7 @@ func (m *Monitor) FinalizeExecution(ctx context.Context, id string, status strin
 
 // GetStaleRunningExecutions retrieves executions with status 'running' or legacy 'in-progress'
 // for startup reconciliation. These are candidates for marking as interrupted.
-func (m *Monitor) GetStaleRunningExecutions(ctx context.Context) ([]Execution, error) {
+func (m *Monitor) GetStaleRunningExecutions(ctx context.Context) ([]ports.Execution, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("monitor database is not initialized")
 	}
@@ -304,13 +305,13 @@ func (m *Monitor) GetStaleRunningExecutions(ctx context.Context) ([]Execution, e
 		WHERE status IN (?, ?) 
 		ORDER BY timestamp DESC`
 
-	rows, err := m.db.QueryContext(ctx, query, StatusRunning, LegacyStatusInProgress)
+	rows, err := m.db.QueryContext(ctx, query, ports.StatusRunning, LegacyStatusInProgress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query stale running executions: %w", err)
 	}
 	defer rows.Close()
 
-	var executions []Execution
+	var executions []ports.Execution
 	for rows.Next() {
 		exec, err := scanFullExecution(rows)
 		if err != nil {
@@ -326,8 +327,8 @@ func (m *Monitor) GetStaleRunningExecutions(ctx context.Context) ([]Execution, e
 }
 
 // scanFullExecution scans execution with all V1 consolidation fields (cleanup, finished_at, updated_at).
-func scanFullExecution(row rowScanner) (*Execution, error) {
-	var exec Execution
+func scanFullExecution(row rowScanner) (*ports.Execution, error) {
+	var exec ports.Execution
 	var timestamp time.Time
 	var createdAt time.Time
 	var updatedAt time.Time
@@ -416,8 +417,8 @@ func scanFullExecution(row rowScanner) (*Execution, error) {
 	return &exec, nil
 }
 
-func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
-	var exec RestoreExecution
+func scanRestoreExecution(row rowScanner) (*ports.RestoreExecution, error) {
+	var exec ports.RestoreExecution
 	var timestamp time.Time
 	var createdAt time.Time
 	var durationMs sql.NullInt64
@@ -548,8 +549,8 @@ func scanRestoreExecution(row rowScanner) (*RestoreExecution, error) {
 	return &exec, nil
 }
 
-func scanRestoreExecutionLegacy(row rowScanner) (*RestoreExecution, error) {
-	var exec RestoreExecution
+func scanRestoreExecutionLegacy(row rowScanner) (*ports.RestoreExecution, error) {
+	var exec ports.RestoreExecution
 	var timestamp time.Time
 	var createdAt time.Time
 	var durationMs sql.NullInt64

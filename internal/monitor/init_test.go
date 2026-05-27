@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestNewMonitor_RepairsRestoreStatusConstraint(t *testing.T) {
@@ -15,8 +17,8 @@ func TestNewMonitor_RepairsRestoreStatusConstraint(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	for _, status := range []string{StatusTimeout, StatusSkipped} {
-		rec := &RestoreExecution{
+	for _, status := range []string{ports.StatusTimeout, ports.StatusSkipped} {
+		rec := &ports.RestoreExecution{
 			RestoreName:      "restore-job",
 			DatabaseType:     "postgres",
 			DatabaseName:     "db",
@@ -48,7 +50,7 @@ func TestNewMonitor_AcceptsAdvancedRestoreFields(t *testing.T) {
 
 	now := time.Now().UTC()
 	target := now.Add(-time.Minute)
-	rec := &RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:          "restore-advanced",
 		DatabaseType:         "postgres",
 		DatabaseName:         "db",
@@ -63,7 +65,7 @@ func TestNewMonitor_AcceptsAdvancedRestoreFields(t *testing.T) {
 		SourceType:           "local",
 		ConflictStrategy:     "error",
 		Timestamp:            now,
-		Status:               StatusCompleted,
+		Status:               ports.StatusCompleted,
 		SourceBackupPath:     "backup.sql",
 		CreatedAt:            now,
 	}
@@ -71,7 +73,7 @@ func TestNewMonitor_AcceptsAdvancedRestoreFields(t *testing.T) {
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-advanced"}, 10, 0)
+	rows, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-advanced"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}
@@ -89,7 +91,7 @@ func TestNewMonitor_PersistsFallbackReasonFields(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	rec := &RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:      "restore-fallback",
 		DatabaseType:     "postgres",
 		DatabaseName:     "db",
@@ -101,7 +103,7 @@ func TestNewMonitor_PersistsFallbackReasonFields(t *testing.T) {
 		SourceType:       "local",
 		ConflictStrategy: "error",
 		Timestamp:        now,
-		Status:           StatusSuccess,
+		Status:           ports.StatusSuccess,
 		SourceBackupPath: "backup.sql",
 		CreatedAt:        now,
 	}
@@ -109,7 +111,7 @@ func TestNewMonitor_PersistsFallbackReasonFields(t *testing.T) {
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-fallback"}, 10, 0)
+	rows, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-fallback"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}
@@ -133,11 +135,11 @@ func TestNewMonitor_AcceptsIncrementalObservabilityFields(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	backupRec := &Execution{
+	backupRec := &ports.Execution{
 		BackupName:          "backup-incremental",
 		DatabaseType:        "postgres",
 		Timestamp:           now,
-		Status:              StatusCompleted,
+		Status:              ports.StatusCompleted,
 		StorageBackend:      "local",
 		FilePath:            "backup.sql",
 		BackupType:          "incremental",
@@ -151,7 +153,7 @@ func TestNewMonitor_AcceptsIncrementalObservabilityFields(t *testing.T) {
 		t.Fatalf("RecordExecution() error = %v", err)
 	}
 
-	restoreRec := &RestoreExecution{
+	restoreRec := &ports.RestoreExecution{
 		RestoreName:        "restore-incremental",
 		DatabaseType:       "postgres",
 		DatabaseName:       "db",
@@ -165,7 +167,7 @@ func TestNewMonitor_AcceptsIncrementalObservabilityFields(t *testing.T) {
 		SourceType:         "local",
 		ConflictStrategy:   "error",
 		Timestamp:          now,
-		Status:             StatusCompleted,
+		Status:             ports.StatusCompleted,
 		SourceBackupPath:   "backup.sql",
 		CreatedAt:          now,
 	}
