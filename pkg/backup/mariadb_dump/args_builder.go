@@ -21,6 +21,9 @@ type MariaDBDumpArgs struct {
 	TLS            *ports.Config
 }
 
+// engineOptions satisfies ports.EngineOptions.
+func (*MariaDBDumpArgs) IsEngineOptions() {}
+
 // ArgsBuilder builds the arguments for the mariadb_dump command
 func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 	if err := validateRequiredArgs(mda); err != nil {

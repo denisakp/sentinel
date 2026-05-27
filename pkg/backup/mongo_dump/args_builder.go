@@ -20,6 +20,9 @@ type DumpMongoArgs struct {
 	TLS            *ports.Config
 }
 
+// engineOptions satisfies ports.EngineOptions.
+func (*DumpMongoArgs) IsEngineOptions() {}
+
 func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string, *internaltls.MongoTLSMaterial, error) {
 	// set default values
 	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
