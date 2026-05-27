@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 var errTransportTest = errors.New("transport boom")
@@ -403,9 +403,9 @@ func TestResolveChainObject(t *testing.T) {
 
 func runResolveCase(t *testing.T, backupID string, paths []string, wantPath string, wantErrIs error, errNotIs []error, ambigHas []string) {
 	t.Helper()
-	objects := make([]storage.StorageObject, 0, len(paths))
+	objects := make([]ports.StorageObject, 0, len(paths))
 	for _, p := range paths {
-		objects = append(objects, storage.StorageObject{Path: p})
+		objects = append(objects, ports.StorageObject{Path: p})
 	}
 
 	got, err := resolveChainObject(backupID, objects)

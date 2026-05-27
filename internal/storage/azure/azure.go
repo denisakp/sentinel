@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // AzureBlobBackend implements StorageBackend for Azure Blob Storage.
@@ -150,19 +151,19 @@ func (b *AzureBlobBackend) Delete(ctx context.Context, path string) error {
 }
 
 // List returns all blobs with the given prefix.
-func (b *AzureBlobBackend) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
+func (b *AzureBlobBackend) List(ctx context.Context, prefix string) ([]ports.StorageObject, error) {
 	pager := b.client.NewListBlobsFlatPager(b.container, &azblob.ListBlobsFlatOptions{
 		Prefix: &prefix,
 	})
 
-	var objects []storagetypes.StorageObject
+	var objects []ports.StorageObject
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("azure: failed to list blobs: %w", err)
 		}
 		for _, item := range page.Segment.BlobItems {
-			obj := storagetypes.StorageObject{
+			obj := ports.StorageObject{
 				Path: *item.Name,
 			}
 			if item.Properties != nil {

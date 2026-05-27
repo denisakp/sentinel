@@ -13,7 +13,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/storage"
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // fakeBackend captures Upload invocations for assertion in tests.
@@ -28,7 +28,7 @@ func (f *fakeBackend) Upload(_ context.Context, src, dest string) error {
 }
 func (f *fakeBackend) Download(context.Context, string, string) error { return nil }
 func (f *fakeBackend) Delete(context.Context, string) error           { return nil }
-func (f *fakeBackend) List(context.Context, string) ([]storagetypes.StorageObject, error) {
+func (f *fakeBackend) List(context.Context, string) ([]ports.StorageObject, error) {
 	return nil, nil
 }
 func (f *fakeBackend) Exists(context.Context, string) (bool, error) { return false, nil }
@@ -69,7 +69,7 @@ func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
 	orig := backupBackendFactory
-	backupBackendFactory = func(*storage.Params) (storage.StorageBackend, error) { return fake, nil }
+	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
 	da := &DumpMongoArgs{
@@ -110,7 +110,7 @@ func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 	tmp := t.TempDir()
 	fake := &fakeBackend{uploadErr: errors.New("upload boom")}
 	orig := backupBackendFactory
-	backupBackendFactory = func(*storage.Params) (storage.StorageBackend, error) { return fake, nil }
+	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
 	da := &DumpMongoArgs{
@@ -137,7 +137,7 @@ func TestBackup_MongodumpFail_CleansStaging(t *testing.T) {
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
 	orig := backupBackendFactory
-	backupBackendFactory = func(*storage.Params) (storage.StorageBackend, error) { return fake, nil }
+	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
 	da := &DumpMongoArgs{

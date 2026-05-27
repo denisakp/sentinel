@@ -9,14 +9,14 @@ import (
 	"sync"
 	"time"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // MockBackend is an in-memory storage backend used by the contract suite
 // (self-conformance) and by higher-level orchestration tests that must stay
 // hermetic. Safe for concurrent use.
 //
-// It implements the methods of internal/storage.StorageBackend; the
+// It implements the methods of internal/ports.StorageBackend; the
 // compile-time assertion lives in the storage_test package to avoid a
 // sub-package → parent-package import (see CLAUDE.md import-cycle rule).
 type MockBackend struct {
@@ -66,15 +66,15 @@ func (m *MockBackend) Delete(_ context.Context, path string) error {
 	return nil
 }
 
-func (m *MockBackend) List(_ context.Context, prefix string) ([]storagetypes.StorageObject, error) {
+func (m *MockBackend) List(_ context.Context, prefix string) ([]ports.StorageObject, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	out := make([]storagetypes.StorageObject, 0)
+	out := make([]ports.StorageObject, 0)
 	for k, obj := range m.objects {
 		if prefix != "" && !strings.HasPrefix(k, prefix) {
 			continue
 		}
-		out = append(out, storagetypes.StorageObject{
+		out = append(out, ports.StorageObject{
 			Path:         k,
 			SizeBytes:    int64(len(obj.data)),
 			LastModified: obj.modTime,

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func installFakeMongodumpWithPayload(t *testing.T, payload string) {
@@ -68,7 +69,7 @@ func TestBackup_RemoteReturnsEmptyDigest(t *testing.T) {
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
 	orig := backupBackendFactory
-	backupBackendFactory = func(*storage.Params) (storage.StorageBackend, error) { return fake, nil }
+	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
 	digest, err := Backup(&DumpMongoArgs{

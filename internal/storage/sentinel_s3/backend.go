@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // S3Backend implements StorageBackend for Amazon S3 and S3-compatible storage.
@@ -78,8 +79,8 @@ func (b *S3Backend) Delete(ctx context.Context, path string) error {
 }
 
 // List returns all S3 objects with the given key prefix.
-func (b *S3Backend) List(ctx context.Context, prefix string) ([]storagetypes.StorageObject, error) {
-	var objects []storagetypes.StorageObject
+func (b *S3Backend) List(ctx context.Context, prefix string) ([]ports.StorageObject, error) {
+	var objects []ports.StorageObject
 	paginator := s3.NewListObjectsV2Paginator(b.client.Client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(b.client.Bucket),
 		Prefix: aws.String(prefix),
@@ -90,7 +91,7 @@ func (b *S3Backend) List(ctx context.Context, prefix string) ([]storagetypes.Sto
 			return nil, fmt.Errorf("s3: failed to list objects: %w", err)
 		}
 		for _, obj := range page.Contents {
-			o := storagetypes.StorageObject{
+			o := ports.StorageObject{
 				Path:      aws.ToString(obj.Key),
 				SizeBytes: aws.ToInt64(obj.Size),
 			}

@@ -37,15 +37,15 @@ import (
 	"sync"
 	"testing"
 
-	storage "github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/local"
 	"github.com/denisakp/sentinel/internal/storage/storagetesting"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Compile-time assertion that MockBackend satisfies the port. Kept here
 // rather than in storagetesting/ to honour the import-cycle rule
 // (sub-packages of internal/storage must not import internal/storage).
-var _ storage.StorageBackend = (*storagetesting.MockBackend)(nil)
+var _ ports.StorageBackend = (*storagetesting.MockBackend)(nil)
 
 // ContractCase is one row of the contract table. Adding a case = adding a row.
 type ContractCase struct {
@@ -57,7 +57,7 @@ type ContractCase struct {
 // It owns a temp directory for file I/O staging plus the backend under test.
 type caseHarness struct {
 	ctx         context.Context
-	backend     storage.StorageBackend
+	backend     ports.StorageBackend
 	tmpDir      string
 	backendName string
 }
@@ -92,7 +92,7 @@ var allCases = []ContractCase{
 // runContractSuite executes every case in the contract table against the
 // supplied backend. It is the single entry point used by both the default
 // and the integration-tagged wiring (FR-012 / SC-004).
-func runContractSuite(t *testing.T, name string, backend storage.StorageBackend) {
+func runContractSuite(t *testing.T, name string, backend ports.StorageBackend) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		for _, c := range allCases {
@@ -116,12 +116,12 @@ func TestStorageContract(t *testing.T) {
 	runContractSuite(t, "mock", setupMock(t))
 }
 
-func setupLocal(t *testing.T) storage.StorageBackend {
+func setupLocal(t *testing.T) ports.StorageBackend {
 	t.Helper()
 	return local.NewLocalBackend(t.TempDir())
 }
 
-func setupMock(t *testing.T) storage.StorageBackend {
+func setupMock(t *testing.T) ports.StorageBackend {
 	t.Helper()
 	return storagetesting.NewMockBackend()
 }
@@ -467,7 +467,7 @@ func caseConcurrentPutSameKey(t *testing.T, h *caseHarness) {
 // Helpers (test-local)
 // ────────────────────────────────────────────────────────────────────────────
 
-func containsKey(objects []storage.StorageObject, key string) bool {
+func containsKey(objects []ports.StorageObject, key string) bool {
 	for _, o := range objects {
 		if o.Path == key || strings.HasSuffix(o.Path, key) {
 			return true

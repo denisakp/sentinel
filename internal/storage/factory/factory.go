@@ -9,6 +9,7 @@ package factory
 import (
 	"fmt"
 
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage"
 	"github.com/denisakp/sentinel/internal/storage/azure"
 	"github.com/denisakp/sentinel/internal/storage/gcs"
@@ -20,7 +21,7 @@ import (
 // NewBackupBackend constructs a StorageBackend for backup ingress from p.
 // Supported types: local, s3, gcs, google-drive, azure. Empty StorageType
 // defaults to local.
-func NewBackupBackend(p *storage.Params) (storage.StorageBackend, error) {
+func NewBackupBackend(p *storage.Params) (ports.StorageBackend, error) {
 	if p == nil {
 		return nil, fmt.Errorf("storage params are required")
 	}

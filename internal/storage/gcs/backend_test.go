@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	storagetypes "github.com/denisakp/sentinel/internal/storage/types"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 type fakeBucketClient struct {
@@ -20,7 +20,7 @@ type fakeBucketClient struct {
 	existsErr   error
 	listErr     error
 	existsValue bool
-	listValue   []storagetypes.StorageObject
+	listValue   []ports.StorageObject
 
 	uploadCalls   []string
 	downloadCalls []string
@@ -43,7 +43,7 @@ func (f *fakeBucketClient) Delete(_ context.Context, object string) error {
 	return f.deleteErr
 }
 
-func (f *fakeBucketClient) List(_ context.Context, _ string) ([]storagetypes.StorageObject, error) {
+func (f *fakeBucketClient) List(_ context.Context, _ string) ([]ports.StorageObject, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -61,7 +61,7 @@ func (f *fakeBucketClient) Exists(_ context.Context, object string) (bool, error
 func TestGCSBackend_UploadListExistsDelete(t *testing.T) {
 	fake := &fakeBucketClient{
 		existsValue: true,
-		listValue: []storagetypes.StorageObject{{
+		listValue: []ports.StorageObject{{
 			Path:         "backups/test.sql",
 			SizeBytes:    12,
 			LastModified: time.Now().UTC(),
