@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 type MetricDefinition struct {
@@ -67,7 +68,7 @@ func SnapshotIncrementalMetrics() IncrementalMetricsSnapshot {
 	}
 }
 
-func ObserveIncrementalBackup(job string, exec *Execution) {
+func ObserveIncrementalBackup(job string, exec *ports.Execution) {
 	if exec == nil || job == "" || exec.BackupType != "incremental" {
 		return
 	}
@@ -77,7 +78,7 @@ func ObserveIncrementalBackup(job string, exec *Execution) {
 	incrementalMetricsState.snapshot.BackupDeltaSizeBytes[job] = exec.DeltaSizeBytes
 }
 
-func ObserveIncrementalRestore(job string, exec *RestoreExecution) {
+func ObserveIncrementalRestore(job string, exec *ports.RestoreExecution) {
 	if exec == nil || job == "" {
 		return
 	}
@@ -118,7 +119,7 @@ func (m *Monitor) GetStatistics(ctx context.Context, backupName string, days int
 		return nil, fmt.Errorf("backup name is required")
 	}
 
-	filter := &Filter{BackupName: backupName}
+	filter := &ports.Filter{BackupName: backupName}
 	if days > 0 {
 		filter.StartDate = time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
 	}
@@ -137,7 +138,7 @@ func (m *Monitor) GetAggregateStatistics(ctx context.Context, days int) (*Statis
 		return nil, fmt.Errorf("monitor database is not initialized")
 	}
 
-	filter := &Filter{}
+	filter := &ports.Filter{}
 	if days > 0 {
 		filter.StartDate = time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
 	}
@@ -150,7 +151,7 @@ func (m *Monitor) GetAggregateStatistics(ctx context.Context, days int) (*Statis
 	return buildStatistics(executions, "all jobs", days), nil
 }
 
-func buildStatistics(executions []Execution, backupName string, days int) *Statistics {
+func buildStatistics(executions []ports.Execution, backupName string, days int) *Statistics {
 	stats := &Statistics{
 		BackupName: backupName,
 		JobsPeriod: periodLabel(days),
@@ -167,9 +168,9 @@ func buildStatistics(executions []Execution, backupName string, days int) *Stati
 	var durations []int64
 	for _, exec := range executions {
 		switch NormalizeStatus(exec.Status) {
-		case StatusCompleted:
+		case ports.StatusCompleted:
 			stats.SuccessCount++
-		case StatusFailed:
+		case ports.StatusFailed:
 			stats.FailureCount++
 		}
 		stats.TotalBackupSize += exec.FileSizeBytes

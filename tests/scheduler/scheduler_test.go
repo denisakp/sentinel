@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/scheduler"
@@ -439,7 +439,7 @@ func TestExecuteScheduledRestoreWithRunner_UsesProvidedRunnerForIncrementalReque
 			if req.LockDir != "/tmp/sentinel-locks" {
 				t.Fatalf("req.LockDir = %q, want /tmp/sentinel-locks", req.LockDir)
 			}
-			return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+			return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
 		},
 	)
 	if err != nil {

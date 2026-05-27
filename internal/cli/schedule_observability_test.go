@@ -14,6 +14,7 @@ import (
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func newScheduleStatusCommandForContractTest() *cobra.Command {
@@ -177,7 +178,7 @@ func TestExecuteRestoreJob_UsesCLIRestoreRunner(t *testing.T) {
 	runnerInvoked := false
 	runRestoreExecution = func(ctx context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 		runnerInvoked = true
-		return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+		return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
 	}
 
 	runScheduledRestoreExecution = func(
@@ -193,7 +194,7 @@ func TestExecuteRestoreJob_UsesCLIRestoreRunner(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return &internalrestore.ExecutionResult{Status: monitor.StatusCompleted}, nil
+		return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
 	}
 
 	err := executeRestoreJob(nil, &config.Configuration{}, nil, config.RestoreJob{Name: "restore-job"}, nil)

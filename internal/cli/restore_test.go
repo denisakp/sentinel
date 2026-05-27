@@ -57,7 +57,7 @@ func TestHandleRestoreRun_DispatchesSharedExecutor(t *testing.T) {
 		if req.Job.BackupSource.GCSBucket != "backup-bucket" {
 			return nil, fmt.Errorf("unexpected bucket: %s", req.Job.BackupSource.GCSBucket)
 		}
-		return &internalrestore.ExecutionResult{Status: monitor.StatusSuccess}, nil
+		return &internalrestore.ExecutionResult{Status: ports.StatusSuccess}, nil
 	}
 
 	err := handleRestoreRun(nil, []string{"pg-restore"})
@@ -87,7 +87,7 @@ func TestHandleRestoreRun_KeepFilePreservesStagedFile(t *testing.T) {
 	retainedPath := t.TempDir() + "/staged.sql"
 	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 		return &internalrestore.ExecutionResult{
-			Status:             monitor.StatusSuccess,
+			Status:             ports.StatusSuccess,
 			StagedFileRetained: true,
 			StagedFilePath:     retainedPath,
 		}, nil
@@ -111,7 +111,7 @@ func TestHandleRestoreRun_LockConflictIsActionable(t *testing.T) {
 
 	restoreConfigFile = cfgPath
 	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
-		return &internalrestore.ExecutionResult{Status: monitor.StatusSkipped, Reason: "lock_conflict"}, internalrestore.ErrRestoreLockConflict
+		return &internalrestore.ExecutionResult{Status: ports.StatusSkipped, Reason: "lock_conflict"}, internalrestore.ErrRestoreLockConflict
 	}
 
 	err := handleRestoreRun(nil, []string{"pg-restore"})
@@ -140,10 +140,10 @@ func TestHandleRestoreRun_NotifyRestoreStatuses(t *testing.T) {
 		result *internalrestore.ExecutionResult
 		err    error
 	}{
-		{name: "success", result: &internalrestore.ExecutionResult{Status: monitor.StatusSuccess}},
-		{name: "failed", result: &internalrestore.ExecutionResult{Status: monitor.StatusFailed}, err: fmt.Errorf("restore failed")},
-		{name: "timeout", result: &internalrestore.ExecutionResult{Status: monitor.StatusTimeout}, err: context.DeadlineExceeded},
-		{name: "skipped", result: &internalrestore.ExecutionResult{Status: monitor.StatusSkipped, Reason: "lock_conflict"}, err: internalrestore.ErrRestoreLockConflict},
+		{name: "success", result: &internalrestore.ExecutionResult{Status: ports.StatusSuccess}},
+		{name: "failed", result: &internalrestore.ExecutionResult{Status: ports.StatusFailed}, err: fmt.Errorf("restore failed")},
+		{name: "timeout", result: &internalrestore.ExecutionResult{Status: ports.StatusTimeout}, err: context.DeadlineExceeded},
+		{name: "skipped", result: &internalrestore.ExecutionResult{Status: ports.StatusSkipped, Reason: "lock_conflict"}, err: internalrestore.ErrRestoreLockConflict},
 	}
 
 	prevCfg := restoreConfigFile
@@ -296,7 +296,7 @@ func TestHandleRestoreHistory_RendersAdvancedRestoreFields(t *testing.T) {
 		t.Fatalf("NewMonitor() error = %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	if err := mon.RecordRestoreExecution(context.Background(), &monitor.RestoreExecution{
+	if err := mon.RecordRestoreExecution(context.Background(), &ports.RestoreExecution{
 		RestoreName:      "pg-restore",
 		DatabaseType:     "postgres",
 		DatabaseName:     "app",
@@ -307,7 +307,7 @@ func TestHandleRestoreHistory_RendersAdvancedRestoreFields(t *testing.T) {
 		ConflictStrategy: "error",
 		Timestamp:        now,
 		DurationMs:       1000,
-		Status:           monitor.StatusSuccess,
+		Status:           ports.StatusSuccess,
 		SourceBackupPath: "backup.sql",
 		CreatedAt:        now,
 		FinishedAt:       &now,
@@ -432,7 +432,7 @@ func TestHandleRestoreRun_ConfirmationRequiredMessage(t *testing.T) {
 	restoreConfigFile = cfgPath
 	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 		return &internalrestore.ExecutionResult{
-			Status:         monitor.StatusSkipped,
+			Status:         ports.StatusSkipped,
 			PlanningStatus: string(internalrestore.PlanStatusConfirmationRequired),
 			Reason:         internalrestore.ReasonCodeFullFallbackConfirmationRequired,
 		}, errors.New("fallback_required_confirmation")
@@ -490,7 +490,7 @@ func TestHandleRestoreHistory_IncludesFallbackReason(t *testing.T) {
 		t.Fatalf("NewMonitor() error = %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	if err := mon.RecordRestoreExecution(context.Background(), &monitor.RestoreExecution{
+	if err := mon.RecordRestoreExecution(context.Background(), &ports.RestoreExecution{
 		RestoreName:      "pg-restore",
 		DatabaseType:     "postgres",
 		DatabaseName:     "app",
@@ -503,7 +503,7 @@ func TestHandleRestoreHistory_IncludesFallbackReason(t *testing.T) {
 		ConflictStrategy: "error",
 		Timestamp:        now,
 		DurationMs:       1000,
-		Status:           monitor.StatusSuccess,
+		Status:           ports.StatusSuccess,
 		SourceBackupPath: "backup.sql",
 		CreatedAt:        now,
 		FinishedAt:       &now,

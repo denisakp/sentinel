@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // TestRecordExecution_ErrorMessageIsIdentity proves the monitor sink does not
@@ -37,12 +38,12 @@ func TestRecordExecution_ErrorMessageIsIdentity(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			now := time.Now().UTC()
-			exec := &Execution{
+			exec := &ports.Execution{
 				BackupName:     "leak-probe",
 				DatabaseType:   "postgres",
 				Timestamp:      now,
 				DurationMs:     1,
-				Status:         StatusFailed,
+				Status:         ports.StatusFailed,
 				StorageBackend: "local",
 				FilePath:       "x.sql",
 				ErrorMessage:   tc.msg,

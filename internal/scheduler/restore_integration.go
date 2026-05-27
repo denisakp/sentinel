@@ -336,7 +336,7 @@ func (rsm *RestoreScheduleManager) recordRestoreExecution(ctx context.Context, c
 		status = "failure"
 	}
 
-	exec := &monitor.RestoreExecution{
+	exec := &ports.RestoreExecution{
 		RestoreName:        config.Name,
 		DatabaseType:       config.RestoreConfig.DatabaseType,
 		DatabaseName:       config.RestoreConfig.Database,

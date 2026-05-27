@@ -10,6 +10,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -220,14 +221,14 @@ func loadConfigFromFlags(cmd *cobra.Command) (*config.Configuration, error) {
 	return LoadAndValidateConfig(path)
 }
 
-func buildFilterFromFlags(cmd *cobra.Command) (*monitor.Filter, error) {
+func buildFilterFromFlags(cmd *cobra.Command) (*ports.Filter, error) {
 	job, _ := cmd.Flags().GetString("job")
 	status, _ := cmd.Flags().GetString("status")
 	storage, _ := cmd.Flags().GetString("storage")
 	dbType, _ := cmd.Flags().GetString("type")
 	last, _ := cmd.Flags().GetString("last")
 
-	filter := &monitor.Filter{
+	filter := &ports.Filter{
 		BackupName:     job,
 		Status:         status,
 		DatabaseType:   dbType,
@@ -301,7 +302,7 @@ func parseInt(value string) (int, error) {
 	return out, nil
 }
 
-func printJSON(cmd *cobra.Command, executions []monitor.Execution) error {
+func printJSON(cmd *cobra.Command, executions []ports.Execution) error {
 	data, err := json.MarshalIndent(executions, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal json output: %w", err)
@@ -310,7 +311,7 @@ func printJSON(cmd *cobra.Command, executions []monitor.Execution) error {
 	return nil
 }
 
-func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *monitor.Filter) error {
+func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *ports.Filter) error {
 	data, err := mon.ExportHistory(context.Background(), "csv", filter)
 	if err != nil {
 		return err
@@ -319,7 +320,7 @@ func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *monitor.Filter) 
 	return nil
 }
 
-func printTable(cmd *cobra.Command, executions []monitor.Execution) error {
+func printTable(cmd *cobra.Command, executions []ports.Execution) error {
 	if len(executions) == 0 {
 		printNoMatchingRecords(cmd)
 		return nil
@@ -394,7 +395,7 @@ func printStats(cmd *cobra.Command, stats *monitor.Statistics) {
 	}
 }
 
-func printExecution(cmd *cobra.Command, exec *monitor.Execution) {
+func printExecution(cmd *cobra.Command, exec *ports.Execution) {
 	cmd.Printf("Execution Details\n")
 	cmd.Printf("=================\n\n")
 	cmd.Printf("ID: %s\n", exec.ID)

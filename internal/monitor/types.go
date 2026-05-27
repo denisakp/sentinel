@@ -1,20 +1,14 @@
 package monitor
 
-import "time"
+import (
+	"time"
 
-// Execution status constants for backup/restore lifecycle.
-const (
-	StatusPending     = "pending"
-	StatusRunning     = "running"
-	StatusCompleted   = "completed"
-	StatusFailed      = "failed"
-	StatusInterrupted = "interrupted"
-	StatusSuccess     = "success"
-	StatusTimeout     = "timeout"
-	StatusSkipped     = "skipped"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Legacy status aliases for backward compatibility with existing data.
+// These are normalized to canonical ports.Status* constants via NormalizeStatus
+// when reading older SQLite records.
 const (
 	LegacyStatusSuccess    = "success"
 	LegacyStatusFailure    = "failure"
@@ -26,111 +20,21 @@ const (
 func NormalizeStatus(status string) string {
 	switch status {
 	case LegacyStatusSuccess:
-		return StatusCompleted
+		return ports.StatusCompleted
 	case LegacyStatusFailure:
-		return StatusFailed
+		return ports.StatusFailed
 	case LegacyStatusInProgress:
-		return StatusRunning
+		return ports.StatusRunning
 	default:
 		return status // Already normalized or unknown
 	}
 }
 
-// Execution represents a single backup execution record.
-type Execution struct {
-	ID             string
-	BackupName     string
-	DatabaseType   string
-	Timestamp      time.Time
-	DurationMs     int64
-	Status         string
-	ErrorMessage   string
-	StorageBackend string
-	FilePath       string
-	FileSizeBytes  int64
-	Checksum       string
-	CreatedAt      time.Time
-	// V1 Consolidation: Cleanup and interruption fields
-	FinishedAt       *time.Time
-	CleanupAttempted bool
-	CleanupSucceeded *bool
-	CleanupError     string
-	UpdatedAt        time.Time
-	// V1.1.0: Security and integrity fields (migration 004)
-	HashAlgorithm       string
-	HashValue           string
-	PlaintextHashValue  string
-	Encrypted           bool
-	EncryptionKeyHint   string
-	ManifestPath        string
-	RetryCount          int
-	BackupType          string
-	ChainID             string
-	ChainIndex          int
-	DeltaSizeBytes      int64
-	FullBackupSizeBytes int64
-}
-
-// RestoreExecution represents a single restore execution record.
-type RestoreExecution struct {
-	ID                   string
-	RestoreName          string
-	DatabaseType         string
-	DatabaseName         string
-	RestoreMode          string
-	PlanningStatus       string
-	RequestedPITRTimeUTC *time.Time
-	BaselineBackupID     string
-	FallbackDecision     string
-	FallbackReason       string
-	FallbackBackupID     string
-	RecoveryTimelineID   string
-	SourceType           string
-	ConflictStrategy     string
-	Timestamp            time.Time
-	DurationMs           int64
-	Status               string
-	ErrorMessage         string
-	ErrorReason          string
-	Reason               string
-	SourceBackupPath     string
-	StagedFilePath       string
-	StagedFileRetained   bool
-	BytesRestored        int64
-	VerificationPassed   bool
-	TimeoutSeconds       int
-	CreatedAt            time.Time
-	// V1 Consolidation: Cleanup and interruption fields
-	FinishedAt         *time.Time
-	CleanupAttempted   bool
-	CleanupSucceeded   *bool
-	CleanupError       string
-	UpdatedAt          time.Time
-	ChainDepth         int
-	ChainID            string
-	AssemblyDurationMs int64
-}
-
-// Filter specifies query filters for listing executions.
-type Filter struct {
-	BackupName     string
-	Status         string
-	DatabaseType   string
-	StorageBackend string
-	StartDate      time.Time
-	EndDate        time.Time
-}
-
-// RestoreFilter specifies query filters for listing restore executions.
-type RestoreFilter struct {
-	RestoreName  string
-	Status       string
-	DatabaseType string
-	StartDate    time.Time
-	EndDate      time.Time
-}
-
 // Statistics aggregates execution statistics for a backup job.
+//
+// This type is implementation-private to the monitor adapter — no port
+// method returns it directly (it is computed inline by report-generation
+// code in the CLI). Kept here rather than relocated to ports.
 type Statistics struct {
 	BackupName        string
 	JobsPeriod        string
@@ -143,11 +47,13 @@ type Statistics struct {
 	MedianDurationMs  int64
 	MinDurationMs     int64
 	MaxDurationMs     int64
-	LastExecution     *Execution
+	LastExecution     *ports.Execution
 	Trend             string
 }
 
 // Migration represents a single applied schema migration record.
+//
+// SQLite-specific bookkeeping — not part of the recorder port.
 type Migration struct {
 	Version   int
 	Name      string
@@ -156,6 +62,8 @@ type Migration struct {
 }
 
 // MigrationStatus represents the current migration state for the database.
+//
+// SQLite-specific bookkeeping — not part of the recorder port.
 type MigrationStatus struct {
 	CurrentVersion         int
 	LatestAvailableVersion int

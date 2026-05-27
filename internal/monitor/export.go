@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // ExportHistory exports execution data to JSON or CSV.
-func (m *Monitor) ExportHistory(ctx context.Context, format string, filter *Filter) ([]byte, error) {
+func (m *Monitor) ExportHistory(ctx context.Context, format string, filter *ports.Filter) ([]byte, error) {
 	format = normalizeFormat(format)
 
 	executions, err := m.ListExecutions(ctx, filter, 100000, 0)
@@ -35,7 +36,7 @@ func normalizeFormat(format string) string {
 	return strings.ToLower(format)
 }
 
-func exportJSON(executions []Execution) ([]byte, error) {
+func exportJSON(executions []ports.Execution) ([]byte, error) {
 	data, err := json.MarshalIndent(executions, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal json export: %w", err)
@@ -43,7 +44,7 @@ func exportJSON(executions []Execution) ([]byte, error) {
 	return data, nil
 }
 
-func exportCSV(executions []Execution) ([]byte, error) {
+func exportCSV(executions []ports.Execution) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 

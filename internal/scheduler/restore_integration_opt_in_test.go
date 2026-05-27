@@ -172,7 +172,7 @@ func TestRecordRestoreExecution_PropagatesAdvancedDefaults(t *testing.T) {
 		BackupPath: "backup.sql",
 	}, time.Now().UTC(), true, 100, true, "")
 
-	items, err := mon.ListRestoreExecutions(context.Background(), &monitor.RestoreFilter{RestoreName: "restore-scheduled"}, 10, 0)
+	items, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-scheduled"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/storage"
 )
@@ -287,7 +288,7 @@ func ExecuteScheduledRestoreWithRunner(
 			defer func() { <-limiter }()
 		default:
 			result := &internalrestore.ExecutionResult{
-				Status:             monitor.StatusSkipped,
+				Status:             ports.StatusSkipped,
 				Reason:             "concurrency_limit_reached",
 				StartedAt:          time.Now().UTC(),
 				CompletedAt:        time.Now().UTC(),
@@ -298,7 +299,7 @@ func ExecuteScheduledRestoreWithRunner(
 			}
 
 			if mon != nil {
-				if err := mon.RecordRestoreExecution(ctx, &monitor.RestoreExecution{
+				if err := mon.RecordRestoreExecution(ctx, &ports.RestoreExecution{
 					RestoreName:      jobName,
 					DatabaseType:     job.Type,
 					DatabaseName:     job.Database,
@@ -306,7 +307,7 @@ func ExecuteScheduledRestoreWithRunner(
 					ConflictStrategy: effectiveConflictStrategy(job.ConflictStrategy),
 					Timestamp:        result.StartedAt,
 					DurationMs:       0,
-					Status:           monitor.StatusSkipped,
+					Status:           ports.StatusSkipped,
 					Reason:           "concurrency_limit_reached",
 					ErrorReason:      "concurrency_limit_reached",
 					SourceBackupPath: job.BackupSource.BackupPath,
@@ -334,7 +335,7 @@ func ExecuteScheduledRestoreWithRunner(
 		LockDir: cfg.Scheduler.LockDir,
 	})
 	if err != nil {
-		if result != nil && result.Status == monitor.StatusSkipped {
+		if result != nil && result.Status == ports.StatusSkipped {
 			return result, nil
 		}
 		return result, err

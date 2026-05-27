@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestListExecutions_ReturnsIncrementalObservabilityFields(t *testing.T) {
@@ -16,12 +17,12 @@ func TestListExecutions_ReturnsIncrementalObservabilityFields(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	exec := &Execution{
+	exec := &ports.Execution{
 		BackupName:          "backup-incremental",
 		DatabaseType:        "mysql",
 		Timestamp:           now,
 		DurationMs:          1100,
-		Status:              StatusCompleted,
+		Status:              ports.StatusCompleted,
 		StorageBackend:      "local",
 		FilePath:            "backup.sql",
 		FileSizeBytes:       4096,
@@ -36,7 +37,7 @@ func TestListExecutions_ReturnsIncrementalObservabilityFields(t *testing.T) {
 		t.Fatalf("RecordExecution() error = %v", err)
 	}
 
-	rows, err := mon.ListExecutions(context.Background(), &Filter{BackupName: "backup-incremental"}, 10, 0)
+	rows, err := mon.ListExecutions(context.Background(), &ports.Filter{BackupName: "backup-incremental"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListExecutions() error = %v", err)
 	}
@@ -60,7 +61,7 @@ func TestListRestoreExecutions_ReturnsIncrementalObservabilityFields(t *testing.
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	rec := &RestoreExecution{
+	rec := &ports.RestoreExecution{
 		RestoreName:        "restore-incremental",
 		DatabaseType:       "mongodb",
 		DatabaseName:       "app",
@@ -74,7 +75,7 @@ func TestListRestoreExecutions_ReturnsIncrementalObservabilityFields(t *testing.
 		SourceType:         "local",
 		ConflictStrategy:   "error",
 		Timestamp:          now,
-		Status:             StatusCompleted,
+		Status:             ports.StatusCompleted,
 		SourceBackupPath:   "backup.archive",
 		CreatedAt:          now,
 	}
@@ -82,7 +83,7 @@ func TestListRestoreExecutions_ReturnsIncrementalObservabilityFields(t *testing.
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	rows, err := mon.ListRestoreExecutions(context.Background(), &RestoreFilter{RestoreName: "restore-incremental"}, 10, 0)
+	rows, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-incremental"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}

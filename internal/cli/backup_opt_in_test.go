@@ -15,6 +15,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/storage"
 )
 
@@ -172,13 +173,13 @@ func TestApplyBackupSecurity_IncrementalHashVerificationFailureIsFatal(t *testin
 	t.Cleanup(func() { _ = mon.Close() })
 
 	now := time.Now().UTC()
-	if err := mon.RecordExecution(context.Background(), &monitor.Execution{
+	if err := mon.RecordExecution(context.Background(), &ports.Execution{
 		ID:           "prev-full-1",
 		BackupName:   "inc-job",
 		DatabaseType: "postgres",
 		Timestamp:    now,
 		DurationMs:   1,
-		Status:       monitor.StatusCompleted,
+		Status:       ports.StatusCompleted,
 		BackupType:   "full",
 		ChainID:      "chain-1",
 		ChainIndex:   0,

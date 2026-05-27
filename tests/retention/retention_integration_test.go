@@ -7,6 +7,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/retention"
 )
 
@@ -33,7 +34,7 @@ func TestManagerApplyGCSFailureKeepsRecordsConsistent(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	fixtures := []*monitor.Execution{
+	fixtures := []*ports.Execution{
 		{BackupName: "gcs-job", DatabaseType: "postgres", Timestamp: now.Add(-2 * time.Hour), Status: "success", FilePath: "gs://bucket-a/old.sql", FileSizeBytes: 10},
 		{BackupName: "gcs-job", DatabaseType: "postgres", Timestamp: now.Add(-1 * time.Hour), Status: "success", FilePath: "gs://bucket-a/new.sql", FileSizeBytes: 10},
 	}
