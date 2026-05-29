@@ -13,7 +13,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/manifest"
-	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 func TestExecuteRestoreReturnsLockConflict(t *testing.T) {

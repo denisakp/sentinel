@@ -1,4 +1,4 @@
-package mariadb_restore
+package mysql
 
 import (
 	"fmt"

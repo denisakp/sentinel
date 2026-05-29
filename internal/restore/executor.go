@@ -21,10 +21,10 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
-	mariadbrestore "github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	mongorestore "github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	mysqlrestore "github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	mariadbrestore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongorestore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysqlrestore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 var (

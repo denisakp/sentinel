@@ -1,4 +1,4 @@
-package mysql_restore
+package mysql
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"

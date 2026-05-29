@@ -1,4 +1,4 @@
-package mongo_restore
+package mongo
 
 import (
 	"bytes"
@@ -56,3 +56,6 @@ func ReplayOplog(ctx context.Context, args *OplogReplayArgs) error {
 
 	return nil
 }
+
+// IsRestoreOptions marks *OplogReplayArgs as a ports.RestoreOptions (spec 036).
+func (*OplogReplayArgs) IsRestoreOptions() {}

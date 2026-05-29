@@ -1,28 +1,8 @@
-package pg_restore
+package mariadb
 
 import (
 	"fmt"
 )
-
-// validateRestoreFormat validates the restore format
-func ValidateRestoreFormat(format string) error {
-	validFormats := map[string]bool{
-		"c": true, // custom
-		"d": true, // directory
-		"t": true, // tar
-		"p": true, // plain
-	}
-
-	if format == "" {
-		return nil // optional
-	}
-
-	if !validFormats[format] {
-		return fmt.Errorf("invalid restore format '%s'; must be one of: c (custom), d (directory), t (tar), p (plain)", format)
-	}
-
-	return nil
-}
 
 // ValidateOnConflict validates conflict resolution strategy
 func ValidateOnConflict(strategy string) error {

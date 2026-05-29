@@ -1,4 +1,4 @@
-package pg_restore
+package pg
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"

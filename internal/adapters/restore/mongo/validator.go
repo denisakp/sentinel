@@ -1,4 +1,4 @@
-package mongo_restore
+package mongo
 
 import (
 	"fmt"

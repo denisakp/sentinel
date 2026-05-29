@@ -1,4 +1,4 @@
-package mariadb_restore
+package mariadb
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"

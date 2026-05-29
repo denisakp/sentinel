@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	mariadbrestore "github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	mongorestore "github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	mysqlrestore "github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	mariadbrestore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongorestore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysqlrestore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 // --- Config-layer validation tests ---

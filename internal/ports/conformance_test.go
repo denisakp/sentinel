@@ -28,6 +28,10 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
+	mariadbrestore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongorestore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysqlrestore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 // Conformance assertions. Each line is one verbatim claim:
@@ -87,4 +91,17 @@ var (
 	_ ports.DumpBuilder = (*mysql.Builder)(nil)
 	_ ports.DumpBuilder = (*mariadb.Builder)(nil)
 	_ ports.DumpBuilder = (*mongo.Builder)(nil)
+
+	// restore.go — RestoreOptions marker (spec 036 FR-002).
+	_ ports.RestoreOptions = (*pgrestore.RestoreArgs)(nil)
+	_ ports.RestoreOptions = (*mysqlrestore.RestoreArgs)(nil)
+	_ ports.RestoreOptions = (*mariadbrestore.RestoreArgs)(nil)
+	_ ports.RestoreOptions = (*mongorestore.RestoreArgs)(nil)
+	_ ports.RestoreOptions = (*mongorestore.OplogReplayArgs)(nil)
+
+	// restore.go — RestoreBuilder unified port (spec 036 FR-005).
+	_ ports.RestoreBuilder = (*pgrestore.Builder)(nil)
+	_ ports.RestoreBuilder = (*mysqlrestore.Builder)(nil)
+	_ ports.RestoreBuilder = (*mariadbrestore.Builder)(nil)
+	_ ports.RestoreBuilder = (*mongorestore.Builder)(nil)
 )

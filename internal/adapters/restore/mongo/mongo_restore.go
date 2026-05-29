@@ -1,29 +1,29 @@
-package mysql_restore
+package mongo
 
 import (
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/denisakp/sentinel/internal/backup"
 )
 
-// RestoreArgs holds arguments for MySQL restore operations
+// RestoreArgs holds arguments for MongoDB restore operations
 type RestoreArgs struct {
 	// Connection parameters
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Database string
+	URI      string // MongoDB connection URI (connection string)
+	Database string // Database name
 
 	// Backup source
 	BackupPath string // local file path (optional if Storage is provided)
 
 	// Restore options
 	OnConflict     string // ignore, replace, error (default: error)
-	AdditionalArgs string // extra arguments for mysql
+	Gzip           bool   // decompress gzip
+	Archive        bool   // backup is a tar archive
+	AdditionalArgs string // extra arguments for mongorestore
 
 	// Cloud storage
 	Storage *struct {
@@ -33,7 +33,7 @@ type RestoreArgs struct {
 	}
 }
 
-// Restore restores a MySQL backup from cloud or local storage
+// Restore restores a MongoDB backup from cloud or local storage
 func Restore(ctx context.Context, ra *RestoreArgs) error {
 	// Validate required arguments
 	if err := ValidateRequiredArgs(ra); err != nil {
@@ -57,7 +57,7 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		if err != nil {
 			return fmt.Errorf("failed to read backup from cloud storage - %w", err)
 		}
-		tmpFile, err := os.CreateTemp("", "sentinel-mysql-restore-*")
+		tmpFile, err := os.CreateTemp("", "sentinel-mongo-restore-*")
 		if err != nil {
 			return fmt.Errorf("failed to create temp backup file - %w", err)
 		}
@@ -71,7 +71,7 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		}
 		ra.BackupPath = tmpFile.Name()
 	} else if ra.BackupPath != "" {
-		// Local restore paths are streamed directly to mysql.
+		// Local restore paths are handed to mongorestore directly.
 	} else {
 		return fmt.Errorf("backup path or storage handler is required")
 	}
@@ -81,20 +81,31 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("connectivity check failed - %w", err)
 	}
 
-	// Build mysql command
+	// Build mongorestore command
 	args := []string{
-		fmt.Sprintf("--host=%s", ra.Host),
-		fmt.Sprintf("--port=%d", ra.Port),
-		fmt.Sprintf("--user=%s", ra.Username),
+		fmt.Sprintf("--uri=%s", ra.URI),
 	}
 
-	// Map conflict strategy to native mysql CLI flags.
-	// ignore  → --force (continue on duplicate key errors instead of aborting)
-	// replace → --force (mysql CLI has no native REPLACE INTO flag; --force
-	//           continues past duplicate errors, which is the closest safe option)
-	// error   → default behavior (abort on first error)
-	if ra.OnConflict == "ignore" || ra.OnConflict == "replace" {
-		args = append(args, "--force")
+	// Add database if specified
+	if ra.Database != "" {
+		args = append(args, fmt.Sprintf("--db=%s", ra.Database))
+	}
+
+	// Add gzip decompression flag if needed
+	if ra.Gzip {
+		args = append(args, "--gzip")
+	}
+
+	// Add archive flag if backup is tar archive
+	if ra.Archive {
+		args = append(args, fmt.Sprintf("--archive=%s", ra.BackupPath))
+	}
+
+	// Add conflict handling
+	if ra.OnConflict == "ignore" {
+		args = append(args, "--stopOnError=false")
+	} else if ra.OnConflict == "replace" {
+		args = append(args, "--drop")
 	}
 
 	// Parse and add additional arguments
@@ -106,27 +117,22 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		args = append(args, additionalArgs...)
 	}
 
-	// Always select the target database
-	args = append(args, ra.Database)
+	if !ra.Archive && ra.Gzip && filepath.Ext(ra.BackupPath) == ".gz" {
+		args = append(args, "--gzip")
+	}
 
-	// Execute mysql with stdin piping
-	cmd := exec.CommandContext(ctx, "mysql", args...)
+	if !ra.Archive {
+		args = append(args, ra.BackupPath)
+	}
 
-	// Set up environment with password
+	// Execute mongorestore against the staged backup path.
+	cmd := exec.CommandContext(ctx, "mongorestore", args...)
+
+	// Set up environment (no special password handling for MongoDB URI)
 	cmd.Env = os.Environ()
-	if ra.Password != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", ra.Password))
-	}
-
-	in, err := os.Open(ra.BackupPath)
-	if err != nil {
-		return fmt.Errorf("failed to open staged backup file - %w", err)
-	}
-	defer in.Close()
-	cmd.Stdin = in
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start mysql command - %w", err)
+		return fmt.Errorf("failed to start mongorestore command - %w", err)
 	}
 
 	return nil
@@ -140,27 +146,25 @@ func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
 	return Restore(ctx, ra)
 }
 
-// checkConnectivity verifies database connectivity using mysql
+// checkConnectivity verifies database connectivity using mongosh
 func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
-	cmd := exec.CommandContext(ctx, "mysql",
-		fmt.Sprintf("--host=%s", ra.Host),
-		fmt.Sprintf("--port=%d", ra.Port),
-		fmt.Sprintf("--user=%s", ra.Username),
-		"-e", "SELECT 1",
+	cmd := exec.CommandContext(ctx, "mongosh",
+		ra.URI,
+		"--eval", "db.version()",
 	)
 
 	cmd.Env = os.Environ()
-	if ra.Password != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", ra.Password))
-	}
 
 	// Discard output, we only care about exit code
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot connect to MySQL database %s@%s:%d - %w", ra.Username, ra.Host, ra.Port, err)
+		return fmt.Errorf("cannot connect to MongoDB at URI %s - %w", ra.URI, err)
 	}
 
 	return nil
 }
+
+// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions (spec 036).
+func (*RestoreArgs) IsRestoreOptions() {}

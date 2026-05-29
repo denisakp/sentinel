@@ -13,10 +13,10 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
 	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
-	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	"github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 const defaultIncrementalMaxChainDepth = 6

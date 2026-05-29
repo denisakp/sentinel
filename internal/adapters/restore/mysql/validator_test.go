@@ -1,4 +1,4 @@
-package mariadb_restore
+package mysql
 
 import (
 	"testing"
@@ -27,7 +27,7 @@ func TestValidateOnConflict(t *testing.T) {
 	}
 }
 
-func TestConflictStrategyFlagMapping_MariaDB(t *testing.T) {
+func TestConflictStrategyFlagMapping_MySQL(t *testing.T) {
 	tests := []struct {
 		name       string
 		onConflict string
@@ -46,7 +46,7 @@ func TestConflictStrategyFlagMapping_MariaDB(t *testing.T) {
 				args = append(args, "--force")
 			}
 
-			hasForce := containsMariaDBArg(args, "--force")
+			hasForce := containsMySQLArg(args, "--force")
 			if hasForce != tt.wantForce {
 				t.Errorf("--force present=%v, want %v (strategy=%q)", hasForce, tt.wantForce, tt.onConflict)
 			}
@@ -54,7 +54,7 @@ func TestConflictStrategyFlagMapping_MariaDB(t *testing.T) {
 	}
 }
 
-func containsMariaDBArg(args []string, flag string) bool {
+func containsMySQLArg(args []string, flag string) bool {
 	for _, a := range args {
 		if a == flag {
 			return true

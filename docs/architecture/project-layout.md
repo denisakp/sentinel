@@ -197,7 +197,7 @@ The current tree diverges from this target. Tracked moves:
 |-----------------------------------------------------|-------------------------------------------------|-------------------------|----------------------|
 | `pkg/backup/{pg,mysql,mariadb,mongo}_dump`          | `internal/adapters/dump/{pg,mysql,mariadb,mongo}` | hexagonal commit        | **complete 2026-05-29** (spec 035) |
 | `pkg/backup/{mysqlbinlog,pg_combine}`               | `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}` | hexagonal commit | **complete 2026-05-29** (spec 035 — restore-axis) |
-| `pkg/restore/*`                                     | `internal/adapters/restore/*`                   | same                    | pending              |
+| `pkg/restore/{pg,mysql,mariadb,mongo}_restore`      | `internal/adapters/restore/{pg,mysql,mariadb,mongo}` | same               | **complete 2026-05-29** (spec 036 — `pkg/` deleted; ADR 0002 closed) |
 | `internal/storage/{local,sentinel_s3,gcs,gdrive,azure}` | `internal/adapters/storage/{local,s3,gcs,gdrive,azure}` | same           | **complete 2026-05-27** (spec 029; `sentinel_s3` renamed to `s3`) |
 | `internal/storage/backend.go` (interface)           | `internal/ports/storage.go`                     | same                    | **complete 2026-05-22** (spec 028) |
 | `internal/storage/types/RepoStatus` (struct)        | `internal/ports/storage.go` (`RepoStatus` + sibling port `StatusReporter`) | spec 029 | **complete 2026-05-27** |

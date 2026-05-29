@@ -1,6 +1,6 @@
 # ADR 0002 — Remove the `pkg/` directory; everything ships under `internal/`
 
-- **Status**: Accepted
+- **Status**: Accepted (closed by spec 036 — restore adapters migration, 2026-05-29)
 - **Date**: 2026-05-17
 - **Deciders**: Denis AKPAGNONITE
 - **Tags**: layering, packaging
@@ -78,12 +78,16 @@ Internal import paths change; this is handled by the per-package migration PRs l
 
 ## Implementation checklist
 
-- [ ] Move `pkg/backup/{pg,mysql,mariadb,mongo}_dump/` to `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`.
-- [ ] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/dump/{mysqlbinlog,pg_combine}/`.
-- [ ] Move `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` to `internal/adapters/restore/{pg,mysql,mariadb,mongo}/`.
-- [ ] Update every import path that referenced `pkg/...`.
-- [ ] Delete the now-empty `pkg/` directory.
-- [ ] Update `CLAUDE.md` so the layout description matches reality.
+- [x] Move `pkg/backup/{pg,mysql,mariadb,mongo}_dump/` to `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`. (spec 035)
+- [x] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}/`. (spec 035 — relocated to restore axis per spec-035 clarification Q2)
+- [x] Move `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` to `internal/adapters/restore/{pg,mysql,mariadb,mongo}/`. (spec 036)
+- [x] Update every import path that referenced `pkg/...`. (spec 036)
+- [x] Delete the now-empty `pkg/` directory. (spec 036)
+- [x] Update `CLAUDE.md` so the layout description matches reality. (specs 035 + 036)
+
+## Closure (2026-05-29)
+
+`pkg/backup/` was removed by spec 035 (dump adapters migration). `pkg/restore/` is removed by spec 036 (restore adapters migration). The `pkg/` directory itself is deleted. This ADR is closed.
 
 ## References
 

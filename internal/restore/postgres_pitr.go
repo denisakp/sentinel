@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/config"
-	pgrestore "github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 // executePostgresPITR runs PostgreSQL restore orchestration for PITR requests.

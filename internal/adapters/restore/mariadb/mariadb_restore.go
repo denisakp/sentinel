@@ -1,4 +1,4 @@
-package mariadb_restore
+package mariadb
 
 import (
 	"context"
@@ -164,3 +164,6 @@ func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 
 	return nil
 }
+
+// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions (spec 036).
+func (*RestoreArgs) IsRestoreOptions() {}

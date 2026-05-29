@@ -14,10 +14,10 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/retention"
-	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	"github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 // RestoreScheduleConfig represents a scheduled restore job configuration

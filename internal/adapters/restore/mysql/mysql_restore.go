@@ -1,4 +1,4 @@
-package pg_restore
+package mysql
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/denisakp/sentinel/internal/backup"
 )
 
-// RestoreArgs holds arguments for PostgreSQL restore operations
+// RestoreArgs holds arguments for MySQL restore operations
 type RestoreArgs struct {
 	// Connection parameters
 	Host     string
@@ -22,11 +22,8 @@ type RestoreArgs struct {
 	BackupPath string // local file path (optional if Storage is provided)
 
 	// Restore options
-	PgRestoreFormat string // c=custom, d=directory, t=tar, p=plain (optional)
-	Decompress      bool   // auto-decompress if needed
-	OnConflict      string // ignore, replace, error (default: error)
-	AllowCascade    bool   // required for replace strategy: permits DROP ... CASCADE
-	AdditionalArgs  string // extra arguments for pg_restore
+	OnConflict     string // ignore, replace, error (default: error)
+	AdditionalArgs string // extra arguments for mysql
 
 	// Cloud storage
 	Storage *struct {
@@ -36,16 +33,11 @@ type RestoreArgs struct {
 	}
 }
 
-// Restore restores a PostgreSQL backup from cloud or local storage
+// Restore restores a MySQL backup from cloud or local storage
 func Restore(ctx context.Context, ra *RestoreArgs) error {
 	// Validate required arguments
 	if err := ValidateRequiredArgs(ra); err != nil {
 		return fmt.Errorf("invalid restore arguments - %w", err)
-	}
-
-	// Validate optional arguments
-	if err := ValidateRestoreFormat(ra.PgRestoreFormat); err != nil {
-		return fmt.Errorf("invalid restore format - %w", err)
 	}
 
 	if err := ValidateOnConflict(ra.OnConflict); err != nil {
@@ -54,7 +46,6 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 
 	// Read backup from cloud storage if storage handler exists
 	if ra.Storage != nil && ra.Storage.Handler != nil {
-		// Type assert to storage.Storage interface
 		handler, ok := ra.Storage.Handler.(interface {
 			ReadBackup(string) ([]byte, error)
 		})
@@ -66,8 +57,7 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		if err != nil {
 			return fmt.Errorf("failed to read backup from cloud storage - %w", err)
 		}
-
-		tmpFile, err := os.CreateTemp("", "sentinel-pg-restore-*")
+		tmpFile, err := os.CreateTemp("", "sentinel-mysql-restore-*")
 		if err != nil {
 			return fmt.Errorf("failed to create temp backup file - %w", err)
 		}
@@ -81,7 +71,7 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		}
 		ra.BackupPath = tmpFile.Name()
 	} else if ra.BackupPath != "" {
-		// Local restore paths are handed to pg_restore directly.
+		// Local restore paths are streamed directly to mysql.
 	} else {
 		return fmt.Errorf("backup path or storage handler is required")
 	}
@@ -91,36 +81,20 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("connectivity check failed - %w", err)
 	}
 
-	// Build pg_restore command
+	// Build mysql command
 	args := []string{
 		fmt.Sprintf("--host=%s", ra.Host),
 		fmt.Sprintf("--port=%d", ra.Port),
-		fmt.Sprintf("--username=%s", ra.Username),
-		fmt.Sprintf("--dbname=%s", ra.Database),
+		fmt.Sprintf("--user=%s", ra.Username),
 	}
 
-	// Add format if specified
-	if ra.PgRestoreFormat != "" {
-		args = append(args, fmt.Sprintf("--format=%s", ra.PgRestoreFormat))
-	}
-
-	// Add decompression flag if needed
-	if ra.Decompress {
-		args = append(args, "--decompression")
-	}
-
-	// Map conflict strategy to native pg_restore flags.
-	// replace → --clean (drop objects before recreating)
-	// ignore  → --if-exists (skip missing objects, suppress errors)
-	// error   → default behavior (no flag needed)
-	switch ra.OnConflict {
-	case "replace":
-		args = append(args, "--clean")
-		if ra.AllowCascade {
-			args = append(args, "--if-exists") // prevents errors on missing deps during clean
-		}
-	case "ignore":
-		args = append(args, "--if-exists")
+	// Map conflict strategy to native mysql CLI flags.
+	// ignore  → --force (continue on duplicate key errors instead of aborting)
+	// replace → --force (mysql CLI has no native REPLACE INTO flag; --force
+	//           continues past duplicate errors, which is the closest safe option)
+	// error   → default behavior (abort on first error)
+	if ra.OnConflict == "ignore" || ra.OnConflict == "replace" {
+		args = append(args, "--force")
 	}
 
 	// Parse and add additional arguments
@@ -132,21 +106,27 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		args = append(args, additionalArgs...)
 	}
 
-	if ra.BackupPath != "" {
-		args = append(args, ra.BackupPath)
-	}
+	// Always select the target database
+	args = append(args, ra.Database)
 
-	// Execute pg_restore against the staged backup path.
-	cmd := exec.CommandContext(ctx, "pg_restore", args...)
+	// Execute mysql with stdin piping
+	cmd := exec.CommandContext(ctx, "mysql", args...)
 
 	// Set up environment with password
 	cmd.Env = os.Environ()
 	if ra.Password != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", ra.Password))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", ra.Password))
 	}
 
+	in, err := os.Open(ra.BackupPath)
+	if err != nil {
+		return fmt.Errorf("failed to open staged backup file - %w", err)
+	}
+	defer in.Close()
+	cmd.Stdin = in
+
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start pg_restore command - %w", err)
+		return fmt.Errorf("failed to start mysql command - %w", err)
 	}
 
 	return nil
@@ -160,19 +140,18 @@ func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
 	return Restore(ctx, ra)
 }
 
-// checkConnectivity verifies database connectivity using pg_dump
+// checkConnectivity verifies database connectivity using mysql
 func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
-	cmd := exec.CommandContext(ctx, "pg_dump",
+	cmd := exec.CommandContext(ctx, "mysql",
 		fmt.Sprintf("--host=%s", ra.Host),
 		fmt.Sprintf("--port=%d", ra.Port),
-		fmt.Sprintf("--username=%s", ra.Username),
-		"--list",
-		ra.Database,
+		fmt.Sprintf("--user=%s", ra.Username),
+		"-e", "SELECT 1",
 	)
 
 	cmd.Env = os.Environ()
 	if ra.Password != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", ra.Password))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", ra.Password))
 	}
 
 	// Discard output, we only care about exit code
@@ -180,8 +159,11 @@ func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot connect to PostgreSQL database %s@%s:%d - %w", ra.Username, ra.Host, ra.Port, err)
+		return fmt.Errorf("cannot connect to MySQL database %s@%s:%d - %w", ra.Username, ra.Host, ra.Port, err)
 	}
 
 	return nil
 }
+
+// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions (spec 036).
+func (*RestoreArgs) IsRestoreOptions() {}

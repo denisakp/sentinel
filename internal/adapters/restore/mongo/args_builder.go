@@ -1,4 +1,4 @@
-package mongo_restore
+package mongo
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"
