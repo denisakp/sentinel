@@ -47,18 +47,23 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/manifest/` — SHA-256 manifest + HashingWriter for integrity
 - `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
-- `internal/adapters/tls/` — TLS adapter implementing `ports.Prober` (spec 033). `Adapter` satisfies the port; `BuildTLSArgs`, `ProbeTLSConnection`, `SweepOrphanMaterial`, and Mongo PEM helpers remain reachable as package-level functions. Domain type `internaltls.Config` lives in `internal/ports/tls.go` (spec 028); the adapter maps from `config.TLSConfig` (YAML).
+- `internal/adapters/tls/` — TLS adapter implementing `ports.Prober` (spec 033). `Adapter` satisfies the port; `BuildTLSArgs` + `ProbeTLSConnection` remain reachable as package-level functions. Domain type `internaltls.Config` lives in `internal/ports/tls.go` (spec 028); the adapter maps from `config.TLSConfig` (YAML). Mongo PEM lifecycle (`MongoTLSMaterial`, `PrepareMongoTLS`, `SweepOrphanMaterial`, `Register`/`Unregister`/`CloseAll`) moved to `internal/adapters/dump/mongo/` by spec 035.
 - `internal/adapters/notifier/` — multi-channel dispatcher (slack/discord/email/webhook) implementing `ports.Dispatcher` + `ports.Notifier` (spec 034). `*Dispatcher` satisfies `ports.Dispatcher`; each `*SlackNotifier`/`*DiscordNotifier`/`*EmailNotifier`/`*WebhookNotifier` satisfies `ports.Notifier`. Compile-time port assertions in `conformance.go`. Context/config types (`BackupContext`, `RestoreContext`, `WebhookNotificationConfig`, `EmailNotificationConfig`, `ErrNon2xxResponse`) live in `internal/ports/notifier.go`.
 - `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
 - `internal/restore/` — restore arg validation (`args.go`, `validator.go`) + `incremental/`
 - `internal/utils/` — shared helpers (`file.go`, `time.go`, `scheduled_output.go`)
 - `internal/retention/`, `internal/version/`
-- `pkg/backup/{pg,mysql,mariadb,mongo}_dump/args_builder.go` — engine-specific dump arg builders
-- `pkg/backup/{mysqlbinlog,pg_combine}/` — incremental backup helpers (WAL / binlogs)
-- `pkg/restore/{pg,mysql,mariadb,mongo}_restore/args_builder.go` — restore arg builders
+- `internal/adapters/dump/{pg,mysql,mariadb,mongo}/` — engine-specific dump adapters (spec 035). Each package exposes a zero-field `Builder` satisfying `ports.DumpBuilder` and keeps its existing `Backup`/`BackupAll` entry points + `*DumpArgs` types. Compile-time port assertions in `conformance.go`. `internal/adapters/dump/mongo/` also owns Mongo PEM lifecycle (`material.go`, `cleanup.go`, `sweep.go`). Port types `DumpBuilder`/`DumpCleanup`/`BuildContext`/`BuildResult` live in `internal/ports/dump.go`.
+- `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}/` — external-binary wrappers for restore-side incremental replay (spec 035). Single-callsite each (executor.go, assembler.go); no port introduced.
+- `pkg/restore/{pg,mysql,mariadb,mongo}_restore/args_builder.go` — restore arg builders (relocation to `internal/adapters/restore/<engine>/` deferred to a future spec).
 
 ### Import-cycle rule
-Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/` MUST NOT import each other and MUST NOT import the parent `internal/adapters/storage` package (which holds the registry). The registry is allowed to import every adapter sibling. Domain code reaches concrete backends only through `storage.NewBackend(...)` returning `ports.StorageBackend` (and optionally `ports.StatusReporter` via type-assertion). The legacy `internal/storage/` package is gone; see spec 029.
+Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/` and `internal/adapters/dump/{pg,mysql,mariadb,mongo}/` MUST NOT import each other. Storage registry imports every storage sibling. Dump adapters don't import sibling dump packages. Domain code reaches concrete storage backends only through `storage.NewBackend(...)` returning `ports.StorageBackend`. Domain code reaches dumps through `ports.DumpBuilder` (each engine adapter exposes a `Builder` value).
+
+**Known narrow exceptions** (pre-existing; called out so they aren't flagged as new debt):
+- `internal/config/marshal.go` imports the four dump adapter packages for `*DumpArgs` type names referenced in `Build*DumpArgs` return types (spec 035 clarification Q1). Future spec may introduce a `ports.DumpArgsFactory` to remove the direction.
+- `internal/restore/{executor.go,incremental/assembler.go}` import `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}/` directly (single-callsite each; no port — spec 035 clarification Q2).
+- `internal/cli/root.go` and `pkg/restore/mongo_restore/args_builder.go` import `internal/adapters/dump/mongo` for Mongo PEM lifecycle calls (`SweepOrphanMaterial`, `CloseAll`, `PrepareMongoTLS`). The mongo_restore caller will move when the restore axis migrates.
 
 ### Retry / locking
 `withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/adapters/lock`.
@@ -87,5 +92,5 @@ Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/034-notifier-adapter-migration/plan.md`
+`specs/035-dump-adapters-migration/plan.md`
 <!-- SPECKIT END -->

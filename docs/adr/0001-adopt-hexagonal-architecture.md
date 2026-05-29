@@ -130,8 +130,8 @@ The migration is staged. Each move listed in `docs/architecture/project-layout.m
 - [ ] Add migration tracking issues for each row in `project-layout.md` §8.
 - [ ] Move `internal/storage/backend.go` interface to `internal/ports/storage.go`; keep a type alias at the old path for the duration of the migration.
 - [ ] Move `internal/storage/{local,sentinel_s3,gcs,gdrive,azure}/` to `internal/adapters/storage/*`.
-- [ ] Move `pkg/backup/{pg,mysql,mariadb,mongo}_dump/` to `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`.
-- [ ] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/dump/{mysqlbinlog,pg_combine}/`.
+- [x] Move `pkg/backup/{pg,mysql,mariadb,mongo}_dump/` to `internal/adapters/dump/{pg,mysql,mariadb,mongo}/` (spec 035, 2026-05-29). Engine packages renamed `<engine>_dump` → `<engine>`. Each exposes `Builder` satisfying `ports.DumpBuilder`. Mongo TLS material (`MongoTLSMaterial`, `PrepareMongoTLS`, sweep/cleanup) co-located into `internal/adapters/dump/mongo/`.
+- [x] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}/` (spec 035, 2026-05-29). Restore-axis classification — both are restore-time external-binary wrappers, not dump-time. `pg_combine` package renamed `pgcombine`.
 - [ ] Move `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` to `internal/adapters/restore/{pg,mysql,mariadb,mongo}/`.
 - [x] Move `internal/notifier/` to `internal/adapters/notifier/` (spec 034, 2026-05-29); ports `Dispatcher` + `Notifier` already exposed in `internal/ports/notifier.go` by spec 028 T025-T027. Files stay flat (dispatcher + per-channel files in the same package) rather than per-channel sub-packages.
 - [x] Move `internal/crypto/` to `internal/adapters/crypto/` (spec 030, 2026-05-27); ports `Hasher`/`KeyProvider`/`EncryptWriter`/`DecryptReader` already exposed in `internal/ports/{crypto,encryption,hasher}.go` by spec 028.
