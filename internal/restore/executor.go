@@ -20,7 +20,7 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
-	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
 	mariadbrestore "github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
 	mongorestore "github.com/denisakp/sentinel/pkg/restore/mongo_restore"
 	mysqlrestore "github.com/denisakp/sentinel/pkg/restore/mysql_restore"

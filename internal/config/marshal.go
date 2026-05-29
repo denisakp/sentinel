@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
 	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
 	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
@@ -62,8 +62,8 @@ func BuildStorageParams(job BackupJob) *storage.Params {
 }
 
 // BuildPgDumpArgs maps a job into pg_dump arguments.
-func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*pg_dump.PgDumpArgs, error) {
-	pgArgs := &pg_dump.PgDumpArgs{
+func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*pg.PgDumpArgs, error) {
+	pgArgs := &pg.PgDumpArgs{
 		Host:             job.Host,
 		Port:             portToString(job.Port),
 		Username:         job.Username,
@@ -96,8 +96,8 @@ func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, stor
 }
 
 // BuildMySQLDumpArgs maps a job into mysqldump arguments.
-func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mysql_dump.MySqlDumpArgs, error) {
-	return &mysql_dump.MySqlDumpArgs{
+func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mysql.MySqlDumpArgs, error) {
+	return &mysql.MySqlDumpArgs{
 		Host:           job.Host,
 		Port:           portToString(job.Port),
 		Username:       job.Username,
@@ -109,8 +109,8 @@ func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, s
 }
 
 // BuildMariaDBDumpArgs maps a job into mariadb-dump arguments.
-func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mariadb_dump.MariaDBDumpArgs, error) {
-	return &mariadb_dump.MariaDBDumpArgs{
+func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mariadb.MariaDBDumpArgs, error) {
+	return &mariadb.MariaDBDumpArgs{
 		Host:           job.Host,
 		Port:           portToString(job.Port),
 		Username:       job.Username,
@@ -122,8 +122,8 @@ func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string,
 }
 
 // BuildMongoDumpArgs maps a job into mongodump arguments.
-func BuildMongoDumpArgs(job BackupJob, additionalArgs string, storageParams *storage.Params) (*mongo_dump.DumpMongoArgs, error) {
-	return &mongo_dump.DumpMongoArgs{
+func BuildMongoDumpArgs(job BackupJob, additionalArgs string, storageParams *storage.Params) (*mongo.DumpMongoArgs, error) {
+	return &mongo.DumpMongoArgs{
 		Uri:            job.URI,
 		Database:       job.Database,
 		Compress:       optionBool(job.DatabaseOptions, "gzip"),

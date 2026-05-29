@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
+	mongotls "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	"github.com/denisakp/sentinel/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ func rootPreRun(cmd *cobra.Command, _ []string) error {
 	preRunOnce.Do(func() {
 		// Backstop cleanup for prepared mongo TLS material left by hard-killed
 		// prior processes (FR-006a). Non-fatal: hygiene only.
-		if removed, err := internaltls.SweepOrphanMaterial(os.TempDir()); err != nil {
+		if removed, err := mongotls.SweepOrphanMaterial(os.TempDir()); err != nil {
 			slog.Warn("mongo-tls: orphan sweep failed",
 				"event", "mongo_tls_orphan_sweep_failed",
 				"error", err.Error())
@@ -61,7 +61,7 @@ func installMongoTLSSignalHandler() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigCh
-		if err := internaltls.CloseAll(); err != nil {
+		if err := mongotls.CloseAll(); err != nil {
 			slog.Warn("mongo-tls: signal-driven cleanup encountered errors",
 				"event", "mongo_tls_signal_cleanup_failed",
 				"error", err.Error())

@@ -11,7 +11,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
 )
 
 func TestMariaDBBackup(t *testing.T) {
@@ -33,7 +33,7 @@ func TestMariaDBBackup(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mariadb_test.sql")
 
-	args := &mariadb_dump.MariaDBDumpArgs{
+	args := &mariadb.MariaDBDumpArgs{
 		Username: db.Username,
 		Password: db.Password,
 		Host:     db.Host,
@@ -49,7 +49,7 @@ func TestMariaDBBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MariaDB backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	_, err := mariadb_dump.Backup(args)
+	_, err := mariadb.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -89,7 +89,7 @@ func TestMariaDBRestore(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mariadb_test.sql")
 
-	backupArgs := &mariadb_dump.MariaDBDumpArgs{
+	backupArgs := &mariadb.MariaDBDumpArgs{
 		Username: db.Username,
 		Password: db.Password,
 		Host:     db.Host,
@@ -102,7 +102,7 @@ func TestMariaDBRestore(t *testing.T) {
 		},
 	}
 
-	if _, err := mariadb_dump.Backup(backupArgs); err != nil {
+	if _, err := mariadb.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mariadb_fail.sql")
 
-	args := &mariadb_dump.MariaDBDumpArgs{
+	args := &mariadb.MariaDBDumpArgs{
 		Username: "invalid_user",
 		Password: "invalid_password",
 		Host:     "invalid_host",
@@ -147,7 +147,7 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MariaDB backup with invalid credentials (expecting failure)")
-	_, err = mariadb_dump.Backup(args)
+	_, err = mariadb.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {
@@ -168,7 +168,7 @@ func TestMariaDBDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &mariadb_dump.MariaDBDumpArgs{
+	args := &mariadb.MariaDBDumpArgs{
 		Username: "test_user",
 		Password: "test_pass",
 		Host:     "localhost",

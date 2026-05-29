@@ -24,10 +24,10 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 	"github.com/denisakp/sentinel/internal/adapters/tls"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 )
 
 // Conformance assertions. Each line is one verbatim claim:
@@ -77,8 +77,14 @@ var (
 
 	// dump.go — EngineOptions marker. One assertion per engine confirms
 	// every current *DumpArgs satisfies the port's marker contract.
-	_ ports.EngineOptions = (*pg_dump.PgDumpArgs)(nil)
-	_ ports.EngineOptions = (*mysql_dump.MySqlDumpArgs)(nil)
-	_ ports.EngineOptions = (*mariadb_dump.MariaDBDumpArgs)(nil)
-	_ ports.EngineOptions = (*mongo_dump.DumpMongoArgs)(nil)
+	_ ports.EngineOptions = (*pg.PgDumpArgs)(nil)
+	_ ports.EngineOptions = (*mysql.MySqlDumpArgs)(nil)
+	_ ports.EngineOptions = (*mariadb.MariaDBDumpArgs)(nil)
+	_ ports.EngineOptions = (*mongo.DumpMongoArgs)(nil)
+
+	// dump.go — DumpBuilder unified port (spec 035 FR-013).
+	_ ports.DumpBuilder = (*pg.Builder)(nil)
+	_ ports.DumpBuilder = (*mysql.Builder)(nil)
+	_ ports.DumpBuilder = (*mariadb.Builder)(nil)
+	_ ports.DumpBuilder = (*mongo.Builder)(nil)
 )

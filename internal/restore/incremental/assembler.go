@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/denisakp/sentinel/pkg/backup/pg_combine"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/pgcombine"
 )
 
-var combinePostgresChain = pg_combine.Combine
+var combinePostgresChain = pgcombine.Combine
 
 // AssemblyRequest carries the minimal inputs needed before engine-specific assembly starts.
 type AssemblyRequest struct {
@@ -52,7 +52,7 @@ func AssemblePostgresChain(ctx context.Context, stagingDir string, stagedSources
 		return "", fmt.Errorf("failed to create combine output dir: %w", err)
 	}
 
-	if err := combinePostgresChain(ctx, &pg_combine.CombineArgs{
+	if err := combinePostgresChain(ctx, &pgcombine.CombineArgs{
 		ToolsPath: toolsPath,
 		OutputDir: outDir,
 		Sources:   stagedSources,

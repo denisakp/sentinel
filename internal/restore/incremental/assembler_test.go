@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/denisakp/sentinel/pkg/backup/pg_combine"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/pgcombine"
 )
 
 func TestValidateAssemblyPreconditions(t *testing.T) {
@@ -73,7 +73,7 @@ func TestAssemblePostgresChain_SingleSourcePassthrough(t *testing.T) {
 func TestAssemblePostgresChain_Success(t *testing.T) {
 	originalCombine := combinePostgresChain
 	t.Cleanup(func() { combinePostgresChain = originalCombine })
-	combinePostgresChain = func(ctx context.Context, args *pg_combine.CombineArgs) error { return nil }
+	combinePostgresChain = func(ctx context.Context, args *pgcombine.CombineArgs) error { return nil }
 
 	stagingDir := t.TempDir()
 	out, err := AssemblePostgresChain(context.Background(), stagingDir, []string{"a", "b"}, "")
@@ -89,7 +89,7 @@ func TestAssemblePostgresChain_CleansOutputDirOnCombineFailure(t *testing.T) {
 	originalCombine := combinePostgresChain
 	t.Cleanup(func() { combinePostgresChain = originalCombine })
 
-	combinePostgresChain = func(ctx context.Context, args *pg_combine.CombineArgs) error {
+	combinePostgresChain = func(ctx context.Context, args *pgcombine.CombineArgs) error {
 		return errors.New("combine failed")
 	}
 

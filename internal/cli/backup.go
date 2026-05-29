@@ -27,11 +27,11 @@ import (
 	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysqlbinlog"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	"github.com/spf13/cobra"
 )
 
@@ -172,7 +172,7 @@ var BackupCmd = &cobra.Command{
 			pgCompressionAlgo, _ = cmd.Flags().GetString("pg-compression-algo") // get the pg-compression-algo flag value
 			pgCompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")  // get the pg-compression-level flag value
 
-			pda := &pg_dump.PgDumpArgs{
+			pda := &pg.PgDumpArgs{
 				Host:                 host,
 				Port:                 port,
 				Username:             user,
@@ -186,7 +186,7 @@ var BackupCmd = &cobra.Command{
 				Storage:              params,
 			}
 
-			_, err = pg_dump.Backup(pda)
+			_, err = pg.Backup(pda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -194,7 +194,7 @@ var BackupCmd = &cobra.Command{
 		}
 
 		if dbType == "mysql" {
-			mda := &mysql_dump.MySqlDumpArgs{
+			mda := &mysql.MySqlDumpArgs{
 				Host:           host,
 				Port:           port,
 				Username:       user,
@@ -204,7 +204,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mysql_dump.Backup(mda)
+			_, err = mysql.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -212,7 +212,7 @@ var BackupCmd = &cobra.Command{
 		}
 
 		if dbType == "mariadb" {
-			mda := &mariadb_dump.MariaDBDumpArgs{
+			mda := &mariadb.MariaDBDumpArgs{
 				Host:           host,
 				Port:           port,
 				Username:       user,
@@ -222,7 +222,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mariadb_dump.Backup(mda)
+			_, err = mariadb.Backup(mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -233,14 +233,14 @@ var BackupCmd = &cobra.Command{
 			compress, _ = cmd.Flags().GetBool("compress") // get the compress flag value
 			uri, _ := cmd.Flags().GetString("uri")        // get the uri flag value
 
-			da := &mongo_dump.DumpMongoArgs{
+			da := &mongo.DumpMongoArgs{
 				Compress:       compress,
 				AdditionalArgs: additionalArgs,
 				Uri:            uri,
 				Storage:        params,
 			}
 
-			_, err = mongo_dump.Backup(da)
+			_, err = mongo.Backup(da)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -369,19 +369,19 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("pg-compression-level") {
 			pgArgs.CompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
 		}
-		digest, backupErr = pg_dump.Backup(pgArgs)
+		digest, backupErr = pg.Backup(pgArgs)
 	case "mysql":
 		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		digest, backupErr = mysql_dump.Backup(mysqlArgs)
+		digest, backupErr = mysql.Backup(mysqlArgs)
 	case "mariadb":
 		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		digest, backupErr = mariadb_dump.Backup(mariaArgs)
+		digest, backupErr = mariadb.Backup(mariaArgs)
 	case "mongodb":
 		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
 		if err != nil {
@@ -393,7 +393,7 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		digest, backupErr = mongo_dump.Backup(mongoArgs)
+		digest, backupErr = mongo.Backup(mongoArgs)
 	default:
 		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
 	}
@@ -481,7 +481,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		digest, backupErr = pg_dump.BackupAll(&pg_dump.PgDumpAllArgs{
+		digest, backupErr = pg.BackupAll(&pg.PgDumpAllArgs{
 			Host:           pgArgs.Host,
 			Port:           pgArgs.Port,
 			Username:       pgArgs.Username,
@@ -494,7 +494,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		digest, backupErr = mysql_dump.BackupAll(&mysql_dump.MySqlDumpAllArgs{
+		digest, backupErr = mysql.BackupAll(&mysql.MySqlDumpAllArgs{
 			Host:           mysqlArgs.Host,
 			Port:           mysqlArgs.Port,
 			Username:       mysqlArgs.Username,
@@ -507,7 +507,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if err != nil {
 			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		digest, backupErr = mariadb_dump.BackupAll(&mariadb_dump.MariaDBDumpAllArgs{
+		digest, backupErr = mariadb.BackupAll(&mariadb.MariaDBDumpAllArgs{
 			Host:           mariaArgs.Host,
 			Port:           mariaArgs.Port,
 			Username:       mariaArgs.Username,
@@ -527,7 +527,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		digest, backupErr = mongo_dump.Backup(mongoArgs)
+		digest, backupErr = mongo.Backup(mongoArgs)
 	default:
 		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
 	}
@@ -1124,7 +1124,7 @@ func archiveMongoOplogArtifacts(ctx context.Context, job config.BackupJob, backu
 	}
 
 	archiveName := fmt.Sprintf("%s.oplog.archive", filepath.Base(backupFilePath))
-	archiveResult, err := mongo_dump.ArchiveOplog(ctx, &mongo_dump.OplogArchiveArgs{
+	archiveResult, err := mongo.ArchiveOplog(ctx, &mongo.OplogArchiveArgs{
 		URI:         mongoURI,
 		OutputDir:   filepath.Dir(backupFilePath),
 		ArchiveName: archiveName,
