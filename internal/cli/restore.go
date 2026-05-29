@@ -15,7 +15,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )

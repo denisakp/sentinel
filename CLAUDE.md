@@ -48,10 +48,11 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
 - `internal/adapters/tls/` — TLS adapter implementing `ports.Prober` (spec 033). `Adapter` satisfies the port; `BuildTLSArgs`, `ProbeTLSConnection`, `SweepOrphanMaterial`, and Mongo PEM helpers remain reachable as package-level functions. Domain type `internaltls.Config` lives in `internal/ports/tls.go` (spec 028); the adapter maps from `config.TLSConfig` (YAML).
+- `internal/adapters/notifier/` — multi-channel dispatcher (slack/discord/email/webhook) implementing `ports.Dispatcher` + `ports.Notifier` (spec 034). `*Dispatcher` satisfies `ports.Dispatcher`; each `*SlackNotifier`/`*DiscordNotifier`/`*EmailNotifier`/`*WebhookNotifier` satisfies `ports.Notifier`. Compile-time port assertions in `conformance.go`. Context/config types (`BackupContext`, `RestoreContext`, `WebhookNotificationConfig`, `EmailNotificationConfig`, `ErrNon2xxResponse`) live in `internal/ports/notifier.go`.
 - `internal/backup/` — execution engine: `executor.go`, `planner.go`, `pipeline.go`, `source.go`, `postgres_pitr.go`, `postgres_conflicts.go`; sub-packages `incremental/`, `mongo/`, `sql/`
 - `internal/restore/` — restore arg validation (`args.go`, `validator.go`) + `incremental/`
 - `internal/utils/` — shared helpers (`file.go`, `time.go`, `scheduled_output.go`)
-- `internal/retention/`, `internal/notifier/` (slack/discord/email/webhook), `internal/version/`
+- `internal/retention/`, `internal/version/`
 - `pkg/backup/{pg,mysql,mariadb,mongo}_dump/args_builder.go` — engine-specific dump arg builders
 - `pkg/backup/{mysqlbinlog,pg_combine}/` — incremental backup helpers (WAL / binlogs)
 - `pkg/restore/{pg,mysql,mariadb,mongo}_restore/args_builder.go` — restore arg builders

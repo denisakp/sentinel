@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Dispatcher abstracts *internal/notifier.Dispatcher (current concrete implementation).
+// Dispatcher abstracts *internal/adapters/notifier.Dispatcher (current concrete implementation).
 //
 // Implementations fan out backup/restore notifications across configured
 // per-channel Notifier instances (slack, discord, email, webhook). Sync
@@ -26,7 +26,7 @@ type Dispatcher interface {
 
 // Notifier abstracts the per-channel notifier contract (slack, discord,
 // email, webhook). Current concrete implementations live in
-// internal/notifier/{slack,discord,email,webhook}.go.
+// internal/adapters/notifier/{slack,discord,email,webhook}.go.
 type Notifier interface {
 	SendBackup(ctx context.Context, backup *BackupContext) error
 	SendRestore(ctx context.Context, restore *RestoreContext) error
@@ -47,7 +47,7 @@ type NotificationContext interface {
 
 // BackupStatus represents the status of a backup or restore execution.
 //
-// Relocated from internal/notifier/types.go (single source of truth per
+// Relocated from internal/adapters/notifier/types.go (single source of truth per
 // spec 028 FR-003a).
 type BackupStatus string
 
@@ -59,7 +59,7 @@ const (
 
 // BackupContext contains information about a backup execution.
 //
-// Relocated from internal/notifier/types.go.
+// Relocated from internal/adapters/notifier/types.go.
 type BackupContext struct {
 	BackupName   string
 	DatabaseType string
@@ -160,5 +160,5 @@ type EmailNotificationConfig struct {
 }
 
 // ErrNon2xxResponse is returned when a webhook target replies with a status
-// outside the 2xx range. Relocated from internal/notifier/errors.go.
+// outside the 2xx range. Relocated from internal/adapters/notifier/errors.go.
 var ErrNon2xxResponse = errors.New("non-2xx response from notifier remote")
