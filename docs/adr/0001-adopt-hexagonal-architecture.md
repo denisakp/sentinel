@@ -133,7 +133,7 @@ The migration is staged. Each move listed in `docs/architecture/project-layout.m
 - [ ] Move `pkg/backup/{pg,mysql,mariadb,mongo}_dump/` to `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`.
 - [ ] Move `pkg/backup/{mysqlbinlog,pg_combine}/` to `internal/adapters/dump/{mysqlbinlog,pg_combine}/`.
 - [ ] Move `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` to `internal/adapters/restore/{pg,mysql,mariadb,mongo}/`.
-- [ ] Move `internal/notifier/{slack,discord,email,webhook}.go` to `internal/adapters/notifier/{slack,discord,email,webhook}/`; the dispatcher stays at `internal/adapters/notifier/dispatcher.go`.
+- [x] Move `internal/notifier/` to `internal/adapters/notifier/` (spec 034, 2026-05-29); ports `Dispatcher` + `Notifier` already exposed in `internal/ports/notifier.go` by spec 028 T025-T027. Files stay flat (dispatcher + per-channel files in the same package) rather than per-channel sub-packages.
 - [x] Move `internal/crypto/` to `internal/adapters/crypto/` (spec 030, 2026-05-27); ports `Hasher`/`KeyProvider`/`EncryptWriter`/`DecryptReader` already exposed in `internal/ports/{crypto,encryption,hasher}.go` by spec 028.
 - [x] Move `internal/lock/` to `internal/adapters/lock/` (spec 031, 2026-05-27); port `LockManager` already exposed in `internal/ports/lock.go` by spec 028.
 - [x] Move `internal/monitor/` to `internal/adapters/monitor/` (spec 032, 2026-05-27); port `Recorder` already exposed in `internal/ports/recorder.go` by spec 028.

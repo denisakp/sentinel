@@ -7,7 +7,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/restore"
 )
 

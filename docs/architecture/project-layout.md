@@ -203,7 +203,7 @@ The current tree diverges from this target. Tracked moves:
 | `internal/storage/types/RepoStatus` (struct)        | `internal/ports/storage.go` (`RepoStatus` + sibling port `StatusReporter`) | spec 029 | **complete 2026-05-27** |
 | `internal/storage/storagetesting/`                  | `internal/ports/storagetesting/`                | spec 029                | **complete 2026-05-27** |
 | `internal/storage/{storage.go,backend.go,factory/}` (three legacy factories) | `internal/adapters/storage/registry.go` (`NewBackend` + `NewStorage`, single switch) | spec 029 | **complete 2026-05-27** |
-| `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | same                    | pending              |
+| `internal/notifier/{slack,discord,email,webhook}`   | `internal/adapters/notifier/*`                  | spec 034                | **complete 2026-05-29** |
 | `internal/crypto`                                   | `internal/adapters/crypto`                      | spec 030                | **complete 2026-05-27** |
 | `internal/lock`                                     | `internal/adapters/lock`                        | spec 031                | **complete 2026-05-27** |
 | `internal/monitor`                                  | `internal/adapters/monitor`                     | spec 032                | **complete 2026-05-27** |

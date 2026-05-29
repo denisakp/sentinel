@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 

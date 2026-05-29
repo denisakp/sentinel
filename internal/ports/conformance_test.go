@@ -16,7 +16,7 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/manifest"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
 	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
