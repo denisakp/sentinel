@@ -8,6 +8,7 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 	"github.com/denisakp/sentinel/internal/restore"
 )
 
@@ -58,7 +59,7 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 			if err != nil {
 				b.Fatalf("plan pitr restore: %v", err)
 			}
-			if plan.Status != restore.PlanStatusReady {
+			if plan.Status != domainrestore.PlanStatusReady {
 				b.Fatalf("unexpected plan status: %s", plan.Status)
 			}
 		}
@@ -70,7 +71,7 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 			if err != nil {
 				b.Fatalf("plan incremental restore: %v", err)
 			}
-			if plan.Status != restore.PlanStatusConfirmationRequired {
+			if plan.Status != domainrestore.PlanStatusConfirmationRequired {
 				b.Fatalf("unexpected plan status: %s", plan.Status)
 			}
 		}

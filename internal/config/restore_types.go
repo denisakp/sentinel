@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
 
 // BinlogTargetPosition identifies a replay stop point in MySQL/MariaDB binlogs.

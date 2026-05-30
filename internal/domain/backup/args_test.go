@@ -1,10 +1,12 @@
-package backup
+package backup_test
 
 import (
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/denisakp/sentinel/internal/domain/backup"
 )
 
 func TestParseAdditionalArgs(t *testing.T) {
@@ -55,23 +57,23 @@ func TestParseAdditionalArgs(t *testing.T) {
 		{
 			name:      "unterminated double quote",
 			input:     `--where="x > 1`,
-			wantErrIs: ErrUnterminatedQuote,
+			wantErrIs: backup.ErrUnterminatedQuote,
 		},
 		{
 			name:      "unterminated single quote",
 			input:     `--where='x > 1`,
-			wantErrIs: ErrUnterminatedQuote,
+			wantErrIs: backup.ErrUnterminatedQuote,
 		},
 		{
 			name:      "NUL byte rejected",
 			input:     "--foo\x00bar",
-			wantErrIs: ErrNULByte,
+			wantErrIs: backup.ErrNULByte,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseAdditionalArgs(tt.input)
+			got, err := backup.ParseAdditionalArgs(tt.input)
 			if tt.wantErrIs != nil {
 				if err == nil {
 					t.Fatalf("expected error %v, got tokens %v", tt.wantErrIs, got)
@@ -98,9 +100,6 @@ func TestParseAdditionalArgs(t *testing.T) {
 }
 
 func TestParseAdditionalArgs_Backcompat(t *testing.T) {
-	// Locks SC-002: canonical unquoted inputs the prior regex handled produce
-	// byte-identical token slices vs golden values. Quote-leaking cases are
-	// covered separately in TestParseAdditionalArgs above.
 	tests := []struct {
 		input string
 		want  []string
@@ -114,7 +113,7 @@ func TestParseAdditionalArgs_Backcompat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := ParseAdditionalArgs(tt.input)
+			got, err := backup.ParseAdditionalArgs(tt.input)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -137,10 +136,21 @@ func TestRemoveArgsDuplicate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RemoveArgsDuplicate(tt.in)
+			got := backup.RemoveArgsDuplicate(tt.in)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("expected %#v, got %#v", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestValidateDbType(t *testing.T) {
+	for _, ok := range []string{"mysql", "postgres", "mariadb", "mongodb"} {
+		if err := backup.ValidateDbType(ok); err != nil {
+			t.Errorf("ValidateDbType(%q) unexpected error: %v", ok, err)
+		}
+	}
+	if err := backup.ValidateDbType("redis"); err == nil {
+		t.Error("ValidateDbType(\"redis\") expected error, got nil")
 	}
 }

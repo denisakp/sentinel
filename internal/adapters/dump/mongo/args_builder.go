@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"

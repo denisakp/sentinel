@@ -12,6 +12,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
@@ -197,7 +198,7 @@ type scheduleListRow struct {
 	LastStatus    string `json:"last_status"`
 }
 
-func buildScheduleListRows(infos []scheduler.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
+func buildScheduleListRows(infos []schedule.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
 	rows := make([]scheduleListRow, 0, len(infos))
 	for _, info := range infos {
 		jobType := "backup"

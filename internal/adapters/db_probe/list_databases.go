@@ -1,4 +1,4 @@
-package sql
+package db_probe
 
 import (
 	"database/sql"
@@ -9,7 +9,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// ListDatabases returns database names for the given SQL engine.
+// ListDatabases returns database names for the given SQL engine. Relocated
+// from internal/backup/sql/list_databases.go by spec 037.
 func ListDatabases(dbType, host, port, user, password string) ([]string, error) {
 	switch dbType {
 	case "postgres":

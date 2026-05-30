@@ -14,7 +14,7 @@ package ports_test
 import (
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/adapters/lock"
-	"github.com/denisakp/sentinel/internal/manifest"
+	"github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
@@ -62,7 +62,7 @@ var (
 	_ ports.DecryptReader = (*crypto.ChunkDecryptReader)(nil)
 
 	// manifest.go — ManifestStore port (5 methods on the thin Adapter wrapper).
-	_ ports.ManifestStore = manifest.Adapter{}
+	_ ports.ManifestStore = manifest_store.Adapter{}
 
 	// lock.go — LockManager port (8 methods on *lock.Manager).
 	_ ports.LockManager = (*lock.Manager)(nil)

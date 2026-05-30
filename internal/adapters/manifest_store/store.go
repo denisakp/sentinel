@@ -1,4 +1,10 @@
-package manifest
+// Package manifest_store is the driving adapter for ports.ManifestStore.
+// It owns the file-system I/O for backup manifest sidecars
+// (<artifact>.manifest.json) and the streaming SHA-256 verification path.
+//
+// Pure validation (incremental lineage contract checks) lives in
+// internal/domain/manifest. Relocated from internal/manifest/ by spec 037.
+package manifest_store
 
 import (
 	"encoding/json"
@@ -8,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	"github.com/denisakp/sentinel/internal/domain/manifest"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -65,36 +72,13 @@ func ReadManifest(path string) (*ports.BackupManifest, error) {
 	return &m, nil
 }
 
-// LoadRestoreManifest loads restore manifest metadata and preserves ports.ErrNoManifest semantics.
+// LoadRestoreManifest loads restore manifest metadata and preserves
+// ports.ErrNoManifest semantics.
 func LoadRestoreManifest(path string) (*ports.BackupManifest, error) {
 	if path == "" {
 		return nil, ports.ErrNoManifest
 	}
-	m, err := ReadManifest(path)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// ValidateIncrementalLineageContract verifies required lineage fields when incremental metadata is present.
-func ValidateIncrementalLineageContract(m *ports.BackupManifest) error {
-	if m == nil || m.AdvancedRestore == nil || m.AdvancedRestore.IncrementalLineage == nil {
-		return nil
-	}
-
-	lineage := m.AdvancedRestore.IncrementalLineage
-	if lineage.ChainID == "" {
-		return fmt.Errorf("invalid manifest: incremental_lineage.chain_id is empty")
-	}
-	if lineage.ChainIndex < 0 {
-		return fmt.Errorf("invalid manifest: incremental_lineage.chain_index must be >= 0")
-	}
-	if lineage.MaxChainDepth < 0 {
-		return fmt.Errorf("invalid manifest: incremental_lineage.max_chain_depth must be >= 0")
-	}
-
-	return nil
+	return ReadManifest(path)
 }
 
 // VerifyBackupHash verifies a backup file against the expected hash value.
@@ -140,4 +124,28 @@ func computeSHA256(path string) (string, error) {
 	}
 
 	return hw.Sum(), nil
+}
+
+// Adapter implements ports.ManifestStore. Stateless.
+type Adapter struct{}
+
+func (Adapter) Write(path string, m *ports.BackupManifest) error {
+	return WriteManifest(path, m)
+}
+
+func (Adapter) Read(path string) (*ports.BackupManifest, error) {
+	return ReadManifest(path)
+}
+
+func (Adapter) LoadForRestore(path string) (*ports.BackupManifest, error) {
+	return LoadRestoreManifest(path)
+}
+
+func (Adapter) VerifyHash(path, algorithm, expected string) error {
+	return VerifyBackupHash(path, algorithm, expected)
+}
+
+// ValidateIncrementalLineage delegates to the pure domain validator.
+func (Adapter) ValidateIncrementalLineage(m *ports.BackupManifest) error {
+	return manifest.ValidateIncrementalLineageContract(m)
 }

@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/manifest"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/spf13/cobra"
 )
@@ -433,7 +434,7 @@ func TestHandleRestoreRun_ConfirmationRequiredMessage(t *testing.T) {
 	runRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 		return &internalrestore.ExecutionResult{
 			Status:         ports.StatusSkipped,
-			PlanningStatus: string(internalrestore.PlanStatusConfirmationRequired),
+			PlanningStatus: string(domainrestore.PlanStatusConfirmationRequired),
 			Reason:         internalrestore.ReasonCodeFullFallbackConfirmationRequired,
 		}, errors.New("fallback_required_confirmation")
 	}

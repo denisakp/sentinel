@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
@@ -101,7 +102,7 @@ func TestScheduleStatusUnknownJobDiffersFromMissingArgValidation(t *testing.T) {
 
 func TestScheduleListTableHeadersAndLastStatusRemoval(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{
 			Name:          "prod-postgres",
 			ScheduleExpr:  "0 2 * * *",
@@ -129,7 +130,7 @@ func TestScheduleListTableHeadersAndLastStatusRemoval(t *testing.T) {
 
 func TestScheduleListTypeResolutionIncludesRestore(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{Name: "nightly-backup", ScheduleExpr: "0 2 * * *", NextExecution: next},
 		{Name: "restore-drill", ScheduleExpr: "0 4 * * 0", NextExecution: next},
 	}, map[string]config.RestoreJob{"restore-drill": {Type: "postgres"}})
@@ -147,7 +148,7 @@ func TestScheduleListTypeResolutionIncludesRestore(t *testing.T) {
 
 func TestScheduleListJSONCompatibilityIncludesLastStatus(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{
 			Name:          "prod-postgres",
 			ScheduleExpr:  "0 2 * * *",

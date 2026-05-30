@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/domain/schedule"
 	"github.com/robfig/cron/v3"
 )
 
@@ -21,7 +22,7 @@ type jobState struct {
 	lastExecution  time.Time
 	lastStatus     string
 	lastError      string
-	history        []ExecutionRecord
+	history        []schedule.ExecutionRecord
 }
 
 // Scheduler manages cron-based execution with bounded concurrency.
@@ -139,13 +140,13 @@ func (s *Scheduler) RemoveJob(name string) error {
 }
 
 // ListJobs returns all registered jobs with next execution times.
-func (s *Scheduler) ListJobs() []JobInfo {
+func (s *Scheduler) ListJobs() []schedule.JobInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	infos := make([]JobInfo, 0, len(s.jobs))
+	infos := make([]schedule.JobInfo, 0, len(s.jobs))
 	for name, state := range s.jobs {
 		entry := s.cron.Entry(state.id)
-		infos = append(infos, JobInfo{
+		infos = append(infos, schedule.JobInfo{
 			Name:           name,
 			ScheduleExpr:   state.schedule,
 			NextExecution:  entry.Next,
@@ -158,7 +159,7 @@ func (s *Scheduler) ListJobs() []JobInfo {
 }
 
 // JobStatus returns detailed status of a specific job.
-func (s *Scheduler) JobStatus(name string) (*JobStatus, error) {
+func (s *Scheduler) JobStatus(name string) (*schedule.JobStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state, ok := s.jobs[name]
@@ -166,7 +167,7 @@ func (s *Scheduler) JobStatus(name string) (*JobStatus, error) {
 		return nil, fmt.Errorf("job '%s' not found", name)
 	}
 	entry := s.cron.Entry(state.id)
-	status := &JobStatus{
+	status := &schedule.JobStatus{
 		Name:             state.name,
 		Schedule:         state.schedule,
 		Enabled:          true,
@@ -174,7 +175,7 @@ func (s *Scheduler) JobStatus(name string) (*JobStatus, error) {
 		LastExecution:    state.lastExecution,
 		LastStatus:       state.lastStatus,
 		LastError:        state.lastError,
-		ExecutionHistory: append([]ExecutionRecord(nil), state.history...),
+		ExecutionHistory: append([]schedule.ExecutionRecord(nil), state.history...),
 	}
 	return status, nil
 }
@@ -220,13 +221,13 @@ func (s *Scheduler) runJob(state *jobState) {
 		state.lastError = ""
 	}
 
-	record := ExecutionRecord{
+	record := schedule.ExecutionRecord{
 		Timestamp: state.lastExecution,
 		Duration:  duration,
 		Status:    state.lastStatus,
 		Error:     state.lastError,
 	}
-	state.history = append([]ExecutionRecord{record}, state.history...)
+	state.history = append([]schedule.ExecutionRecord{record}, state.history...)
 	if len(state.history) > 10 {
 		state.history = state.history[:10]
 	}

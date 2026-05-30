@@ -1,4 +1,4 @@
-package manifest_test
+package manifest_store_test
 
 import (
 	"crypto/sha256"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/manifest"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -238,29 +238,6 @@ func TestWriteReadManifest_WithAdvancedRestoreMetadata(t *testing.T) {
 	}
 	if got.AdvancedRestore.IncrementalLineage.BaselineBackupID != "base-001" {
 		t.Fatalf("BaselineBackupID = %q", got.AdvancedRestore.IncrementalLineage.BaselineBackupID)
-	}
-}
-
-func TestValidateIncrementalLineageContract(t *testing.T) {
-	m := &ports.BackupManifest{
-		BackupID: "inc-001",
-		Hash:     ports.HashInfo{Algorithm: "sha256", Value: "abc"},
-		AdvancedRestore: &ports.AdvancedRestoreMetadata{
-			IncrementalLineage: &ports.IncrementalLineageMetadata{
-				ChainID:       "chain-1",
-				ChainIndex:    1,
-				MaxChainDepth: 6,
-			},
-		},
-	}
-
-	if err := manifest.ValidateIncrementalLineageContract(m); err != nil {
-		t.Fatalf("ValidateIncrementalLineageContract() unexpected error = %v", err)
-	}
-
-	m.AdvancedRestore.IncrementalLineage.ChainID = ""
-	if err := manifest.ValidateIncrementalLineageContract(m); err == nil {
-		t.Fatal("expected validation error for empty chain_id")
 	}
 }
 

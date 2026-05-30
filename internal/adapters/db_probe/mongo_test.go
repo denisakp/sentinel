@@ -1,4 +1,4 @@
-package mongo
+package db_probe
 
 import (
 	"context"
@@ -12,22 +12,24 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type captureHandler struct {
+// captureMongoHandler is the mongo-test variant of the slog capture handler;
+// distinct from captureHandler in ping_test.go to avoid name collision.
+type captureMongoHandler struct {
 	mu      sync.Mutex
 	records []slog.Record
 }
 
-func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
-func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
+func (h *captureMongoHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *captureMongoHandler) Handle(_ context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.records = append(h.records, r)
 	return nil
 }
-func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
-func (h *captureHandler) WithGroup(_ string) slog.Handler      { return h }
+func (h *captureMongoHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *captureMongoHandler) WithGroup(_ string) slog.Handler      { return h }
 
-func (h *captureHandler) has(msg string) bool {
+func (h *captureMongoHandler) has(msg string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, r := range h.records {
@@ -38,16 +40,16 @@ func (h *captureHandler) has(msg string) bool {
 	return false
 }
 
-func swapHandler(t *testing.T) *captureHandler {
+func swapMongoHandler(t *testing.T) *captureMongoHandler {
 	t.Helper()
-	h := &captureHandler{}
+	h := &captureMongoHandler{}
 	prev := slog.Default()
 	slog.SetDefault(slog.New(h))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	return h
 }
 
-func swapConnect(t *testing.T, fn func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error)) {
+func swapMongoConnect(t *testing.T, fn func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error)) {
 	t.Helper()
 	prev := mongoConnect
 	mongoConnect = fn
@@ -56,11 +58,11 @@ func swapConnect(t *testing.T, fn func(opts ...options.Lister[options.ClientOpti
 
 // uri pointing at a port nothing is listening on, with a short server selection
 // timeout so ping fails fast.
-const unreachableURI = "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=200&connectTimeoutMS=200"
+const unreachableMongoURI = "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=200&connectTimeoutMS=200"
 
-func TestCheckConnectivity_PingFailDisconnectOk(t *testing.T) {
-	h := swapHandler(t)
-	err := CheckConnectivity(unreachableURI)
+func TestCheckMongoConnectivity_PingFailDisconnectOk(t *testing.T) {
+	h := swapMongoHandler(t)
+	err := CheckMongoConnectivity(unreachableMongoURI)
 	if err == nil {
 		t.Fatalf("want error, got nil")
 	}
@@ -72,10 +74,8 @@ func TestCheckConnectivity_PingFailDisconnectOk(t *testing.T) {
 	}
 }
 
-func TestCheckConnectivity_PingFailDisconnectFail(t *testing.T) {
-	// Inject a connect that pre-disconnects the client, so the deferred Disconnect
-	// inside CheckConnectivity returns mongo.ErrClientDisconnected and ping fails.
-	swapConnect(t, func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error) {
+func TestCheckMongoConnectivity_PingFailDisconnectFail(t *testing.T) {
+	swapMongoConnect(t, func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error) {
 		client, err := mongo.Connect(opts...)
 		if err != nil {
 			return client, err
@@ -83,9 +83,9 @@ func TestCheckConnectivity_PingFailDisconnectFail(t *testing.T) {
 		_ = client.Disconnect(context.TODO())
 		return client, nil
 	})
-	h := swapHandler(t)
+	h := swapMongoHandler(t)
 
-	err := CheckConnectivity(unreachableURI)
+	err := CheckMongoConnectivity(unreachableMongoURI)
 	if err == nil {
 		t.Fatalf("want error, got nil")
 	}
@@ -97,12 +97,12 @@ func TestCheckConnectivity_PingFailDisconnectFail(t *testing.T) {
 	}
 }
 
-func TestCheckConnectivity_ConnectFail(t *testing.T) {
+func TestCheckMongoConnectivity_ConnectFail(t *testing.T) {
 	stub := errors.New("forced connect error")
-	swapConnect(t, func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error) {
+	swapMongoConnect(t, func(opts ...options.Lister[options.ClientOptions]) (*mongo.Client, error) {
 		return nil, stub
 	})
-	err := CheckConnectivity(unreachableURI)
+	err := CheckMongoConnectivity(unreachableMongoURI)
 	if err == nil || !errors.Is(err, stub) {
 		t.Fatalf("want wrapped stub error, got %v", err)
 	}

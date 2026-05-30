@@ -9,8 +9,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/denisakp/sentinel/internal/backup"
-	backupincremental "github.com/denisakp/sentinel/internal/backup/incremental"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	backupincremental "github.com/denisakp/sentinel/internal/domain/backup/incremental"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 )

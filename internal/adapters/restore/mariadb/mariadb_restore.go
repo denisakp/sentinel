@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
 
 // RestoreArgs holds arguments for MariaDB restore operations

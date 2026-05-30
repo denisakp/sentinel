@@ -5,7 +5,9 @@ import (
 	"time"
 )
 
-// ManifestStore abstracts *internal/manifest.Adapter (current concrete implementation).
+// ManifestStore abstracts *internal/adapters/manifest_store.Adapter
+// (current concrete implementation; relocated from internal/manifest/Adapter
+// by spec 037).
 //
 // It is the read/write seam for backup manifests — the .manifest.json
 // sidecar that records integrity, encryption, and advanced-restore

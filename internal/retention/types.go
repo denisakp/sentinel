@@ -1,49 +1,21 @@
+// TODO(spec-038): remove
+//
+// Spec 037 Sub-PR B introduced this bridge file. Pure types relocated to
+// internal/domain/retention/types.go; legacy callers (cli/backup,
+// cli/retention_helpers, scheduler/restore_integration, tests/*) still import
+// internal/retention. Once those callers are fully rewired to
+// internal/domain/retention (a future sub-PR / spec 038), delete this file
+// along with the rest of internal/retention/ per spec FR-008.
 package retention
 
-import "time"
+import "github.com/denisakp/sentinel/internal/domain/retention"
 
-// Policy defines retention rules for backups.
-type Policy struct {
-	KeepLast int
-	KeepDays int
-	DryRun   bool
-}
-
-// BackupRecord represents a backup execution record used for retention evaluation.
-type BackupRecord struct {
-	FilePath   string
-	Timestamp  time.Time
-	FileSize   int64
-	Status     string
-	BackupType string
-	ChainID    string
-	ChainIndex int
-}
-
-// BackupCandidate represents a retention deletion candidate.
-type BackupCandidate struct {
-	FilePath      string
-	Timestamp     time.Time
-	FileSize      int64
-	Status        string
-	ReasonDeleted string
-	BackupType    string
-	ChainID       string
-	ChainIndex    int
-}
-
-// DeletedBackup represents a deletion result.
-type DeletedBackup struct {
-	FilePath      string
-	FileSize      int64
-	DeletionTime  time.Time
-	ReasonDeleted string
-}
-
-// ApplySummary summarizes retention actions.
-type ApplySummary struct {
-	TotalDeleted int64
-	TotalSize    int64
-	ByBackupJob  map[string]int
-	Errors       []string
-}
+// Re-exports of the pure domain types. NO function bodies, NO logic in this
+// file — see specs/037-domain-extraction/research.md R4 (bridge policy).
+type (
+	Policy          = retention.Policy
+	BackupRecord    = retention.BackupRecord
+	BackupCandidate = retention.BackupCandidate
+	DeletedBackup   = retention.DeletedBackup
+	ApplySummary    = retention.ApplySummary
+)

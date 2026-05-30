@@ -3,7 +3,7 @@ package mariadb
 import (
 	"fmt"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/internal/ports"

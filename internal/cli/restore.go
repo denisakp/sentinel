@@ -16,8 +16,9 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	domainincr "github.com/denisakp/sentinel/internal/domain/restore/incremental"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
 
 func mapRestoreSourceError(job config.RestoreJob, err error) error {
@@ -335,7 +336,7 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		notifyRestoreResult(ctx, jobName, job, result, err)
-		if result != nil && result.PlanningStatus == string(internalrestore.PlanStatusConfirmationRequired) {
+		if result != nil && result.PlanningStatus == string(domainrestore.PlanStatusConfirmationRequired) {
 			return fmt.Errorf("restore execution requires explicit fallback confirmation; set confirm_full_fallback: true for job %q", jobName)
 		}
 		if result != nil && result.Status == ports.StatusSkipped {
@@ -347,14 +348,14 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	notifyRestoreResult(ctx, jobName, job, result, nil)
 
 	if result != nil && result.StagedFileRetained {
-		if result.FallbackDecision == string(internalrestore.FallbackCandidateFullRestore) {
+		if result.FallbackDecision == string(domainrestore.FallbackCandidateFullRestore) {
 			fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
 		}
 		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, result.StagedFilePath)
 		return nil
 	}
 
-	if result != nil && result.FallbackDecision == string(internalrestore.FallbackCandidateFullRestore) {
+	if result != nil && result.FallbackDecision == string(domainrestore.FallbackCandidateFullRestore) {
 		fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
 	}
 
@@ -389,13 +390,13 @@ func handleRestoreValidateChain(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to plan incremental restore: %w", err)
 	}
-	if plan.Status != internalrestore.PlanStatusReady {
+	if plan.Status != domainrestore.PlanStatusReady {
 		return fmt.Errorf("chain validation failed: status=%s reason=%s", plan.Status, plan.ReasonCode)
 	}
 
-	artifacts := make([]restoreincremental.ChainArtifact, 0, len(plan.ResolvedBackupIDs))
+	artifacts := make([]domainincr.ChainArtifact, 0, len(plan.ResolvedBackupIDs))
 	for i, backupID := range plan.ResolvedBackupIDs {
-		artifacts = append(artifacts, restoreincremental.ChainArtifact{
+		artifacts = append(artifacts, domainincr.ChainArtifact{
 			BackupID:         backupID,
 			BaselineBackupID: plan.BaselineBackupID,
 			ChainIndex:       i,
@@ -404,7 +405,7 @@ func handleRestoreValidateChain(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	resolved, err := restoreincremental.ResolveOrderedChain(artifacts, "")
+	resolved, err := domainincr.ResolveOrderedChain(artifacts, "")
 	if err != nil {
 		return fmt.Errorf("chain validation failed: %w", err)
 	}

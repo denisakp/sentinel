@@ -14,13 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/backup"
-	backupIncremental "github.com/denisakp/sentinel/internal/backup/incremental"
-	backupMongo "github.com/denisakp/sentinel/internal/backup/mongo"
-	backupSQL "github.com/denisakp/sentinel/internal/backup/sql"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	backupIncremental "github.com/denisakp/sentinel/internal/domain/backup/incremental"
+	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
@@ -779,15 +778,15 @@ func listDatabases(job config.BackupJob) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		return backupSQL.ListDatabases("postgres", job.Host, portString(job.Port), job.Username, password)
+		return dbprobe.ListDatabases("postgres", job.Host, portString(job.Port), job.Username, password)
 	case "mysql", "mariadb":
 		password, err := config.PasswordFromEnv(job.PasswordEnv)
 		if err != nil {
 			return nil, err
 		}
-		return backupSQL.ListDatabases("mysql", job.Host, portString(job.Port), job.Username, password)
+		return dbprobe.ListDatabases("mysql", job.Host, portString(job.Port), job.Username, password)
 	case "mongodb":
-		return backupMongo.ListDatabases(job.URI)
+		return dbprobe.ListMongoDatabases(job.URI)
 	default:
 		return nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}

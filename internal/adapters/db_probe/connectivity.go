@@ -1,17 +1,22 @@
-package sql
+package db_probe
 
 import (
 	"fmt"
-	"github.com/denisakp/sentinel/internal/backup"
+	"net/url"
+
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	"net/url"
 )
 
+// CheckConnectivity pings the target database via PingSqlDatabase. Relocated
+// from internal/backup/sql/connectivity.go by spec 037. The engine validation
+// previously delegated to backup.ValidateDbType is inlined here so the
+// db_probe adapter does not depend on internal/backup.
 func CheckConnectivity(dbType, host, port, user, password, database string) (bool, error) {
-	// Todo: the user maybe wants to use a tcp6 or unix socket, so this should be configurable in the future
-	scheme, err := defineScheme(dbType) // define the scheme based on the database type
+	// Todo: the user maybe wants to use a tcp6 or unix socket, so this should
+	// be configurable in the future.
+	scheme, err := defineScheme(dbType)
 	if err != nil {
 		return false, err
 	}
@@ -49,7 +54,7 @@ func CheckConnectivity(dbType, host, port, user, password, database string) (boo
 }
 
 func defineScheme(dbType string) (string, error) {
-	if err := backup.ValidateDbType(dbType); err != nil {
+	if err := validateDbType(dbType); err != nil {
 		return "", err
 	}
 
@@ -60,5 +65,17 @@ func defineScheme(dbType string) (string, error) {
 		return "postgres", nil
 	default:
 		return "", fmt.Errorf("invalid database type: %s", dbType)
+	}
+}
+
+// validateDbType is the locally inlined twin of backup.ValidateDbType. Kept
+// private to avoid leaking duplicate API surface; eventual consolidation
+// (with backup.ValidateDbType) is out of spec 037's scope.
+func validateDbType(dbType string) error {
+	switch dbType {
+	case "mysql", "postgres", "mariadb", "mongodb":
+		return nil
+	default:
+		return fmt.Errorf("invalid database type: %s", dbType)
 	}
 }

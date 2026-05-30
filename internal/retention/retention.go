@@ -11,6 +11,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
 	_ "modernc.org/sqlite"
 )
 
@@ -66,7 +67,7 @@ func (m *Manager) Apply(ctx context.Context, backupName string, dryRun bool) ([]
 		return nil, err
 	}
 	candidates := CalculateCandidates(records, policy, time.Now().UTC())
-	candidates = protectActiveBaseline(candidates, records)
+	candidates = domainret.ProtectActiveBaseline(candidates, records)
 	if dryRun {
 		return candidatesToDeleted(candidates), nil
 	}
@@ -254,44 +255,6 @@ func candidatesToDeleted(candidates []BackupCandidate) []DeletedBackup {
 		})
 	}
 	return deleted
-}
-
-func protectActiveBaseline(candidates []BackupCandidate, records []BackupRecord) []BackupCandidate {
-	if len(candidates) == 0 || len(records) == 0 {
-		return candidates
-	}
-
-	latest := records[0]
-	if latest.ChainID == "" {
-		return candidates
-	}
-
-	protectedPath := ""
-	for i := range records {
-		record := records[i]
-		if record.ChainID != latest.ChainID {
-			continue
-		}
-		if record.BackupType == "full" || record.ChainIndex == 0 {
-			protectedPath = record.FilePath
-			break
-		}
-	}
-
-	if protectedPath == "" {
-		return candidates
-	}
-
-	filtered := make([]BackupCandidate, 0, len(candidates))
-	for i := range candidates {
-		candidate := candidates[i]
-		if candidate.FilePath == protectedPath {
-			continue
-		}
-		filtered = append(filtered, candidate)
-	}
-
-	return filtered
 }
 
 func parseTimestamp(value string) (time.Time, error) {

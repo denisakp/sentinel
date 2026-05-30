@@ -12,7 +12,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/manifest"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	pgrestore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 

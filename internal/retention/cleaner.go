@@ -12,9 +12,10 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
 	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
 	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
 )
 
-const reasonProtectedActiveBaseline = "protected active baseline"
+const reasonProtectedActiveBaseline = domainret.ReasonProtectedActiveBaseline
 
 // DeleteCandidates removes backup files from storage for supported backends.
 func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storageType string, storageCfg config.StorageConfig) ([]DeletedBackup, []error) {

@@ -27,6 +27,8 @@ var ErrNULByte = errors.New("NUL byte in additional_args")
 // expansion, command substitution, or glob expansion is performed; constructs
 // like $VAR, `cmd`, $(cmd), and * appear literally in the emitted tokens.
 // See specs/023-shlex-args-parser/contracts/parser.md for the full contract.
+//
+// Relocated from internal/backup/args.go by spec 037.
 func ParseAdditionalArgs(entry string) ([]string, error) {
 	if strings.TrimSpace(entry) == "" {
 		return []string{}, nil
@@ -41,10 +43,12 @@ func ParseAdditionalArgs(entry string) ([]string, error) {
 	return tokens, nil
 }
 
-// RemoveArgsDuplicate removes duplicate arguments from the list of arguments
+// RemoveArgsDuplicate removes duplicate arguments from the list of arguments.
+//
+// Relocated from internal/backup/args.go by spec 037.
 func RemoveArgsDuplicate(args []string) []string {
-	keys := make(map[string]bool) // map of arguments
-	var list []string             // list of unique arguments
+	keys := make(map[string]bool)
+	var list []string
 
 	for _, entry := range args {
 		if _, value := keys[entry]; !value {

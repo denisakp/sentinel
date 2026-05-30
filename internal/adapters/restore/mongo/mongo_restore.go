@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
 
 // RestoreArgs holds arguments for MongoDB restore operations

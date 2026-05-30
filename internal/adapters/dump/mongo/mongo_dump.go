@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/denisakp/sentinel/internal/backup/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/db_probe"
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
@@ -18,7 +18,7 @@ import (
 // backupBackendFactory and checkConnectivity are overridable in tests.
 var (
 	backupBackendFactory = storage.NewBackend
-	checkConnectivity    = mongo.CheckConnectivity
+	checkConnectivity    = db_probe.CheckMongoConnectivity
 )
 
 // Backup backs up a MongoDB database using mongo_dump. For storage_type=="local"

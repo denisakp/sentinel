@@ -1,49 +1,34 @@
+// TODO(spec-038): remove
+//
+// Spec 037 Sub-PR E introduced this bridge file. Pure plan types relocated
+// to internal/domain/restore/plan_types.go. Legacy callers (CLI, scheduler,
+// many integration tests) still import internal/restore; a future spec
+// swaps those imports and deletes the rest of internal/restore/ per FR-009.
 package restore
 
-import "time"
-
-// AdvancedRestoreMode identifies the requested or resolved advanced restore mode.
-type AdvancedRestoreMode string
-
-const (
-	AdvancedRestoreModeFull        AdvancedRestoreMode = "full"
-	AdvancedRestoreModePITR        AdvancedRestoreMode = "pitr"
-	AdvancedRestoreModeIncremental AdvancedRestoreMode = "incremental"
+import (
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 )
 
-// PlanStatus represents the planner outcome before restore execution proceeds.
-type PlanStatus string
+// Re-exports of the pure domain types + constants. NO function bodies in this
+// file — see specs/037-domain-extraction/research.md R4.
 
-const (
-	PlanStatusReady                PlanStatus = "ready"
-	PlanStatusRejected             PlanStatus = "rejected"
-	PlanStatusConfirmationRequired PlanStatus = "confirmation_required"
+type (
+	AdvancedRestoreMode = domainrestore.AdvancedRestoreMode
+	PlanStatus          = domainrestore.PlanStatus
+	FallbackCandidate   = domainrestore.FallbackCandidate
+	AdvancedRestorePlan = domainrestore.AdvancedRestorePlan
 )
 
-// FallbackCandidate describes whether planner can switch to another restore mode.
-type FallbackCandidate string
-
 const (
-	FallbackCandidateNone        FallbackCandidate = "none"
-	FallbackCandidateFullRestore FallbackCandidate = "full_restore"
-)
+	AdvancedRestoreModeFull        = domainrestore.AdvancedRestoreModeFull
+	AdvancedRestoreModePITR        = domainrestore.AdvancedRestoreModePITR
+	AdvancedRestoreModeIncremental = domainrestore.AdvancedRestoreModeIncremental
 
-// AdvancedRestorePlan captures the planning decision consumed by executor and monitor paths.
-type AdvancedRestorePlan struct {
-	Mode                        AdvancedRestoreMode
-	Status                      PlanStatus
-	ReasonCode                  string
-	ResolvedBackupIDs           []string
-	ChainDepth                  int
-	ResolvedTargetTimeUTC       *time.Time
-	RequestedInputPITRTimestamp string
-	RequestedTimeline           string
-	BaselineBackupID            string
-	BaselineCompatible          bool
-	RequiresPhysicalRecovery    bool
-	RequiresIntegrityCheck      bool
-	Fallback                    FallbackCandidate
-	FallbackReason              string
-	FallbackBackupID            string
-	AssemblyDurationMs          int64
-}
+	PlanStatusReady                = domainrestore.PlanStatusReady
+	PlanStatusRejected             = domainrestore.PlanStatusRejected
+	PlanStatusConfirmationRequired = domainrestore.PlanStatusConfirmationRequired
+
+	FallbackCandidateNone        = domainrestore.FallbackCandidateNone
+	FallbackCandidateFullRestore = domainrestore.FallbackCandidateFullRestore
+)

@@ -1,4 +1,4 @@
-package sql
+package db_probe
 
 import (
 	"database/sql"
@@ -6,9 +6,10 @@ import (
 	"log/slog"
 )
 
-// PingSqlDatabase opens a sql connection with the given driver and DSN, pings it,
-// and closes it. Failure-mode matrix is defined in
-// specs/016-remove-ping-fatal/contracts/connectivity-helpers.md.
+// PingSqlDatabase opens a sql connection with the given driver and DSN, pings
+// it, and closes it. Relocated from internal/backup/sql/ping_database.go by
+// spec 037; original failure-mode matrix preserved
+// (specs/016-remove-ping-fatal/contracts/connectivity-helpers.md).
 //
 // PingSqlDatabase MUST NOT call log.Fatal*, log.Panic*, or os.Exit.
 func PingSqlDatabase(driver, sourceName string) (retErr error) {

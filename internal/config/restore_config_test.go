@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/backup"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
 
 func TestRestoreJobValidation(t *testing.T) {

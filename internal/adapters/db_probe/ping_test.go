@@ -1,4 +1,4 @@
-package sql
+package db_probe
 
 import (
 	"context"
