@@ -81,10 +81,12 @@ sentinel() {
 
 assert_exit_ok() {
   local label="$1"; shift
-  if sentinel "$@" >/dev/null 2>&1; then
+  local out
+  if out=$(sentinel "$@" 2>&1); then
     ok "$label"
   else
     fail "$label (exit non-zero)"
+    printf '%s\n' "$out" | tail -15 | sed 's/^/  [cmd] /'
   fi
 }
 
@@ -570,8 +572,10 @@ EOF
   while [[ $elapsed -lt $max_wait ]]; do
     sleep $interval
     elapsed=$((elapsed + interval))
+    # NB: cobra cmd.Println writes the table to stderr — merge it so the
+    # success rows are actually countable (pre-existing CLI quirk).
     count=$(sentinel monitor list --config /configs/scheduler.yaml \
-      --job postgres-sched --last 6m 2>/dev/null | grep -c "success" || true)
+      --job postgres-sched --last 6m 2>&1 | grep -c "success" || true)
     log "  scheduler: ${count}/3 success runs (${elapsed}s elapsed)"
     [[ $count -ge 3 ]] && break
   done
@@ -628,6 +632,7 @@ restores:
   pg-e2e-restore-real:
     type: postgres
     enabled: true
+    schedule: "0 3 * * *"
     host: pgsql
     port: 5432
     username: sentinel

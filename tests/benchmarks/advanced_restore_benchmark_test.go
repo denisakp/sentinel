@@ -9,7 +9,7 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
-	"github.com/denisakp/sentinel/internal/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {

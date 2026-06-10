@@ -1,4 +1,8 @@
-package incremental
+package chain_assembler
+
+// Ported from internal/restore/incremental/assembler_test.go (spec 038
+// Sub-PR L) — the AssemblePostgresChain halves; preconditions tests moved to
+// internal/domain/restore/incremental/preconditions_test.go.
 
 import (
 	"context"
@@ -10,58 +14,20 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/pgcombine"
 )
 
-func TestValidateAssemblyPreconditions(t *testing.T) {
-	cases := []struct {
-		name    string
-		req     AssemblyRequest
-		wantSub string
-	}{
-		{"missing_staging_dir", AssemblyRequest{}, "insufficient_staging_space"},
-		{"insufficient_space", AssemblyRequest{StagingDir: "/tmp", EstimatedBytes: 100, AvailableBytes: 10}, "insufficient_staging_space"},
-		{"missing_combine_tool", AssemblyRequest{StagingDir: "/tmp", RequiresCombineTool: true}, "required_tool_missing"},
-		{"ok", AssemblyRequest{StagingDir: "/tmp", EstimatedBytes: 10, AvailableBytes: 100}, ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateAssemblyPreconditions(tc.req)
-			if tc.wantSub == "" {
-				if err != nil {
-					t.Fatalf("unexpected err: %v", err)
-				}
-				return
-			}
-			if err == nil || !contains(err.Error(), tc.wantSub) {
-				t.Fatalf("want err containing %q, got %v", tc.wantSub, err)
-			}
-		})
-	}
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}
-
 func TestAssemblePostgresChain_EmptyStagingDir(t *testing.T) {
-	_, err := AssemblePostgresChain(context.Background(), "", []string{"a", "b"}, "")
-	if err == nil {
+	if _, err := NewAdapter().AssemblePostgresChain(context.Background(), "", []string{"a", "b"}, ""); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestAssemblePostgresChain_NoSources(t *testing.T) {
-	_, err := AssemblePostgresChain(context.Background(), t.TempDir(), nil, "")
-	if err == nil {
+	if _, err := NewAdapter().AssemblePostgresChain(context.Background(), t.TempDir(), nil, ""); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestAssemblePostgresChain_SingleSourcePassthrough(t *testing.T) {
-	out, err := AssemblePostgresChain(context.Background(), t.TempDir(), []string{"only"}, "")
+	out, err := NewAdapter().AssemblePostgresChain(context.Background(), t.TempDir(), []string{"only"}, "")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -76,7 +42,7 @@ func TestAssemblePostgresChain_Success(t *testing.T) {
 	combinePostgresChain = func(ctx context.Context, args *pgcombine.CombineArgs) error { return nil }
 
 	stagingDir := t.TempDir()
-	out, err := AssemblePostgresChain(context.Background(), stagingDir, []string{"a", "b"}, "")
+	out, err := NewAdapter().AssemblePostgresChain(context.Background(), stagingDir, []string{"a", "b"}, "")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -94,8 +60,7 @@ func TestAssemblePostgresChain_CleansOutputDirOnCombineFailure(t *testing.T) {
 	}
 
 	stagingDir := t.TempDir()
-	_, err := AssemblePostgresChain(context.Background(), stagingDir, []string{"base", "incr"}, "")
-	if err == nil {
+	if _, err := NewAdapter().AssemblePostgresChain(context.Background(), stagingDir, []string{"base", "incr"}, ""); err == nil {
 		t.Fatal("expected combine failure")
 	}
 

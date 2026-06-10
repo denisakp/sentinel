@@ -1,15 +1,19 @@
 package restore
 
+// Pure advanced-restore planner. Relocated from internal/restore/planner.go
+// by spec 038 Sub-PR L: config.RestoreJob collapses to the engine string
+// (its only consulted field) and config.AdvancedRestoreRequest to the pure
+// PlanRequest mirror. Manifest loading is injected (ports.ManifestStore or
+// a driving hook) by PlanFromManifestPath callers.
+
 import (
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
-	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
+	domainincr "github.com/denisakp/sentinel/internal/domain/restore/incremental"
 	"github.com/denisakp/sentinel/internal/ports"
-	restoreincremental "github.com/denisakp/sentinel/internal/restore/incremental"
 )
 
 const (
@@ -27,8 +31,9 @@ const (
 	ReasonCodeFullFallbackApproved             = "full_fallback_approved"
 )
 
-// PlanAdvancedRestore computes a high-level restore plan before executor stages artifacts.
-func PlanAdvancedRestore(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest) (AdvancedRestorePlan, error) {
+// Plan computes a high-level restore plan before the executor stages
+// artifacts. engine is the target database type.
+func Plan(engine string, request *PlanRequest, m *ports.BackupManifest) (AdvancedRestorePlan, error) {
 	if request == nil {
 		return AdvancedRestorePlan{}, fmt.Errorf("advanced restore request is required")
 	}
@@ -52,17 +57,17 @@ func PlanAdvancedRestore(job config.RestoreJob, request *config.AdvancedRestoreR
 		plan.ReasonCode = ReasonCodeReady
 		return plan, nil
 	case "pitr":
-		return planPITR(job, request, m, plan), nil
+		return planPITR(engine, request, m, plan), nil
 	case "incremental":
-		return planIncremental(job, request, m, plan), nil
+		return planIncremental(engine, request, m, plan), nil
 	default:
 		return plan, nil
 	}
 }
 
-func planPITR(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
+func planPITR(engine string, request *PlanRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
 	plan.Mode = AdvancedRestoreModePITR
-	if job.Type != "postgres" {
+	if engine != "postgres" {
 		plan.ReasonCode = ReasonCodeUnsupportedDatabaseType
 		return plan
 	}
@@ -103,9 +108,9 @@ func planPITR(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *
 	return plan
 }
 
-func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
+func planIncremental(engine string, request *PlanRequest, m *ports.BackupManifest, plan AdvancedRestorePlan) AdvancedRestorePlan {
 	plan.Mode = AdvancedRestoreModeIncremental
-	if job.Type != "postgres" {
+	if engine != "postgres" {
 		plan.ReasonCode = ReasonCodeUnsupportedDatabaseType
 		return plan
 	}
@@ -133,7 +138,7 @@ func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreReque
 
 	plan.BaselineCompatible = true
 	if !lineage.ExecutionSupported {
-		decision := restoreincremental.EvaluateFallback(request.ConfirmFullFallback, lineage.BaselineBackupID, ReasonCodeIncrementalCapabilityUnavailable)
+		decision := domainincr.EvaluateFallback(request.ConfirmFullFallback, lineage.BaselineBackupID, ReasonCodeIncrementalCapabilityUnavailable)
 		plan.Fallback = FallbackCandidateFullRestore
 		plan.FallbackReason = decision.Reason
 		plan.FallbackBackupID = decision.FallbackBackupID
@@ -162,16 +167,21 @@ func planIncremental(job config.RestoreJob, request *config.AdvancedRestoreReque
 	return plan
 }
 
-// PlanAdvancedRestoreFromManifestPath loads manifest metadata then computes a plan.
-func PlanAdvancedRestoreFromManifestPath(job config.RestoreJob, request *config.AdvancedRestoreRequest, manifestPath string) (AdvancedRestorePlan, error) {
-	m, err := manifest.LoadRestoreManifest(manifestPath)
+// PlanFromManifestPath loads manifest metadata through the supplied loader
+// (ports.ManifestStore.LoadForRestore or a driving hook) then computes a
+// plan. A ports.ErrNoManifest outcome degrades to manifest-less planning.
+func PlanFromManifestPath(engine string, request *PlanRequest, manifestPath string, load func(string) (*ports.BackupManifest, error)) (AdvancedRestorePlan, error) {
+	if load == nil {
+		return AdvancedRestorePlan{}, fmt.Errorf("manifest loader is required")
+	}
+	m, err := load(manifestPath)
 	if err != nil {
 		if errors.Is(err, ports.ErrNoManifest) {
-			return PlanAdvancedRestore(job, request, nil)
+			return Plan(engine, request, nil)
 		}
 		return AdvancedRestorePlan{}, fmt.Errorf("failed to load restore manifest: %w", err)
 	}
-	return PlanAdvancedRestore(job, request, m)
+	return Plan(engine, request, m)
 }
 
 func containsCapability(capabilities []string, target string) bool {
@@ -184,8 +194,8 @@ func containsCapability(capabilities []string, target string) bool {
 }
 
 func timePtr(value time.Time) *time.Time {
-	copy := value
-	return &copy
+	copied := value
+	return &copied
 }
 
 func appendUniqueID(ids []string, candidate string) []string {

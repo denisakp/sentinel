@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	domainbackup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -224,8 +225,14 @@ func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error
 
 // isNonRetriable returns true for errors that should not be retried:
 // configuration errors, certificate errors, and authentication errors.
+// An explicit domain RetriableErr classification (spec 038 FR-008 — e.g.
+// the backup Executor's connectivity gate) always wins over the
+// string-based heuristic.
 func isNonRetriable(err error) bool {
 	if err == nil {
+		return false
+	}
+	if domainbackup.IsRetriable(err) {
 		return false
 	}
 	msg := strings.ToLower(err.Error())

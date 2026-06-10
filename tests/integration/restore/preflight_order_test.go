@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 // TestPreflightOrder_HashCheckBeforeEngine verifies that integrity errors from

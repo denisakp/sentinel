@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func s3TestEnv(t *testing.T) (bucket, region, keyID, secret, backupPath string) {

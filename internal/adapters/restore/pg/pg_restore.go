@@ -91,6 +91,17 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 		return fmt.Errorf("connectivity check failed - %w", err)
 	}
 
+	// Plain-text SQL dumps (pg_dump's default output) are not readable by
+	// pg_restore — route them to psql. Custom/tar archives are detected via
+	// their magic bytes; directory dumps are directories. (Pre-existing gap
+	// surfaced by the spec 038 T068 e2e run: default-format backups could
+	// never be restored.)
+	if ra.PgRestoreFormat == "" || ra.PgRestoreFormat == "p" {
+		if plain := isPlainSQLDump(ra.BackupPath); plain {
+			return restorePlainSQL(ctx, ra)
+		}
+	}
+
 	// Build pg_restore command
 	args := []string{
 		fmt.Sprintf("--host=%s", ra.Host),
@@ -160,14 +171,66 @@ func RestoreFromFile(ctx context.Context, ra *RestoreArgs) error {
 	return Restore(ctx, ra)
 }
 
-// checkConnectivity verifies database connectivity using pg_dump
-func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
-	cmd := exec.CommandContext(ctx, "pg_dump",
+// isPlainSQLDump reports whether the file at path is a plain-text SQL dump:
+// a regular file that carries neither the "PGDMP" custom/archive magic nor a
+// tar header ("ustar" at offset 257).
+func isPlainSQLDump(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	header := make([]byte, 262)
+	n, _ := f.Read(header)
+	if n >= 5 && string(header[:5]) == "PGDMP" {
+		return false
+	}
+	if n >= 262 && string(header[257:262]) == "ustar" {
+		return false
+	}
+	return true
+}
+
+// restorePlainSQL replays a plain-text SQL dump through psql.
+func restorePlainSQL(ctx context.Context, ra *RestoreArgs) error {
+	args := []string{
 		fmt.Sprintf("--host=%s", ra.Host),
 		fmt.Sprintf("--port=%d", ra.Port),
 		fmt.Sprintf("--username=%s", ra.Username),
-		"--list",
-		ra.Database,
+		fmt.Sprintf("--dbname=%s", ra.Database),
+		"--no-password",
+		"--variable=ON_ERROR_STOP=1",
+		fmt.Sprintf("--file=%s", ra.BackupPath),
+	}
+
+	cmd := exec.CommandContext(ctx, "psql", args...)
+	cmd.Env = os.Environ()
+	if ra.Password != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", ra.Password))
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run psql restore command - %w", err)
+	}
+	return nil
+}
+
+// checkConnectivity verifies database connectivity using psql.
+// (Historically used `pg_dump --list`, which is not a valid pg_dump option
+// — the probe failed unconditionally; fixed during spec 038 T068 e2e.)
+func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
+	cmd := exec.CommandContext(ctx, "psql",
+		fmt.Sprintf("--host=%s", ra.Host),
+		fmt.Sprintf("--port=%d", ra.Port),
+		fmt.Sprintf("--username=%s", ra.Username),
+		fmt.Sprintf("--dbname=%s", ra.Database),
+		"--no-password",
+		"--command=SELECT 1",
 	)
 
 	cmd.Env = os.Environ()

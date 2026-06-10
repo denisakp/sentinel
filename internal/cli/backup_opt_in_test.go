@@ -56,17 +56,17 @@ func TestApplyBackupSecurity_PlaintextByDefaultWithAmbientKey(t *testing.T) {
 	if result == nil {
 		t.Fatal("applyBackupSecurity() result = nil")
 	}
-	if result.encrypted {
-		t.Fatalf("result.encrypted = true, want false")
+	if result.Encrypted {
+		t.Fatalf("result.Encrypted = true, want false")
 	}
-	if result.keyHint != "" {
-		t.Fatalf("result.keyHint = %q, want empty", result.keyHint)
+	if result.KeyHint != "" {
+		t.Fatalf("result.KeyHint = %q, want empty", result.KeyHint)
 	}
-	if result.manifestPath == "" {
-		t.Fatal("result.manifestPath is empty")
+	if result.ManifestPath == "" {
+		t.Fatal("result.ManifestPath is empty")
 	}
 
-	m, err := manifest.ReadManifest(result.manifestPath)
+	m, err := manifest.ReadManifest(result.ManifestPath)
 	if err != nil {
 		t.Fatalf("ReadManifest() error = %v", err)
 	}
@@ -91,17 +91,17 @@ func TestApplyBackupSecurity_ExplicitEncryptionSuccess(t *testing.T) {
 	if result == nil {
 		t.Fatal("applyBackupSecurity() result = nil")
 	}
-	if !result.encrypted {
-		t.Fatal("result.encrypted = false, want true")
+	if !result.Encrypted {
+		t.Fatal("result.Encrypted = false, want true")
 	}
-	if result.keyHint != "TEST_SENTINEL_MASTER_KEY" {
-		t.Fatalf("result.keyHint = %q, want TEST_SENTINEL_MASTER_KEY", result.keyHint)
+	if result.KeyHint != "TEST_SENTINEL_MASTER_KEY" {
+		t.Fatalf("result.KeyHint = %q, want TEST_SENTINEL_MASTER_KEY", result.KeyHint)
 	}
-	if result.manifestPath == "" {
-		t.Fatal("result.manifestPath is empty")
+	if result.ManifestPath == "" {
+		t.Fatal("result.ManifestPath is empty")
 	}
 
-	m, err := manifest.ReadManifest(result.manifestPath)
+	m, err := manifest.ReadManifest(result.ManifestPath)
 	if err != nil {
 		t.Fatalf("ReadManifest() error = %v", err)
 	}
@@ -147,8 +147,8 @@ func TestApplyBackupSecurity_ImperativeFlowUnaffected(t *testing.T) {
 	if result == nil {
 		t.Fatal("applyBackupSecurity() result = nil")
 	}
-	if result.encrypted {
-		t.Fatal("result.encrypted = true, want false")
+	if result.Encrypted {
+		t.Fatal("result.Encrypted = true, want false")
 	}
 }
 

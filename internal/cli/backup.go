@@ -2,12 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,21 +10,15 @@ import (
 	"time"
 
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
-	backupIncremental "github.com/denisakp/sentinel/internal/domain/backup/incremental"
 	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/adapters/crypto"
-	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/retention"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
-	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
 	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	"github.com/spf13/cobra"
 )
@@ -330,14 +319,39 @@ func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job
 	return executeSingleBackupJob(cmd, cfg, job, mode, opts)
 }
 
+// executeSingleBackupJob is the carved driving-adapter body (spec 038
+// Sub-PR K): parse flags → translate to domain Job → factory → Executor.Run.
+// Orchestration (dump, manifest, encryption, record, notify) lives in
+// internal/domain/backup.Executor.
 func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
-	start := time.Now()
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
-	applyScheduledOutputName(job, storageParams, mode, start)
+	applyScheduledOutputName(job, storageParams, mode, time.Now())
 
+	engineOpts, dumps, err := buildSingleDump(cmd, job, storageParams)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	be, err := NewBackupExecutorFromConfig(cfg, job, storageParams, mode == executionModeScheduled, opts.forceFull, engineOpts, dumps)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	res, backupErr := be.exec.Run(context.Background(), be.job)
+	reportBackupRunDiagnostics(cmd, be, res)
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
+
+	return backupErr
+}
+
+// buildSingleDump resolves the engine arg bag (config + CLI flag overrides)
+// and the matching ports.DumpBuilder for a single-database job.
+func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *storage.Params) (ports.EngineOptions, ports.DumpBuilder, error) {
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
 		additionalArgs, _ = cmd.Flags().GetString("args")
@@ -345,16 +359,14 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 
 	password, err := resolvePassword(cmd, job)
 	if err != nil {
-		return fmt.Errorf("backup '%s': %w", job.Name, err)
+		return nil, nil, err
 	}
 
-	var backupErr error
-	var digest string
 	switch job.Type {
 	case "postgres":
 		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
 		if cmd.Flags().Changed("pg-out-format") {
 			pgArgs.PgOutFormat, _ = cmd.Flags().GetString("pg-out-format")
@@ -368,23 +380,23 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("pg-compression-level") {
 			pgArgs.CompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
 		}
-		digest, backupErr = pg.Backup(pgArgs)
+		return pgArgs, pg.Builder{}, nil
 	case "mysql":
 		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
-		digest, backupErr = mysql.Backup(mysqlArgs)
+		return mysqlArgs, mysql.Builder{}, nil
 	case "mariadb":
 		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
-		digest, backupErr = mariadb.Backup(mariaArgs)
+		return mariaArgs, mariadb.Builder{}, nil
 	case "mongodb":
 		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
 		if cmd.Flags().Changed("compress") {
 			mongoArgs.Compress, _ = cmd.Flags().GetBool("compress")
@@ -392,27 +404,27 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		digest, backupErr = mongo.Backup(mongoArgs)
+		return mongoArgs, mongo.Builder{}, nil
 	default:
-		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
+		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
+}
 
-	end := time.Now()
-	var security *backupSecurityResult
-	if backupErr == nil {
-		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull, digest)
-		if err != nil {
-			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
-		}
+// reportBackupRunDiagnostics prints the non-fatal Run signals with the
+// pre-carve wording.
+func reportBackupRunDiagnostics(cmd *cobra.Command, be *backupExecution, res backup.RunResult) {
+	for _, w := range res.Warnings {
+		fmt.Println(w)
 	}
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security, opts.forceFull); notifyErr != nil {
-		cmd.PrintErrln("notification error:", notifyErr)
+	if res.RecordErr != nil {
+		cmd.PrintErrln("monitor error:", res.RecordErr)
 	}
-	if mode == executionModeScheduled && backupErr == nil {
-		runScheduledRetention(cmd, cfg, job)
+	if be.notifWarn != nil {
+		cmd.PrintErrln("notification error:", be.notifWarn)
 	}
-
-	return backupErr
+	if res.NotifyErr != nil {
+		cmd.PrintErrln("notification error:", res.NotifyErr)
+	}
 }
 
 func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
@@ -434,15 +446,7 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
-	excluded := map[string]struct{}{}
-	for _, name := range job.Exclude {
-		excluded[name] = struct{}{}
-	}
-
-	for _, dbName := range databaseNames {
-		if _, skip := excluded[dbName]; skip {
-			continue
-		}
+	for _, dbName := range backup.FilterExcludedSources(databaseNames, job.Exclude) {
 		childJob := job
 		childJob.Database = dbName
 		childJob.Strategy = ""
@@ -454,14 +458,39 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 	return nil
 }
 
+// executeAutoDiscoverySingle handles the "single" auto-discovery strategy
+// (one dump-all artifact). Same factory + Run shape as
+// executeSingleBackupJob; the dump-all entry points (no port-side Build)
+// are adapted via a dumpBuilderFunc closure.
 func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
-	start := time.Now()
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
-	applyScheduledOutputName(job, storageParams, mode, start)
+	applyScheduledOutputName(job, storageParams, mode, time.Now())
 
+	engineOpts, dumps, err := buildAllDump(cmd, job, storageParams)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	be, err := NewBackupExecutorFromConfig(cfg, job, storageParams, mode == executionModeScheduled, opts.forceFull, engineOpts, dumps)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	res, backupErr := be.exec.Run(context.Background(), be.job)
+	reportBackupRunDiagnostics(cmd, be, res)
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
+
+	return backupErr
+}
+
+// buildAllDump resolves the engine arg bag + dump-all builder for the
+// auto-discovery "single" strategy.
+func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *storage.Params) (ports.EngineOptions, ports.DumpBuilder, error) {
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
 		additionalArgs, _ = cmd.Flags().GetString("args")
@@ -469,55 +498,65 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 
 	password, err := resolvePassword(cmd, job)
 	if err != nil {
-		return fmt.Errorf("backup '%s': %w", job.Name, err)
+		return nil, nil, err
 	}
 
-	var backupErr error
-	var digest string
 	switch job.Type {
 	case "postgres":
 		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
-		digest, backupErr = pg.BackupAll(&pg.PgDumpAllArgs{
+		allArgs := &pg.PgDumpAllArgs{
 			Host:           pgArgs.Host,
 			Port:           pgArgs.Port,
 			Username:       pgArgs.Username,
 			Password:       pgArgs.Password,
 			AdditionalArgs: pgArgs.AdditionalArgs,
 			Storage:        pgArgs.Storage,
-		})
+		}
+		return pgArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := pg.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
 	case "mysql":
 		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
-		digest, backupErr = mysql.BackupAll(&mysql.MySqlDumpAllArgs{
+		allArgs := &mysql.MySqlDumpAllArgs{
 			Host:           mysqlArgs.Host,
 			Port:           mysqlArgs.Port,
 			Username:       mysqlArgs.Username,
 			Password:       mysqlArgs.Password,
 			AdditionalArgs: mysqlArgs.AdditionalArgs,
 			Storage:        mysqlArgs.Storage,
-		})
+		}
+		return mysqlArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mysql.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
 	case "mariadb":
 		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
-		digest, backupErr = mariadb.BackupAll(&mariadb.MariaDBDumpAllArgs{
+		allArgs := &mariadb.MariaDBDumpAllArgs{
 			Host:           mariaArgs.Host,
 			Port:           mariaArgs.Port,
 			Username:       mariaArgs.Username,
 			Password:       mariaArgs.Password,
 			AdditionalArgs: mariaArgs.AdditionalArgs,
 			Storage:        mariaArgs.Storage,
-		})
+		}
+		return mariaArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mariadb.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
 	case "mongodb":
 		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
 		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
+			return nil, nil, err
 		}
 		mongoArgs.Database = ""
 		if cmd.Flags().Changed("compress") {
@@ -526,27 +565,10 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		digest, backupErr = mongo.Backup(mongoArgs)
+		return mongoArgs, mongo.Builder{}, nil
 	default:
-		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
+		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
-
-	end := time.Now()
-	var security *backupSecurityResult
-	if backupErr == nil {
-		security, err = applyBackupSecurity(cfg, job, storageParams, opts.forceFull, digest)
-		if err != nil {
-			backupErr = fmt.Errorf("backup '%s': security processing failed: %w", job.Name, err)
-		}
-	}
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security, opts.forceFull); notifyErr != nil {
-		cmd.PrintErrln("notification error:", notifyErr)
-	}
-	if mode == executionModeScheduled && backupErr == nil {
-		runScheduledRetention(cmd, cfg, job)
-	}
-
-	return backupErr
 }
 
 func applyScheduledOutputName(job config.BackupJob, storageParams *storage.Params, mode backupExecutionMode, timestamp time.Time) {
@@ -554,32 +576,12 @@ func applyScheduledOutputName(job config.BackupJob, storageParams *storage.Param
 		return
 	}
 
-	canonicalExt := canonicalScheduledExtension(job)
-	storageParams.OutName = utils.BuildScheduledOutName(storageParams.OutName, canonicalExt, job.Name, timestamp)
-}
-
-func canonicalScheduledExtension(job config.BackupJob) string {
-	switch job.Type {
-	case "postgres":
-		format := "p"
-		if value, ok := job.DatabaseOptions["pg_out_format"].(string); ok && value != "" {
-			format = value
-		}
-		switch format {
-		case "c":
-			return ".backup"
-		case "t":
-			return ".tar"
-		case "d":
-			return ""
-		default:
-			return ".sql"
-		}
-	case "mysql", "mariadb":
-		return ".sql"
-	default:
-		return ""
+	pgOutFormat := ""
+	if value, ok := job.DatabaseOptions["pg_out_format"].(string); ok {
+		pgOutFormat = value
 	}
+	canonicalExt := backup.CanonicalScheduledExtension(job.Type, pgOutFormat)
+	storageParams.OutName = utils.BuildScheduledOutName(storageParams.OutName, canonicalExt, job.Name, timestamp)
 }
 
 func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) {
@@ -592,18 +594,18 @@ func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job co
 
 	cmd.Printf("Retention: evaluating backup '%s' (keep_last=%d, keep_days=%d)\n", job.Name, job.Retention.KeepLast, job.Retention.KeepDays)
 
-	manager, err := retention.NewManager(cfg)
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 	if err != nil {
-		cmd.PrintErrf("warning: retention manager init failed for backup '%s': %v\n", job.Name, err)
+		cmd.PrintErrf("warning: retention monitor init failed for backup '%s': %v\n", job.Name, err)
 		return
 	}
 	defer func() {
-		if closeErr := manager.Close(); closeErr != nil {
-			cmd.PrintErrf("warning: retention manager close failed for backup '%s': %v\n", job.Name, closeErr)
+		if closeErr := mon.Close(); closeErr != nil {
+			cmd.PrintErrf("warning: retention monitor close failed for backup '%s': %v\n", job.Name, closeErr)
 		}
 	}()
 
-	deleted, err := manager.Apply(context.Background(), job.Name, false)
+	deleted, err := applyJobRetention(context.Background(), cfg, mon, job.Name, false)
 	if err != nil {
 		cmd.PrintErrf("warning: retention apply failed for backup '%s': %v\n", job.Name, err)
 		return
@@ -614,189 +616,33 @@ func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job co
 	}
 }
 
-func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult, forceFull bool) error {
-	if err := recordBackupExecution(cfg, job, storageParams, start, end, backupErr, security, forceFull); err != nil {
-		cmd.PrintErrln("monitor error:", err)
-	}
-
-	if len(job.Notifications) == 0 {
-		return nil
-	}
-
-	status := ports.NotifyStatusSuccess
-	errorMessage := ""
-	if backupErr != nil {
-		status = ports.NotifyStatusFailure
-		errorMessage = backupErr.Error()
-	}
-
-	filePath, fileSize := localBackupInfo(storageParams)
-	ctx := &ports.BackupContext{
-		BackupName:   job.Name,
-		DatabaseType: job.Type,
-		DatabaseName: job.Database,
-		Status:       status,
-		StartTime:    start,
-		EndTime:      end,
-		Error:        errorMessage,
-		FilePath:     filePath,
-		FileSize:     fileSize,
-	}
-
-	dispatcher, err := notifier.NewDispatcherFromConfig(job.Notifications)
-	if err != nil {
-		return err
-	}
-
-	return dispatcher.Notify(ctx)
-}
-
-func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult, forceFull bool) error {
-	status := "success"
-	errorMessage := ""
-	if backupErr != nil {
-		status = "failure"
-		errorMessage = backupErr.Error()
-	}
-
-	filePath, fileSize := resolveBackupPath(storageParams)
-	storageBackend := ""
-	if storageParams != nil {
-		storageBackend = storageParams.StorageType
-	}
-
-	exec := &ports.Execution{
-		BackupName:     job.Name,
-		DatabaseType:   job.Type,
-		Timestamp:      start.UTC(),
-		DurationMs:     end.Sub(start).Milliseconds(),
-		Status:         status,
-		ErrorMessage:   errorMessage,
-		StorageBackend: storageBackend,
-		FilePath:       filePath,
-		FileSizeBytes:  fileSize,
-	}
-
-	incrementalMeta := deriveIncrementalBackupContext(cfg, job, fileSize, forceFull)
-	exec.BackupType = incrementalMeta.BackupType
-	exec.ChainID = incrementalMeta.ChainID
-	exec.ChainIndex = incrementalMeta.ChainIndex
-	exec.DeltaSizeBytes = incrementalMeta.DeltaSizeBytes
-	exec.FullBackupSizeBytes = incrementalMeta.FullBackupSizeBytes
-
-	if security != nil {
-		if security.backupType != "" {
-			exec.BackupType = security.backupType
-		}
-		if security.chainID != "" {
-			exec.ChainID = security.chainID
-		}
-		exec.ChainIndex = security.chainIndex
-		exec.DeltaSizeBytes = security.deltaSize
-		exec.FullBackupSizeBytes = security.fullSize
-	}
-
-	monitor.ObserveIncrementalBackup(job.Name, exec)
-
-	if cfg == nil || cfg.HistoryDBPath == "" {
-		return nil
-	}
-
-	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
-	if err != nil {
-		return err
-	}
-	defer mon.Close()
-
-	ctx := context.Background()
-	if err := mon.RecordExecution(ctx, exec); err != nil {
-		return err
-	}
-
-	if security != nil && exec.ID != "" {
-		if secErr := mon.RecordSecurityInfo(ctx, exec.ID, security.hashAlgo, security.hashValue, "", security.manifestPath, security.encrypted, security.keyHint); secErr != nil {
-			fmt.Printf("Warning: failed to record security info for '%s': %v\n", job.Name, secErr)
-		}
-	}
-
-	return nil
-}
-
-func resolveBackupPath(storageParams *storage.Params) (string, int64) {
-	if storageParams == nil {
-		return "unknown", 0
-	}
-	if storageParams.StorageType == "" || storageParams.StorageType == "local" {
-		path, size := localBackupInfo(storageParams)
-		if path == "" {
-			return "unknown", size
-		}
-		return path, size
-	}
-
-	if storageParams.OutName != "" {
-		if storageParams.StorageType == "gcs" {
-			return fmt.Sprintf("gs://%s/%s", storageParams.GCSBucket, storageParams.OutName), 0
-		}
-		return storageParams.OutName, 0
-	}
-
-	return "unknown", 0
-}
-
-func localBackupInfo(storageParams *storage.Params) (string, int64) {
-	if storageParams == nil {
-		return "", 0
-	}
-	if storageParams.StorageType != "" && storageParams.StorageType != "local" {
-		return "", 0
-	}
-
-	path := storageParams.OutName
-	if path == "" {
-		return "", 0
-	}
-
-	if storageParams.LocalPath != "" && !filepath.IsAbs(path) {
-		path = filepath.Join(storageParams.LocalPath, path)
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return path, 0
-	}
-	if info.IsDir() {
-		return path, 0
-	}
-	return path, info.Size()
-}
-
+// listDatabases enumerates databases for auto-discovery. SQL engines go
+// through the domain source resolver over ports.DBProber (spec 038 Sub-PR K
+// T037); Mongo stays adapter-direct because the prober port's
+// DatabaseConfig carries no URI.
 func listDatabases(job config.BackupJob) ([]string, error) {
 	switch job.Type {
-	case "postgres":
+	case "postgres", "mysql", "mariadb":
 		password, err := config.PasswordFromEnv(job.PasswordEnv)
 		if err != nil {
 			return nil, err
 		}
-		return dbprobe.ListDatabases("postgres", job.Host, portString(job.Port), job.Username, password)
-	case "mysql", "mariadb":
-		password, err := config.PasswordFromEnv(job.PasswordEnv)
-		if err != nil {
-			return nil, err
+		djob := backup.Job{
+			Engine: job.Type,
+			DBConn: ports.DatabaseConfig{
+				Type:     job.Type,
+				Host:     job.Host,
+				Port:     job.Port,
+				Username: job.Username,
+				Password: password,
+			},
 		}
-		return dbprobe.ListDatabases("mysql", job.Host, portString(job.Port), job.Username, password)
+		return backup.ListSQLSources(context.Background(), dbprobe.NewAdapter(), djob)
 	case "mongodb":
 		return dbprobe.ListMongoDatabases(job.URI)
 	default:
 		return nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
-}
-
-func portString(port int) string {
-	if port == 0 {
-		return ""
-	}
-	return strconv.Itoa(port)
 }
 
 func applyCLIOverrides(cmd *cobra.Command, job *config.BackupJob) error {
@@ -951,312 +797,6 @@ func ensureDatabaseOptions(job *config.BackupJob) {
 	}
 }
 
-// backupSecurityResult holds hash and encryption metadata produced by applyBackupSecurity.
-type backupSecurityResult struct {
-	hashAlgo     string
-	hashValue    string
-	manifestPath string
-	encrypted    bool
-	keyHint      string
-	backupType   string
-	chainID      string
-	chainIndex   int
-	deltaSize    int64
-	fullSize     int64
-}
-
-var verifyIncrementalArtifactHash = manifest.VerifyBackupHash
-
-// applyBackupSecurity records the supplied plaintext digest in a manifest and
-// optionally encrypts the local backup in-place using AES-256-GCM. The
-// plaintextDigest is the hex SHA-256 the dump adapter computed inline over the
-// bytes written to storage; an empty digest is treated the same as a non-local
-// artefact (no manifest emitted).
-func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, forceFull bool, plaintextDigest string) (*backupSecurityResult, error) {
-	filePath, fileSize := localBackupInfo(storageParams)
-	if filePath == "" {
-		return nil, nil
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		return nil, nil
-	}
-
-	hashValue := plaintextDigest
-	plaintextHash := hashValue
-
-	result := &backupSecurityResult{
-		hashAlgo:  "sha256",
-		hashValue: hashValue,
-	}
-
-	incrementalMeta := deriveIncrementalBackupContext(cfg, job, fileSize, forceFull)
-	if incrementalMeta.BackupType == "incremental" && (job.Type == "mysql" || job.Type == "mariadb") {
-		binlogMeta, archiveErr := archiveMySQLBinlogArtifacts(context.Background(), job, filePath)
-		if archiveErr != nil {
-			return nil, archiveErr
-		}
-		incrementalMeta.BinlogStartFile = binlogMeta.BinlogStartFile
-		incrementalMeta.BinlogEndFile = binlogMeta.BinlogEndFile
-		incrementalMeta.BinlogArtifacts = append([]string{}, binlogMeta.BinlogArtifacts...)
-	}
-	if incrementalMeta.BackupType == "incremental" && job.Type == "mongodb" {
-		oplogMeta, archiveErr := archiveMongoOplogArtifacts(context.Background(), job, filePath)
-		if archiveErr != nil {
-			return nil, archiveErr
-		}
-		incrementalMeta.OplogArtifactPath = oplogMeta.OplogArtifactPath
-	}
-	result.backupType = incrementalMeta.BackupType
-	result.chainID = incrementalMeta.ChainID
-	result.chainIndex = incrementalMeta.ChainIndex
-	result.deltaSize = incrementalMeta.DeltaSizeBytes
-	result.fullSize = incrementalMeta.FullBackupSizeBytes
-
-	// Encryption is opt-in: only attempt encryption when an explicit key source is configured.
-	var encInfo *ports.EncryptionInfo
-	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
-		encrypted, encMeta, encHash, encErr := encryptBackupFile(cfg, filePath, job.Name)
-		if encErr != nil {
-			return nil, fmt.Errorf("failed to encrypt backup: %w", encErr)
-		} else if encrypted {
-			result.encrypted = true
-			result.hashValue = encHash
-			result.keyHint = cfg.EncryptionKeyEnv
-			encInfo = encMeta
-		}
-	}
-
-	if incrementalMeta.BackupType == "incremental" {
-		if verifyErr := verifyIncrementalArtifactHash(filePath, result.hashAlgo, result.hashValue); verifyErr != nil {
-			return nil, fmt.Errorf("failed to verify incremental artifact hash: %w", verifyErr)
-		}
-	}
-
-	// Write manifest alongside the backup file
-	manifestPath := filePath + ".manifest.json"
-	m := &ports.BackupManifest{
-		BackupID:     job.Name,
-		Database:     job.Database,
-		DatabaseType: job.Type,
-		CreatedAt:    time.Now().UTC(),
-		SizeBytes:    fileSize,
-		Hash: ports.HashInfo{
-			Algorithm:      "sha256",
-			Value:          result.hashValue,
-			PlaintextValue: plaintextHash,
-		},
-		Encryption: encInfo,
-		AdvancedRestore: &ports.AdvancedRestoreMetadata{
-			Capabilities: []string{"full", "incremental"},
-			IncrementalLineage: &ports.IncrementalLineageMetadata{
-				Enabled:             incrementalMeta.Enabled,
-				ChainID:             incrementalMeta.ChainID,
-				ChainIndex:          incrementalMeta.ChainIndex,
-				MaxChainDepth:       incrementalMeta.MaxChainDepth,
-				BaselineBackupID:    incrementalMeta.BaselineBackupID,
-				RequiredBackupIDs:   incrementalMeta.RequiredBackupIDs,
-				DeltaSizeBytes:      incrementalMeta.DeltaSizeBytes,
-				FullBackupSizeBytes: incrementalMeta.FullBackupSizeBytes,
-				CompressionRatio:    incrementalMeta.CompressionRatio,
-				Engine:              job.Type,
-				BinlogStartFile:     incrementalMeta.BinlogStartFile,
-				BinlogEndFile:       incrementalMeta.BinlogEndFile,
-				BinlogArtifacts:     incrementalMeta.BinlogArtifacts,
-				OplogArtifactPath:   incrementalMeta.OplogArtifactPath,
-				ExecutionSupported:  true,
-			},
-		},
-	}
-	if writeErr := manifest.WriteManifest(manifestPath, m); writeErr != nil {
-		fmt.Printf("Warning: failed to write manifest for '%s': %v\n", job.Name, writeErr)
-	} else {
-		result.manifestPath = manifestPath
-	}
-
-	return result, nil
-}
-
-type backupIncrementalContext struct {
-	Enabled             bool
-	BackupType          string
-	ChainID             string
-	ChainIndex          int
-	MaxChainDepth       int
-	BaselineBackupID    string
-	RequiredBackupIDs   []string
-	DeltaSizeBytes      int64
-	FullBackupSizeBytes int64
-	CompressionRatio    float64
-	BinlogStartFile     string
-	BinlogEndFile       string
-	BinlogArtifacts     []string
-	OplogArtifactPath   string
-}
-
-func archiveMySQLBinlogArtifacts(ctx context.Context, job config.BackupJob, backupFilePath string) (backupIncrementalContext, error) {
-	binlogPath := strings.TrimSpace(job.MySQL.BinlogPath)
-	if binlogPath == "" {
-		return backupIncrementalContext{}, fmt.Errorf("mysql.binlog_path is required for incremental %s backup", job.Type)
-	}
-
-	archiveName := fmt.Sprintf("%s.binlogs.tar", filepath.Base(backupFilePath))
-	archiveResult, err := mysqlbinlog.Archive(ctx, &mysqlbinlog.ArchiveArgs{
-		BinlogDir:   binlogPath,
-		OutputDir:   filepath.Dir(backupFilePath),
-		ArchiveName: archiveName,
-	})
-	if err != nil {
-		return backupIncrementalContext{}, fmt.Errorf("failed to archive %s binlogs: %w", job.Type, err)
-	}
-
-	return backupIncrementalContext{
-		BinlogStartFile: archiveResult.StartFile,
-		BinlogEndFile:   archiveResult.EndFile,
-		BinlogArtifacts: []string{archiveResult.ArchivePath},
-	}, nil
-}
-
-func archiveMongoOplogArtifacts(ctx context.Context, job config.BackupJob, backupFilePath string) (backupIncrementalContext, error) {
-	mongoURI := strings.TrimSpace(job.URI)
-	if mongoURI == "" {
-		return backupIncrementalContext{}, fmt.Errorf("mongodb uri is required for incremental oplog archival")
-	}
-
-	archiveName := fmt.Sprintf("%s.oplog.archive", filepath.Base(backupFilePath))
-	archiveResult, err := mongo.ArchiveOplog(ctx, &mongo.OplogArchiveArgs{
-		URI:         mongoURI,
-		OutputDir:   filepath.Dir(backupFilePath),
-		ArchiveName: archiveName,
-	})
-	if err != nil {
-		return backupIncrementalContext{}, fmt.Errorf("failed to archive mongodb oplog: %w", err)
-	}
-
-	return backupIncrementalContext{
-		OplogArtifactPath: archiveResult.ArchivePath,
-	}, nil
-}
-
-func deriveIncrementalBackupContext(cfg *config.Configuration, job config.BackupJob, fileSize int64, forceFull bool) backupIncrementalContext {
-	normalized := config.NormalizeIncrementalBackupConfig(job)
-	if normalized.IncrementalBackup == nil || !normalized.IncrementalBackup.Enabled {
-		return backupIncrementalContext{BackupType: "full"}
-	}
-
-	previous := backupIncremental.ChainState{MaxDepth: normalized.IncrementalBackup.MaxChainDepth}
-	latest := latestIncrementalExecution(cfg, normalized.Name)
-	if latest != nil {
-		previous.ChainID = latest.ChainID
-		previous.CurrentIndex = latest.ChainIndex
-		previous.BaselineBackupID = resolveBaselineBackupID(cfg, normalized.Name, latest)
-	}
-
-	decision, err := backupIncremental.Decide(previous, forceFull)
-	if err != nil {
-		return backupIncrementalContext{Enabled: true, BackupType: "full", MaxChainDepth: normalized.IncrementalBackup.MaxChainDepth}
-	}
-
-	ctx := backupIncrementalContext{
-		Enabled:       true,
-		BackupType:    decision.Type,
-		ChainID:       decision.ChainID,
-		ChainIndex:    decision.ChainIndex,
-		MaxChainDepth: normalized.IncrementalBackup.MaxChainDepth,
-	}
-
-	if decision.Type == "incremental" {
-		ctx.BaselineBackupID = decision.BaselineBackupID
-		ctx.RequiredBackupIDs = []string{decision.BaselineBackupID}
-		ctx.DeltaSizeBytes = fileSize
-	} else {
-		ctx.FullBackupSizeBytes = fileSize
-	}
-
-	if ctx.FullBackupSizeBytes > 0 && ctx.DeltaSizeBytes > 0 {
-		ctx.CompressionRatio = float64(ctx.DeltaSizeBytes) / float64(ctx.FullBackupSizeBytes)
-	}
-
-	return ctx
-}
-
-func latestIncrementalExecution(cfg *config.Configuration, jobName string) *ports.Execution {
-	if cfg == nil || strings.TrimSpace(cfg.HistoryDBPath) == "" || strings.TrimSpace(jobName) == "" {
-		return nil
-	}
-
-	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
-	if err != nil {
-		return nil
-	}
-	defer mon.Close()
-
-	executions, err := mon.ListExecutions(context.Background(), &ports.Filter{BackupName: jobName}, 100, 0)
-	if err != nil {
-		return nil
-	}
-
-	for i := range executions {
-		exec := executions[i]
-		if exec.Status != "success" && exec.Status != ports.StatusCompleted {
-			continue
-		}
-		if strings.TrimSpace(exec.ChainID) == "" {
-			continue
-		}
-		if exec.BackupType != "full" && exec.BackupType != "incremental" {
-			continue
-		}
-		return &exec
-	}
-
-	return nil
-}
-
-func resolveBaselineBackupID(cfg *config.Configuration, jobName string, latest *ports.Execution) string {
-	if latest == nil {
-		return ""
-	}
-
-	if latest.BackupType == "full" {
-		if latest.FilePath != "" {
-			return latest.FilePath
-		}
-		return latest.ID
-	}
-
-	if cfg == nil || strings.TrimSpace(cfg.HistoryDBPath) == "" {
-		return latest.ID
-	}
-
-	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
-	if err != nil {
-		return latest.ID
-	}
-	defer mon.Close()
-
-	executions, err := mon.ListExecutions(context.Background(), &ports.Filter{BackupName: jobName}, 300, 0)
-	if err != nil {
-		return latest.ID
-	}
-
-	for i := range executions {
-		exec := executions[i]
-		if exec.Status != "success" && exec.Status != ports.StatusCompleted {
-			continue
-		}
-		if exec.ChainID != latest.ChainID {
-			continue
-		}
-		if exec.BackupType == "full" || exec.ChainIndex == 0 {
-			if exec.FilePath != "" {
-				return exec.FilePath
-			}
-			return exec.ID
-		}
-	}
-
-	return latest.ID
-}
 
 func handleBackupForceFull(cmd *cobra.Command, args []string) error {
 	cfgPath, _ := cmd.Flags().GetString("config")
@@ -1408,80 +948,4 @@ func latestSuccessfulExecution(executions []ports.Execution) *ports.Execution {
 
 func isSuccessfulStatus(status string) bool {
 	return status == "success" || status == ports.StatusCompleted
-}
-
-// encryptBackupFile encrypts filePath in-place using AES-256-GCM via ChunkEncryptWriter.
-// Returns (encrypted, encInfo, hashOfEncryptedFile, err).
-func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *ports.EncryptionInfo, string, error) {
-	kp := &crypto.FileKeyProvider{
-		EnvVar:   cfg.EncryptionKeyEnv,
-		FilePath: cfg.EncryptionKeyFile,
-	}
-	masterKey, err := kp.GetKey()
-	if err != nil {
-		return false, nil, "", fmt.Errorf("failed to get encryption key: %w", err)
-	}
-
-	salt, err := crypto.GenerateSalt()
-	if err != nil {
-		return false, nil, "", err
-	}
-	derivedKey := crypto.DeriveKey(masterKey, salt)
-
-	in, err := os.Open(filePath)
-	if err != nil {
-		return false, nil, "", fmt.Errorf("failed to open file for encryption: %w", err)
-	}
-
-	encPath := filePath + ".enc"
-	out, err := os.Create(encPath)
-	if err != nil {
-		in.Close()
-		return false, nil, "", fmt.Errorf("failed to create encrypted output: %w", err)
-	}
-
-	hw := crypto.NewHashingWriter(out)
-	enc, err := crypto.NewChunkEncryptWriter(hw, derivedKey, backupID)
-	if err != nil {
-		in.Close()
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", err
-	}
-
-	_, copyErr := io.Copy(enc, in)
-	in.Close()
-	if copyErr != nil {
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed during encryption: %w", copyErr)
-	}
-
-	if flushErr := enc.Flush(); flushErr != nil {
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed to flush encrypted data: %w", flushErr)
-	}
-
-	encHash := hw.Sum()
-	nonce := enc.BaseNonce()
-	authTag := enc.LastAuthTag()
-	out.Close()
-
-	if renameErr := os.Rename(encPath, filePath); renameErr != nil {
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed to replace file with encrypted version: %w", renameErr)
-	}
-
-	encInfo := &ports.EncryptionInfo{
-		Algorithm:       "AES-256-GCM",
-		KeyDerivation:   "PBKDF2-HMAC-SHA256",
-		Iterations:      100_000,
-		Salt:            base64.StdEncoding.EncodeToString(salt),
-		IV:              hex.EncodeToString(nonce),
-		AuthTag:         hex.EncodeToString(authTag),
-		EnvelopeVersion: 2,
-	}
-
-	return true, encInfo, encHash, nil
 }

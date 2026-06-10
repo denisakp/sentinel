@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func gcsTestEnv(t *testing.T) (bucket, project, creds, backupPath string) {

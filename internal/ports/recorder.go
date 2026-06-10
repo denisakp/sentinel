@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 	"time"
+
+	"github.com/denisakp/sentinel/internal/domain/retention"
 )
 
 // Recorder abstracts *internal/adapters/monitor.Monitor (current concrete implementation).
@@ -22,6 +24,22 @@ type Recorder interface {
 	ListExecutions(ctx context.Context, filter *Filter, limit, offset int) ([]Execution, error)
 	GetExecution(ctx context.Context, id string) (*Execution, error)
 	ListRestoreExecutions(ctx context.Context, filter *RestoreFilter, limit, offset int) ([]RestoreExecution, error)
+
+	// RetentionDeleteRecords deletes backup_executions rows matching the
+	// given candidate file paths for the given backup job. Empty candidates
+	// is a no-op success. Wraps SQL errors with "retention delete: %w".
+	//
+	// The retention.BackupCandidate / retention.Policy parameter types come
+	// from internal/domain/retention — the deliberate ports → domain import
+	// exception from spec 038 Q2 (domain owns the shapes; the port re-uses
+	// them as the single source of truth).
+	RetentionDeleteRecords(ctx context.Context, jobName string, candidates []retention.BackupCandidate) error
+
+	// DeleteRestoreExecutions deletes restore_executions rows for the given
+	// restore job according to the retention policy. When policy.DryRun is
+	// true the implementation MUST count without deleting and return nil.
+	// Wraps SQL errors with "delete restore executions: %w".
+	DeleteRestoreExecutions(ctx context.Context, jobName string, policy retention.Policy) error
 }
 
 // Execution status constants — relocated from internal/monitor/types.go.

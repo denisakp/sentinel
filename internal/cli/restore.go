@@ -18,7 +18,8 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	domainincr "github.com/denisakp/sentinel/internal/domain/restore/incremental"
 	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func mapRestoreSourceError(job config.RestoreJob, err error) error {
@@ -623,6 +624,25 @@ func loadRestoreConfig() (*config.Configuration, error) {
 	}
 	if err := config.ValidateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	// Domain-level structural validation of schedulable restore jobs
+	// (mirrors validateScheduledJobs in schedule.go — FR-005).
+	for name, job := range cfg.Restores {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindRestore,
+			Enabled:  true,
+		}); err != nil {
+			return nil, fmt.Errorf("restore job %q: %w", name, err)
+		}
 	}
 
 	return cfg, nil

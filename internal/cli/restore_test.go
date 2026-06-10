@@ -18,7 +18,7 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/spf13/cobra"
 )
 

@@ -12,8 +12,8 @@ import (
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
 	"github.com/denisakp/sentinel/internal/ports"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	"github.com/denisakp/sentinel/internal/retention"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
 	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
 	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
@@ -56,7 +56,6 @@ type RestoreScheduleManager struct {
 	backupStorage BackupStorage
 	cfg           *config.Configuration
 	monitor       ports.Recorder
-	retention     *retention.Manager
 }
 
 // BackupStorage provides methods to retrieve backups from various sources
@@ -73,7 +72,6 @@ func NewRestoreScheduleManager(
 	backupStorage BackupStorage,
 	cfg *config.Configuration,
 	mon ports.Recorder,
-	ret *retention.Manager,
 ) *RestoreScheduleManager {
 	restoreExec := NewRestoreExecutor(nil) // will be set with actual implementation
 	return &RestoreScheduleManager{
@@ -84,7 +82,6 @@ func NewRestoreScheduleManager(
 		backupStorage: backupStorage,
 		cfg:           cfg,
 		monitor:       mon,
-		retention:     ret,
 	}
 }
 
@@ -361,7 +358,7 @@ func (rsm *RestoreScheduleManager) recordRestoreExecution(ctx context.Context, c
 
 // applyRestoreRetention applies retention policy to cleanup old restore execution records
 func (rsm *RestoreScheduleManager) applyRestoreRetention(ctx context.Context, restoreConfig *RestoreScheduleConfig) {
-	if rsm.cfg == nil || rsm.retention == nil {
+	if rsm.cfg == nil || rsm.monitor == nil {
 		return
 	}
 
@@ -379,13 +376,13 @@ func (rsm *RestoreScheduleManager) applyRestoreRetention(ctx context.Context, re
 		return
 	}
 
-	policy := retention.Policy{
+	policy := domainret.Policy{
 		KeepLast: restoreJobCfg.Retention.KeepLast,
 		KeepDays: restoreJobCfg.Retention.KeepDays,
 		DryRun:   false,
 	}
 
-	if err := rsm.retention.ApplyRestoreRetention(ctx, restoreConfig.Name, policy); err != nil {
+	if err := rsm.monitor.DeleteRestoreExecutions(ctx, restoreConfig.Name, policy); err != nil {
 		rsm.logger.Warn("Failed to apply restore retention policy",
 			slog.String("job", restoreConfig.Name),
 			slog.String("error", err.Error()),

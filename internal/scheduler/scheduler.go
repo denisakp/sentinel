@@ -16,6 +16,7 @@ type jobState struct {
 	id             cron.EntryID
 	name           string
 	schedule       string
+	parsedSchedule schedule.Schedule
 	fn             func() error
 	running        bool
 	executionCount int
@@ -96,7 +97,8 @@ func (s *Scheduler) AddJob(name, schedule string, fn func() error) error {
 	if schedule == "" {
 		return fmt.Errorf("schedule is required for job '%s'", name)
 	}
-	if _, err := s.parser.Parse(schedule); err != nil {
+	parsed, err := s.parser.Parse(schedule)
+	if err != nil {
 		return fmt.Errorf("invalid cron expression '%s': %w", schedule, err)
 	}
 
@@ -107,9 +109,10 @@ func (s *Scheduler) AddJob(name, schedule string, fn func() error) error {
 	}
 
 	state := &jobState{
-		name:     name,
-		schedule: schedule,
-		fn:       fn,
+		name:           name,
+		schedule:       schedule,
+		parsedSchedule: parsed,
+		fn:             fn,
 	}
 
 	id, err := s.cron.AddFunc(schedule, func() {
@@ -178,6 +181,19 @@ func (s *Scheduler) JobStatus(name string) (*schedule.JobStatus, error) {
 		ExecutionHistory: append([]schedule.ExecutionRecord(nil), state.history...),
 	}
 	return status, nil
+}
+
+// JobSchedule returns the parsed cron schedule of a registered job.
+// Domain code consumes the returned schedule.Schedule via Next only;
+// the cron library dependency stays inside this runtime adapter (FR-004).
+func (s *Scheduler) JobSchedule(name string) (schedule.Schedule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.jobs[name]
+	if !ok {
+		return nil, fmt.Errorf("job '%s' not found", name)
+	}
+	return state.parsedSchedule, nil
 }
 
 // IsRunning returns whether the scheduler is active.

@@ -1,38 +1,51 @@
-package retention
+package cli
+
+// Storage-side retention DELETE, rewired from the deleted
+// internal/retention/cleaner.go (spec 038 Sub-PR J). All artifact deletion
+// now goes through ports.StorageBackend.Delete; concrete backends are
+// obtained exclusively via the storage registry.
 
 import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	storage "github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
-	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
-	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 	domainret "github.com/denisakp/sentinel/internal/domain/retention"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
-const reasonProtectedActiveBaseline = domainret.ReasonProtectedActiveBaseline
+// newRetentionDeleteBackend is a test seam over the storage registry.
+var newRetentionDeleteBackend = func(p *storage.BackendParams) (ports.StorageBackend, error) {
+	return storage.NewBackend(p)
+}
 
-// DeleteCandidates removes backup files from storage for supported backends.
-func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storageType string, storageCfg config.StorageConfig) ([]DeletedBackup, []error) {
+// deleteRetentionCandidates removes backup artifacts from storage for
+// supported backends. Candidates carrying the protected-active-baseline
+// marker are always skipped.
+func deleteRetentionCandidates(ctx context.Context, candidates []domainret.BackupCandidate, storageCfg config.StorageConfig) ([]domainret.DeletedBackup, []error) {
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 
-	deleted := make([]DeletedBackup, 0, len(candidates))
+	deleted := make([]domainret.DeletedBackup, 0, len(candidates))
 	var errs []error
 
-	switch storageType {
+	switch storageCfg.Type {
 	case "local":
+		// Empty LocalPath: candidate FilePaths are absolute, Join keeps them.
+		backend, err := newRetentionDeleteBackend(&storage.BackendParams{StorageType: "local"})
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to initialize local backend: %w", err)}
+		}
 		for _, cand := range candidates {
-			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+			if isProtectedCandidate(cand) {
 				continue
 			}
-			if err := os.RemoveAll(cand.FilePath); err != nil {
+			if err := backend.Delete(ctx, cand.FilePath); err != nil {
 				errs = append(errs, fmt.Errorf("failed to delete %s: %w", cand.FilePath, err))
 				continue
 			}
@@ -41,13 +54,19 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 		return deleted, errs
 
 	case "s3":
-		backend, err := newS3DeleteBackend(storageCfg)
+		backend, err := newRetentionDeleteBackend(&storage.BackendParams{
+			StorageType:        "s3",
+			AWSBucket:          storageCfg.S3Bucket,
+			AWSRegion:          storageCfg.S3Region,
+			AWSBucketEndpoint:  storageCfg.S3BucketEndpoint,
+			AWSAccessKeyID:     storageCfg.S3AccessKeyID,
+			AWSSecretAccessKey: storageCfg.S3SecretAccessKey,
+		})
 		if err != nil {
 			return nil, []error{fmt.Errorf("failed to initialize s3 backend: %w", err)}
 		}
-
 		for _, cand := range candidates {
-			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+			if isProtectedCandidate(cand) {
 				continue
 			}
 			_, object, err := parseBucketObjectRef(cand.FilePath, "s3", storageCfg.S3Bucket)
@@ -55,19 +74,19 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 				errs = append(errs, fmt.Errorf("failed to parse s3 path %s: %w", cand.FilePath, err))
 				continue
 			}
-
 			if err := backend.Delete(ctx, object); err != nil {
 				errs = append(errs, fmt.Errorf("failed to delete s3 object %s: %w", cand.FilePath, err))
 				continue
 			}
-
 			deleted = append(deleted, deletedBackupFromCandidate(cand))
 		}
 		return deleted, errs
 
 	case "gcs":
+		// Bucket comes from each candidate's gs:// URI, so the backend is
+		// constructed per candidate (buckets may differ across history).
 		for _, cand := range candidates {
-			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+			if isProtectedCandidate(cand) {
 				continue
 			}
 			bucket, object, err := parseBucketObjectRef(cand.FilePath, "gs", "")
@@ -75,34 +94,36 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 				errs = append(errs, fmt.Errorf("failed to parse gcs uri %s: %w", cand.FilePath, err))
 				continue
 			}
-
-			backend, err := newGCSDeleteBackend(gcs.Config{
-				Bucket:          bucket,
-				ProjectID:       storageCfg.GCSProjectID,
-				CredentialsFile: storageCfg.GCSCredentialsFile,
+			backend, err := newRetentionDeleteBackend(&storage.BackendParams{
+				StorageType:        "gcs",
+				GCSBucket:          bucket,
+				GCSProjectID:       storageCfg.GCSProjectID,
+				GCSCredentialsFile: storageCfg.GCSCredentialsFile,
 			})
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to initialize gcs backend for bucket %s: %w", bucket, err))
 				continue
 			}
-
 			if err := backend.Delete(ctx, object); err != nil {
 				errs = append(errs, fmt.Errorf("failed to delete gcs object %s: %w", cand.FilePath, err))
 				continue
 			}
-
 			deleted = append(deleted, deletedBackupFromCandidate(cand))
 		}
 		return deleted, errs
 
 	case "azure":
-		backend, err := newAzureDeleteBackend(storageCfg)
+		backend, err := newRetentionDeleteBackend(&storage.BackendParams{
+			StorageType:         "azure",
+			AzureStorageAccount: storageCfg.AzureStorageAccount,
+			AzureStorageKey:     storageCfg.AzureStorageKey,
+			AzureContainer:      storageCfg.AzureContainer,
+		})
 		if err != nil {
 			return nil, []error{fmt.Errorf("failed to initialize azure backend: %w", err)}
 		}
-
 		for _, cand := range candidates {
-			if strings.Contains(cand.ReasonDeleted, reasonProtectedActiveBaseline) {
+			if isProtectedCandidate(cand) {
 				continue
 			}
 			_, object, err := parseBucketObjectRef(cand.FilePath, "azure", storageCfg.AzureContainer)
@@ -110,80 +131,34 @@ func DeleteCandidates(ctx context.Context, candidates []BackupCandidate, storage
 				errs = append(errs, fmt.Errorf("failed to parse azure path %s: %w", cand.FilePath, err))
 				continue
 			}
-
 			if err := backend.Delete(ctx, object); err != nil {
 				errs = append(errs, fmt.Errorf("failed to delete azure blob %s: %w", cand.FilePath, err))
 				continue
 			}
-
 			deleted = append(deleted, deletedBackupFromCandidate(cand))
 		}
 		return deleted, errs
 
 	default:
-		return nil, []error{fmt.Errorf("retention delete not supported for storage type '%s'", storageType)}
+		return nil, []error{fmt.Errorf("retention delete not supported for storage type '%s'", storageCfg.Type)}
 	}
 }
 
-func deletedBackupFromCandidate(cand BackupCandidate) DeletedBackup {
-	return DeletedBackup{
+func isProtectedCandidate(cand domainret.BackupCandidate) bool {
+	return strings.Contains(cand.ReasonDeleted, domainret.ReasonProtectedActiveBaseline)
+}
+
+func deletedBackupFromCandidate(cand domainret.BackupCandidate) domainret.DeletedBackup {
+	return domainret.DeletedBackup{
 		FilePath:      cand.FilePath,
 		FileSize:      cand.FileSize,
-		DeletionTime:  nowUTC(),
+		DeletionTime:  time.Now().UTC(),
 		ReasonDeleted: cand.ReasonDeleted,
 	}
 }
 
-type s3DeleteBackend interface {
-	Delete(ctx context.Context, path string) error
-}
-
-var newS3DeleteBackend = func(cfg config.StorageConfig) (s3DeleteBackend, error) {
-	client, err := s3.NewS3Storage(&s3.AmazonS3Storage{
-		Bucket:    cfg.S3Bucket,
-		Region:    cfg.S3Region,
-		EndPoint:  cfg.S3BucketEndpoint,
-		AccessKey: cfg.S3AccessKeyID,
-		SecretKey: cfg.S3SecretAccessKey,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return s3.NewS3Backend(client), nil
-}
-
-type gcsDeleteBackend interface {
-	Delete(ctx context.Context, path string) error
-}
-
-var newGCSDeleteBackend = func(cfg gcs.Config) (gcsDeleteBackend, error) {
-	return gcs.NewGCSBackend(cfg)
-}
-
-type azureDeleteBackend interface {
-	Delete(ctx context.Context, path string) error
-}
-
-var newAzureDeleteBackend = func(cfg config.StorageConfig) (azureDeleteBackend, error) {
-	azCfg := azure.Config{
-		AccountName: cfg.AzureStorageAccount,
-		Container:   cfg.AzureContainer,
-	}
-	if strings.TrimSpace(cfg.AzureStorageKey) != "" {
-		azCfg.Auth = azure.AuthConfig{
-			Type:             "connection_string",
-			ConnectionString: fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", cfg.AzureStorageAccount, cfg.AzureStorageKey),
-		}
-	} else {
-		azCfg.Auth = azure.AuthConfig{Type: "managed_identity"}
-	}
-	return azure.NewAzureBlobBackend(azCfg)
-}
-
-func parseGCSURI(raw string) (string, string, error) {
-	return parseBucketObjectRef(raw, "gs", "")
-}
-
+// parseBucketObjectRef splits a storage reference into bucket/container and
+// object path. Plain (non-URI) paths fall back to defaultBucket.
 func parseBucketObjectRef(raw, scheme, defaultBucket string) (string, string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -196,7 +171,7 @@ func parseBucketObjectRef(raw, scheme, defaultBucket string) (string, string, er
 		return defaultBucket, trimmed, nil
 	}
 
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := url.Parse(trimmed)
 	if err != nil {
 		return "", "", err
 	}
@@ -212,8 +187,4 @@ func parseBucketObjectRef(raw, scheme, defaultBucket string) (string, string, er
 		return "", "", fmt.Errorf("missing object path")
 	}
 	return bucket, object, nil
-}
-
-func nowUTC() time.Time {
-	return time.Now().UTC()
 }

@@ -36,6 +36,9 @@ var scheduleStartCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if err := validateScheduledJobs(cfg); err != nil {
+			return err
+		}
 
 		// Initialize monitor for execution tracking and reconciliation
 		mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
@@ -286,6 +289,46 @@ func init() {
 	scheduleListCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 	scheduleListCmd.Flags().String("format", "table", "Output format (table/json)")
 	scheduleStatusCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
+}
+
+// validateScheduledJobs runs the pure domain validation (schedule.Validate)
+// over every job the scheduler would register: enabled backup jobs with a
+// schedule and enabled restore jobs with a schedule. Cron-expression parsing
+// stays in the scheduler runtime adapter (FR-004/FR-005).
+func validateScheduledJobs(cfg *config.Configuration) error {
+	for _, job := range cfg.Databases {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     job.Name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindBackup,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("backup job %q: %w", job.Name, err)
+		}
+	}
+	for name, job := range cfg.Restores {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindRestore,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("restore job %q: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // executeRestoreJob executes a single restore job

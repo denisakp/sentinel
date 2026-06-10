@@ -7,7 +7,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func TestRestoreExecutorValidation(t *testing.T) {

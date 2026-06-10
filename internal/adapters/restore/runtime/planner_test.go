@@ -1,10 +1,11 @@
-package restore
+package runtime
 
 import (
 	"testing"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -18,9 +19,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 		job        config.RestoreJob
 		request    *config.AdvancedRestoreRequest
 		manifest   *ports.BackupManifest
-		wantStatus PlanStatus
+		wantStatus domainrestore.PlanStatus
 		wantReason string
-		wantMode   AdvancedRestoreMode
+		wantMode   domainrestore.AdvancedRestoreMode
 	}{
 		{
 			name: "full mode ready",
@@ -28,9 +29,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 			request: &config.AdvancedRestoreRequest{
 				RestoreMode: "full",
 			},
-			wantStatus: PlanStatusReady,
+			wantStatus: domainrestore.PlanStatusReady,
 			wantReason: ReasonCodeReady,
-			wantMode:   AdvancedRestoreModeFull,
+			wantMode:   domainrestore.AdvancedRestoreModeFull,
 		},
 		{
 			name: "pitr outside postgres rejected",
@@ -39,9 +40,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 				RestoreMode:      "pitr",
 				PITRTimestampUTC: &now,
 			},
-			wantStatus: PlanStatusRejected,
+			wantStatus: domainrestore.PlanStatusRejected,
 			wantReason: ReasonCodeUnsupportedDatabaseType,
-			wantMode:   AdvancedRestoreModePITR,
+			wantMode:   domainrestore.AdvancedRestoreModePITR,
 		},
 		{
 			name: "pitr within window ready",
@@ -59,9 +60,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 					RequiresIntegrityVerification: true,
 				},
 			},
-			wantStatus: PlanStatusReady,
+			wantStatus: domainrestore.PlanStatusReady,
 			wantReason: ReasonCodeReady,
-			wantMode:   AdvancedRestoreModePITR,
+			wantMode:   domainrestore.AdvancedRestoreModePITR,
 		},
 		{
 			name: "incremental fallback confirmation required",
@@ -79,9 +80,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 					},
 				},
 			},
-			wantStatus: PlanStatusConfirmationRequired,
+			wantStatus: domainrestore.PlanStatusConfirmationRequired,
 			wantReason: ReasonCodeFullFallbackConfirmationRequired,
-			wantMode:   AdvancedRestoreModeIncremental,
+			wantMode:   domainrestore.AdvancedRestoreModeIncremental,
 		},
 		{
 			name: "incremental fallback approved with confirmation",
@@ -100,9 +101,9 @@ func TestPlanAdvancedRestore(t *testing.T) {
 					},
 				},
 			},
-			wantStatus: PlanStatusReady,
+			wantStatus: domainrestore.PlanStatusReady,
 			wantReason: ReasonCodeFullFallbackApproved,
-			wantMode:   AdvancedRestoreModeFull,
+			wantMode:   domainrestore.AdvancedRestoreModeFull,
 		},
 	}
 
@@ -123,8 +124,8 @@ func TestPlanAdvancedRestore(t *testing.T) {
 			}
 
 			if tt.name == "incremental fallback confirmation required" {
-				if plan.Fallback != FallbackCandidateFullRestore {
-					t.Fatalf("Fallback = %q, want %q", plan.Fallback, FallbackCandidateFullRestore)
+				if plan.Fallback != domainrestore.FallbackCandidateFullRestore {
+					t.Fatalf("Fallback = %q, want %q", plan.Fallback, domainrestore.FallbackCandidateFullRestore)
 				}
 				if plan.FallbackReason != ReasonCodeIncrementalCapabilityUnavailable {
 					t.Fatalf("FallbackReason = %q, want %q", plan.FallbackReason, ReasonCodeIncrementalCapabilityUnavailable)
@@ -135,8 +136,8 @@ func TestPlanAdvancedRestore(t *testing.T) {
 			}
 
 			if tt.name == "incremental fallback approved with confirmation" {
-				if plan.Fallback != FallbackCandidateFullRestore {
-					t.Fatalf("Fallback = %q, want %q", plan.Fallback, FallbackCandidateFullRestore)
+				if plan.Fallback != domainrestore.FallbackCandidateFullRestore {
+					t.Fatalf("Fallback = %q, want %q", plan.Fallback, domainrestore.FallbackCandidateFullRestore)
 				}
 				if plan.FallbackReason != ReasonCodeIncrementalCapabilityUnavailable {
 					t.Fatalf("FallbackReason = %q, want %q", plan.FallbackReason, ReasonCodeIncrementalCapabilityUnavailable)

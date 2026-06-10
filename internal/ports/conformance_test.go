@@ -67,7 +67,8 @@ var (
 	// lock.go — LockManager port (8 methods on *lock.Manager).
 	_ ports.LockManager = (*lock.Manager)(nil)
 
-	// recorder.go — Recorder port (10 methods on *monitor.Monitor).
+	// recorder.go — Recorder port (12 methods on *monitor.Monitor; the 2
+	// retention DELETE methods were added by spec 038 Sub-PR J).
 	_ ports.Recorder = (*monitor.Monitor)(nil)
 
 	// notifier.go — Dispatcher port (9 methods on *notifier.Dispatcher).

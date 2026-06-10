@@ -29,11 +29,11 @@ func TestApplyBackupSecurity_UsesProvidedPlaintextDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applyBackupSecurity: %v", err)
 	}
-	if result == nil || result.hashValue != sentinel {
-		t.Fatalf("hashValue=%q want %q", result.hashValue, sentinel)
+	if result == nil || result.HashValue != sentinel {
+		t.Fatalf("hashValue=%q want %q", result.HashValue, sentinel)
 	}
 
-	m, err := manifest.ReadManifest(result.manifestPath)
+	m, err := manifest.ReadManifest(result.ManifestPath)
 	if err != nil {
 		t.Fatalf("ReadManifest: %v", err)
 	}
@@ -76,30 +76,30 @@ func TestApplyBackupSecurity_EncryptedPreservesPlaintextDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applyBackupSecurity: %v", err)
 	}
-	if !result.encrypted {
-		t.Fatalf("result.encrypted=false want true")
+	if !result.Encrypted {
+		t.Fatalf("result.Encrypted=false want true")
 	}
-	if result.hashValue == plaintextDigest {
+	if result.HashValue == plaintextDigest {
 		t.Fatalf("ciphertext hash should not equal plaintext digest")
 	}
 
 	// The on-disk artefact is now ciphertext; its SHA-256 must match
-	// result.hashValue (encryption branch's inline HashingWriter result).
+	// result.HashValue (encryption branch's inline HashingWriter result).
 	encBytes, err := os.ReadFile(backupPath)
 	if err != nil {
 		t.Fatalf("read encrypted: %v", err)
 	}
 	sum := sha256.Sum256(encBytes)
-	if got := hex.EncodeToString(sum[:]); got != result.hashValue {
-		t.Fatalf("ciphertext digest mismatch: file=%s result=%s", got, result.hashValue)
+	if got := hex.EncodeToString(sum[:]); got != result.HashValue {
+		t.Fatalf("ciphertext digest mismatch: file=%s result=%s", got, result.HashValue)
 	}
 
-	m, err := manifest.ReadManifest(result.manifestPath)
+	m, err := manifest.ReadManifest(result.ManifestPath)
 	if err != nil {
 		t.Fatalf("ReadManifest: %v", err)
 	}
-	if m.Hash.Value != result.hashValue {
-		t.Fatalf("manifest hash.value=%q want %q", m.Hash.Value, result.hashValue)
+	if m.Hash.Value != result.HashValue {
+		t.Fatalf("manifest hash.value=%q want %q", m.Hash.Value, result.HashValue)
 	}
 	if m.Hash.PlaintextValue != plaintextDigest {
 		t.Fatalf("manifest hash.plaintext_value=%q want %q", m.Hash.PlaintextValue, plaintextDigest)

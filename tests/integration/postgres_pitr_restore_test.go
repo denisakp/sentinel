@@ -6,7 +6,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
-	"github.com/denisakp/sentinel/internal/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func TestPostgresPITRPlanningFromManifest(t *testing.T) {

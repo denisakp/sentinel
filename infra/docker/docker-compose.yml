@@ -54,7 +54,10 @@ services:
       PMA_ARBITRARY: 1
       PMA_HOST: mysql
   pgsql:
-    image: docker.io/postgres:15-alpine
+    # PG17+ is the project's documented floor (WAL-based incremental);
+    # also keeps the server compatible with the pg18 client tools in the
+    # dev image (pg_dump 18 emits `SET transaction_timeout`, a PG17+ GUC).
+    image: docker.io/postgres:17-alpine
     hostname: pgdb
     networks:
       - sentinel

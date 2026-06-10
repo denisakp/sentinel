@@ -11,7 +11,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/domain/schedule"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 	"github.com/denisakp/sentinel/internal/ports"

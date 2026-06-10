@@ -10,6 +10,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -228,7 +229,7 @@ func TestResolveBackupPathGCSDoesNotExposeCredentials(t *testing.T) {
 		GCSProjectID:       "prod-project",
 	}
 
-	path, _ := resolveBackupPath(params)
+	path, _ := backup.ResolveArtifactRef(params.StorageType, params.LocalPath, params.OutName, params.GCSBucket)
 	if path != "gs://prod-backups/db/prod.sql" {
 		t.Fatalf("path = %q", path)
 	}

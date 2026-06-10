@@ -14,8 +14,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	"github.com/denisakp/sentinel/internal/retention"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -371,32 +370,9 @@ func TestScheduledOutputStripsCanonicalExtension(t *testing.T) {
 	}
 }
 
-func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
-	candidates := []retention.BackupCandidate{{FilePath: "gdrive://folder/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
-
-	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "google-drive", config.StorageConfig{})
-	if len(deleted) != 0 {
-		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
-	}
-	if len(errs) == 0 {
-		t.Fatal("expected unsupported backend delete error")
-	}
-	if !strings.Contains(errs[0].Error(), "retention delete not supported") {
-		t.Fatalf("unexpected error: %v", errs[0])
-	}
-}
-
-func TestRetentionDeleteGCSFailureYieldsWarningPath(t *testing.T) {
-	candidates := []retention.BackupCandidate{{FilePath: "gs://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
-
-	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "gcs", config.StorageConfig{})
-	if len(deleted) != 0 {
-		t.Fatalf("expected no deletions when gcs delete fails, got %d", len(deleted))
-	}
-	if len(errs) == 0 {
-		t.Fatal("expected gcs delete error")
-	}
-}
+// Retention delete warning-path tests moved to
+// internal/cli/retention_cleaner_test.go by spec 038 Sub-PR J
+// (retention.DeleteCandidates deleted with internal/retention/).
 
 func TestExecuteScheduledRestoreWithRunner_UsesProvidedRunnerForIncrementalRequest(t *testing.T) {
 	cfg := &config.Configuration{}

@@ -1,20 +1,28 @@
-// Package restore provides shared pre-restore helpers for integrity verification
-// and decryption, used by all four database restore engines.
-package restore
+package runtime
+
+// Pre-restore integrity verification + decryption. Relocated verbatim from
+// internal/restore/pipeline.go by spec 038 Sub-PR L (crypto-adapter-coupled,
+// so it lives driving-side; the domain Executor reaches it through the
+// Job.Preflight hook).
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
 	"github.com/denisakp/sentinel/internal/ports"
 )
+
+// ErrHashMismatch is returned when the computed hash of a backup file does
+// not match the stored hash in the manifest. Alias over the relocated
+// domain sentinel.
+var ErrHashMismatch = domainrestore.ErrHashMismatch
 
 // PreRestoreVerifyAndDecrypt is the single entry point for restore pre-flight:
 //
@@ -110,11 +118,6 @@ func PreRestoreVerifyAndDecryptWithOptions(
 
 	return dec, nil
 }
-
-// ErrHashMismatch is returned when the computed hash of a backup file does not
-// match the stored hash in the manifest.  Callers should abort the restore and
-// delete the corrupt backup file.
-var ErrHashMismatch = errors.New("hash mismatch")
 
 // computeHash computes the SHA-256 hex digest of the file at path.
 func computeHash(path string) (string, error) {

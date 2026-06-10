@@ -1,4 +1,10 @@
-package restore
+// Package runtime is the shared driving adapter for restore execution
+// (spec 038 Sub-PR L). It owns the config-coupled glue the pure domain
+// Executor cannot: source staging, preflight decryption, engine argument
+// construction, and the single domain restore.Executor construction site
+// (FR-011 / SC-006). Both internal/cli and internal/scheduler consume this
+// package — it replaces the deleted internal/restore/.
+package runtime
 
 import (
 	"context"
@@ -13,27 +19,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/config"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
+// Sentinel errors — aliases over the relocated domain sentinels so existing
+// errors.Is call sites keep working after the path-only import rewrite.
 var (
-	ErrUnsupportedRestoreSource = errors.New("unsupported restore source")
-	ErrSourceObjectNotFound     = errors.New("restore source object not found")
-	ErrInsufficientStagingSpace = errors.New("insufficient staging space")
-	ErrAmbiguousBackupID        = errors.New("ambiguous backup id")
+	ErrUnsupportedRestoreSource = domainrestore.ErrUnsupportedRestoreSource
+	ErrSourceObjectNotFound     = domainrestore.ErrSourceObjectNotFound
+	ErrInsufficientStagingSpace = domainrestore.ErrInsufficientStagingSpace
+	ErrAmbiguousBackupID        = domainrestore.ErrAmbiguousBackupID
 )
 
-type StagedArtifact struct {
-	Path         string
-	ManifestPath string
-	SourcePath   string
-	SizeBytes    int64
-	Retained     bool
-}
+// StagedArtifact is the relocated domain type (type alias keeps the
+// pre-carve field surface for external consumers).
+type StagedArtifact = domainrestore.StagedArtifact
 
 var newS3RestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBackend, error) {
 	return storage.NewBackend(&storage.BackendParams{
@@ -57,6 +62,12 @@ var newGCSRestoreBackend = func(src config.RestoreBackupSource) (ports.StorageBa
 
 var downloadRestoreSourceObject = downloadSourceObject
 
+// resolveChainObject forwards to the relocated pure resolver (kept as a
+// package symbol for the moved staging tests).
+var resolveChainObject = domainrestore.ResolveChainObject
+
+// StageRestoreSource downloads the configured backup (+ optional manifest)
+// into the job staging directory.
 func StageRestoreSource(ctx context.Context, job config.RestoreJob) (*StagedArtifact, error) {
 	if job.StagingDir == "" {
 		return nil, fmt.Errorf("staging_dir is required")
@@ -182,30 +193,14 @@ func StageChainArtifacts(ctx context.Context, job config.RestoreJob, backupIDs [
 	return artifacts, nil
 }
 
+// CleanupStagedArtifact / CleanupStagedArtifacts forward to the relocated
+// domain helpers (kept exported here for external test consumers).
 func CleanupStagedArtifact(artifact *StagedArtifact) error {
-	if artifact == nil {
-		return nil
-	}
-	var cleanupErr error
-	if artifact.ManifestPath != "" {
-		if err := os.Remove(artifact.ManifestPath); err != nil && !os.IsNotExist(err) {
-			cleanupErr = err
-		}
-	}
-	if err := os.Remove(artifact.Path); err != nil && !os.IsNotExist(err) && cleanupErr == nil {
-		cleanupErr = err
-	}
-	return cleanupErr
+	return domainrestore.CleanupStagedArtifact(artifact)
 }
 
 func CleanupStagedArtifacts(artifacts []*StagedArtifact) error {
-	var cleanupErr error
-	for _, artifact := range artifacts {
-		if err := CleanupStagedArtifact(artifact); err != nil {
-			cleanupErr = errors.Join(cleanupErr, err)
-		}
-	}
-	return cleanupErr
+	return domainrestore.CleanupStagedArtifacts(artifacts)
 }
 
 func resolveSourceObject(ctx context.Context, source config.RestoreBackupSource) (string, int64, error) {
@@ -347,70 +342,6 @@ func EnsureStagingCapacityForArtifacts(dir string, artifactSizes []int64) error 
 		}
 	}
 	return ensureStagingCapacity(dir, total)
-}
-
-// resolveChainObject locates the single storage object that corresponds to the
-// requested backup ID. An exact full-path match wins outright. Otherwise the
-// match is performed against the filename component (filepath.Base) of each
-// candidate: the filename must equal the backup ID or begin with the backup ID
-// followed immediately by a '.' (the extension boundary). Comparisons are
-// byte-for-byte and case-sensitive; intermediate path segments are never
-// matched. Returns ErrAmbiguousBackupID (wrapped with the candidate list) when
-// two or more objects satisfy the boundary rule and no exact full-path match
-// exists, ErrSourceObjectNotFound when no object satisfies the rule.
-func resolveChainObject(backupID string, objects []ports.StorageObject) (ports.StorageObject, error) {
-	if backupID == "" {
-		return ports.StorageObject{}, fmt.Errorf("resolve chain object: empty backup id")
-	}
-
-	var exact []ports.StorageObject
-	for _, obj := range objects {
-		if obj.Path == backupID {
-			exact = append(exact, obj)
-		}
-	}
-	if len(exact) == 1 {
-		return exact[0], nil
-	}
-
-	var candidates []ports.StorageObject
-	for _, obj := range objects {
-		if matchesBackupIDBoundary(filepath.Base(obj.Path), backupID) {
-			candidates = append(candidates, obj)
-		}
-	}
-
-	switch len(candidates) {
-	case 0:
-		return ports.StorageObject{}, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, backupID)
-	case 1:
-		return candidates[0], nil
-	default:
-		paths := make([]string, 0, len(candidates))
-		for _, c := range candidates {
-			paths = append(paths, c.Path)
-		}
-		sort.Strings(paths)
-		return ports.StorageObject{}, fmt.Errorf("%w: %s matches multiple objects: %s", ErrAmbiguousBackupID, backupID, strings.Join(paths, ", "))
-	}
-}
-
-// matchesBackupIDBoundary reports whether base equals backupID or begins with
-// backupID followed immediately by '.' (the extension boundary). Byte-for-byte;
-// case-sensitive. Underscore is NOT a boundary: backup IDs themselves may
-// contain underscores (e.g. b_01), so allowing '_' would let b_01 match
-// b_01_extra — the exact collision PRD 13 forbids.
-func matchesBackupIDBoundary(base, backupID string) bool {
-	if base == backupID {
-		return true
-	}
-	if len(base) <= len(backupID) {
-		return false
-	}
-	if base[:len(backupID)] != backupID {
-		return false
-	}
-	return base[len(backupID)] == '.'
 }
 
 func stagedFileName(jobName, sourcePath string) string {

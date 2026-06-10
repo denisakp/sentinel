@@ -78,7 +78,7 @@ _db-up:
 _mongo-up:
 	@echo "[make] Starting MongoDB..."
 	@docker rm -f $(MONGO_NAME) 2>/dev/null || true
-	@docker run -d --name $(MONGO_NAME) --network $(NETWORK) -p 27017:27017 mongo:8.2
+	@docker run -d --name $(MONGO_NAME) --network $(NETWORK) --network-alias mongo -p 27017:27017 mongo:8.2
 	@sleep 3
 
 _e2e-emulators-up:
