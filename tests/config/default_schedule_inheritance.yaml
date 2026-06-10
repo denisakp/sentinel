@@ -4,7 +4,6 @@ defaults:
   storage:
     type: local
     local_path: ./backups
-
 databases:
   pg-inherit:
     type: postgres

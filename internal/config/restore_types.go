@@ -3,7 +3,27 @@ package config
 import (
 	"fmt"
 	"time"
+
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
+
+// BinlogTargetPosition identifies a replay stop point in MySQL/MariaDB binlogs.
+type BinlogTargetPosition struct {
+	File string `yaml:"file"`
+	Pos  int64  `yaml:"pos"`
+}
+
+// MySQLRestoreConfig holds MySQL/MariaDB incremental replay selectors.
+type MySQLRestoreConfig struct {
+	BinlogTargetTime     string                `yaml:"binlog_target_time,omitempty"`
+	BinlogTargetPosition *BinlogTargetPosition `yaml:"binlog_target_position,omitempty"`
+}
+
+// MongoDBRestoreConfig holds MongoDB-specific restore options for oplog replay.
+type MongoDBRestoreConfig struct {
+	// OplogTargetTimestamp is an optional RFC3339 timestamp at which oplog replay stops.
+	OplogTargetTimestamp string `yaml:"oplog_target_timestamp,omitempty"`
+}
 
 // RestoreJob represents a scheduled restore operation in YAML config
 type RestoreJob struct {
@@ -84,6 +104,12 @@ type RestoreJob struct {
 	// KeepFile prevents the staged restore artifact from being deleted after the
 	// restore attempt.  Useful for debugging restore failures.
 	KeepFile bool `yaml:"keep_file,omitempty"`
+
+	// MySQL holds MySQL/MariaDB restore selectors for binlog-based replay.
+	MySQL MySQLRestoreConfig `yaml:"mysql,omitempty"`
+
+	// MongoDB holds MongoDB-specific restore options for oplog replay.
+	MongoDB MongoDBRestoreConfig `yaml:"mongodb,omitempty"`
 }
 
 // RestoreRetentionPolicy defines how long to keep restore backup files
@@ -166,6 +192,8 @@ type AdvancedRestoreRequest struct {
 	PITRTargetTimeline    string
 	IncrementalFromBackup string
 	ConfirmFullFallback   bool
+	BinlogTargetTime      string
+	BinlogTargetPosition  *BinlogTargetPosition
 }
 
 type RestoreDefaults struct {
@@ -234,9 +262,21 @@ func ValidateRestoreJob(job *RestoreJob) error {
 		}
 	}
 
-	// Validate schedule
-	if job.Schedule == "" {
+	// Validate schedule — only required for enabled jobs
+	enabled := job.Enabled == nil || *job.Enabled
+	if enabled && job.Schedule == "" {
 		return fmt.Errorf("restore schedule (cron) is required")
+	}
+
+	// FR-009(a): validate restore_options.additional_args parses at config load.
+	if raw, ok := job.RestoreOptions["additional_args"]; ok {
+		s, isString := raw.(string)
+		if !isString {
+			return fmt.Errorf("restore_options.additional_args must be a string, got %T", raw)
+		}
+		if _, err := backup.ParseAdditionalArgs(s); err != nil {
+			return fmt.Errorf("restore_options.additional_args: %w", err)
+		}
 	}
 
 	// Validate conflict strategy if specified
@@ -252,6 +292,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	}
 	if job.AllowCascade && job.Type != "postgres" {
 		return fmt.Errorf("allow_cascade is only supported for postgres restores")
+	}
+	if job.Type == "postgres" && job.ConflictStrategy == "replace" && !job.AllowCascade {
+		return fmt.Errorf("conflict_strategy=replace for postgres requires allow_cascade: true (DROP ... CASCADE may remove dependent objects)")
 	}
 
 	// Validate retention policy

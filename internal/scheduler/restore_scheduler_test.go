@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	"github.com/denisakp/sentinel/internal/ports"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func TestRestoreExecutorValidation(t *testing.T) {
@@ -323,8 +323,8 @@ func TestExecuteScheduledRestore_SkipsOnConcurrencyLimit(t *testing.T) {
 	if result == nil {
 		t.Fatal("ExecuteScheduledRestore() result = nil")
 	}
-	if result.Status != monitor.StatusSkipped {
-		t.Fatalf("result.Status = %q, want %q", result.Status, monitor.StatusSkipped)
+	if result.Status != ports.StatusSkipped {
+		t.Fatalf("result.Status = %q, want %q", result.Status, ports.StatusSkipped)
 	}
 	if result.Reason != "concurrency_limit_reached" {
 		t.Fatalf("result.Reason = %q, want concurrency_limit_reached", result.Reason)
@@ -337,7 +337,7 @@ func TestExecuteScheduledRestore_ConvertsLockConflictToSkip(t *testing.T) {
 
 	runSharedRestoreExecution = func(_ context.Context, _ *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
 		return &internalrestore.ExecutionResult{
-			Status: monitor.StatusSkipped,
+			Status: ports.StatusSkipped,
 			Reason: "lock_conflict",
 		}, internalrestore.ErrRestoreLockConflict
 	}
@@ -346,7 +346,7 @@ func TestExecuteScheduledRestore_ConvertsLockConflictToSkip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteScheduledRestore() error = %v, want nil", err)
 	}
-	if result == nil || result.Status != monitor.StatusSkipped || result.Reason != "lock_conflict" {
+	if result == nil || result.Status != ports.StatusSkipped || result.Reason != "lock_conflict" {
 		t.Fatalf("unexpected skip result: %+v", result)
 	}
 }

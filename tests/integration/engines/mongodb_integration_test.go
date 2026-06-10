@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 )
 
 func TestMongoDBBackup(t *testing.T) {
@@ -34,7 +34,7 @@ func TestMongoDBBackup(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mongodb_test")
 
 	uri := db.ConnectionString()
-	args := &mongo_dump.DumpMongoArgs{
+	args := &mongo.DumpMongoArgs{
 		Uri:      uri,
 		Database: db.Database,
 		Storage: &storage.Params{
@@ -47,7 +47,7 @@ func TestMongoDBBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MongoDB backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := mongo_dump.Backup(args)
+	_, err := mongo.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -86,7 +86,7 @@ func TestMongoDBRestore(t *testing.T) {
 	backupPath := filepath.Join(backupDir, "mongodb_test")
 
 	uri := db.ConnectionString()
-	backupArgs := &mongo_dump.DumpMongoArgs{
+	backupArgs := &mongo.DumpMongoArgs{
 		Uri:      uri,
 		Database: db.Database,
 		Storage: &storage.Params{
@@ -96,7 +96,7 @@ func TestMongoDBRestore(t *testing.T) {
 		},
 	}
 
-	if err := mongo_dump.Backup(backupArgs); err != nil {
+	if _, err := mongo.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestMongoDBBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mongodb_fail")
 
-	args := &mongo_dump.DumpMongoArgs{
+	args := &mongo.DumpMongoArgs{
 		Uri:      "mongodb://invalid_user:invalid_password@invalid_host:27017/invalid_db",
 		Database: "invalid_db",
 		Storage: &storage.Params{
@@ -138,7 +138,7 @@ func TestMongoDBBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MongoDB backup with invalid credentials (expecting failure)")
-	err = mongo_dump.Backup(args)
+	_, err = mongo.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {
@@ -159,7 +159,7 @@ func TestMongoDBDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &mongo_dump.DumpMongoArgs{
+	args := &mongo.DumpMongoArgs{
 		Uri:      "mongodb://test_user:test_pass@localhost:27017/test_db",
 		Database: "test_db",
 	}

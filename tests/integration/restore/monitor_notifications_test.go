@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
 )
 
 func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
@@ -22,7 +23,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 	defer mon.Close()
 
 	now := time.Now().UTC()
-	exec := &monitor.RestoreExecution{
+	exec := &ports.RestoreExecution{
 		RestoreName:        "nightly-restore",
 		DatabaseType:       "postgres",
 		DatabaseName:       "app",
@@ -44,7 +45,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 		t.Fatalf("RecordRestoreExecution() error = %v", err)
 	}
 
-	restores, err := mon.ListRestoreExecutions(context.Background(), &monitor.RestoreFilter{RestoreName: "nightly-restore"}, 10, 0)
+	restores, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "nightly-restore"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}
@@ -63,7 +64,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 	defer server.Close()
 
 	dispatcher := notifier.NewDispatcher(nil)
-	if err := dispatcher.AddWebhookNotifier(&notifier.WebhookNotificationConfig{
+	if err := dispatcher.AddWebhookNotifier(&ports.WebhookNotificationConfig{
 		Type:       "webhook",
 		WebhookURL: server.URL,
 		Events:     []string{"failure", "warning", "success"},
@@ -72,7 +73,7 @@ func TestRestoreMonitorAndNotificationFlow(t *testing.T) {
 		t.Fatalf("AddWebhookNotifier() error = %v", err)
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:        "nightly-restore",
 		DatabaseType:       "postgres",
 		DatabaseName:       "app",

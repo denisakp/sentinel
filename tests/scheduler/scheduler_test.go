@@ -13,7 +13,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/retention"
+	"github.com/denisakp/sentinel/internal/ports"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -369,29 +370,61 @@ func TestScheduledOutputStripsCanonicalExtension(t *testing.T) {
 	}
 }
 
-func TestRetentionDeleteUnsupportedBackendYieldsWarningPath(t *testing.T) {
-	candidates := []retention.BackupCandidate{{FilePath: "gdrive://folder/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
+// Retention delete warning-path tests moved to
+// internal/cli/retention_cleaner_test.go by spec 038 Sub-PR J
+// (retention.DeleteCandidates deleted with internal/retention/).
 
-	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "google-drive", config.StorageConfig{})
-	if len(deleted) != 0 {
-		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
-	}
-	if len(errs) == 0 {
-		t.Fatal("expected unsupported backend delete error")
-	}
-	if !strings.Contains(errs[0].Error(), "retention delete not supported") {
-		t.Fatalf("unexpected error: %v", errs[0])
-	}
-}
+func TestExecuteScheduledRestoreWithRunner_UsesProvidedRunnerForIncrementalRequest(t *testing.T) {
+	cfg := &config.Configuration{}
+	cfg.Scheduler.LockDir = "/tmp/sentinel-locks"
 
-func TestRetentionDeleteGCSFailureYieldsWarningPath(t *testing.T) {
-	candidates := []retention.BackupCandidate{{FilePath: "gs://bucket/backup.sql", Timestamp: time.Now().UTC(), Status: "success"}}
-
-	deleted, errs := retention.DeleteCandidates(context.Background(), candidates, "gcs", config.StorageConfig{})
-	if len(deleted) != 0 {
-		t.Fatalf("expected no deletions when gcs delete fails, got %d", len(deleted))
+	job := config.RestoreJob{
+		Name:        "incremental-restore",
+		Type:        "postgres",
+		Database:    "app",
+		RestoreMode: "incremental",
+		BackupSource: config.RestoreBackupSource{
+			Type:       "local",
+			LocalPath:  "/tmp/backups",
+			BackupPath: "app-latest.dump",
+		},
 	}
-	if len(errs) == 0 {
-		t.Fatal("expected gcs delete error")
+
+	called := false
+	result, err := scheduler.ExecuteScheduledRestoreWithRunner(
+		context.Background(),
+		cfg,
+		job.Name,
+		job,
+		nil,
+		nil,
+		func(_ context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+			called = true
+			if req == nil {
+				t.Fatal("execution request is nil")
+			}
+			if req.JobName != job.Name {
+				t.Fatalf("req.JobName = %q, want %q", req.JobName, job.Name)
+			}
+			if req.Job.RestoreMode != "incremental" {
+				t.Fatalf("req.Job.RestoreMode = %q, want incremental", req.Job.RestoreMode)
+			}
+			if req.Job.BackupSource.BackupPath != "app-latest.dump" {
+				t.Fatalf("req.Job.BackupSource.BackupPath = %q, want app-latest.dump", req.Job.BackupSource.BackupPath)
+			}
+			if req.LockDir != "/tmp/sentinel-locks" {
+				t.Fatalf("req.LockDir = %q, want /tmp/sentinel-locks", req.LockDir)
+			}
+			return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ExecuteScheduledRestoreWithRunner() error = %v", err)
+	}
+	if !called {
+		t.Fatal("expected provided restore runner to be invoked")
+	}
+	if result == nil {
+		t.Fatal("expected non-nil execution result")
 	}
 }

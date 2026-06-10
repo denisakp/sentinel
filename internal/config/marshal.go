@@ -7,16 +7,37 @@ import (
 	"strings"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
-	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	"github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
+	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
+
+const defaultIncrementalMaxChainDepth = 6
+
+// NormalizeIncrementalBackupConfig applies feature defaults for incremental backup policy.
+func NormalizeIncrementalBackupConfig(job BackupJob) BackupJob {
+	if job.IncrementalBackup == nil {
+		return job
+	}
+
+	normalized := *job.IncrementalBackup
+	if normalized.MaxChainDepth == 0 {
+		normalized.MaxChainDepth = defaultIncrementalMaxChainDepth
+	}
+	if normalized.OplogWindowWarnHours == 0 {
+		normalized.OplogWindowWarnHours = 24
+	}
+
+	job.IncrementalBackup = &normalized
+	return job
+}
 
 // BuildStorageParams converts a job's storage configuration into storage.Params.
 func BuildStorageParams(job BackupJob) *storage.Params {
@@ -34,12 +55,15 @@ func BuildStorageParams(job BackupJob) *storage.Params {
 		AWSBucketEndpoint:    job.Storage.S3BucketEndpoint,
 		AWSAccessKeyID:       job.Storage.S3AccessKeyID,
 		AWSSecretAccessKey:   job.Storage.S3SecretAccessKey,
+		AzureStorageAccount:  job.Storage.AzureStorageAccount,
+		AzureStorageKey:      job.Storage.AzureStorageKey,
+		AzureContainer:       job.Storage.AzureContainer,
 	}
 }
 
 // BuildPgDumpArgs maps a job into pg_dump arguments.
-func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*pg_dump.PgDumpArgs, error) {
-	pgArgs := &pg_dump.PgDumpArgs{
+func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*pg.PgDumpArgs, error) {
+	pgArgs := &pg.PgDumpArgs{
 		Host:             job.Host,
 		Port:             portToString(job.Port),
 		Username:         job.Username,
@@ -72,8 +96,8 @@ func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, stor
 }
 
 // BuildMySQLDumpArgs maps a job into mysqldump arguments.
-func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mysql_dump.MySqlDumpArgs, error) {
-	return &mysql_dump.MySqlDumpArgs{
+func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mysql.MySqlDumpArgs, error) {
+	return &mysql.MySqlDumpArgs{
 		Host:           job.Host,
 		Port:           portToString(job.Port),
 		Username:       job.Username,
@@ -85,8 +109,8 @@ func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, s
 }
 
 // BuildMariaDBDumpArgs maps a job into mariadb-dump arguments.
-func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mariadb_dump.MariaDBDumpArgs, error) {
-	return &mariadb_dump.MariaDBDumpArgs{
+func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mariadb.MariaDBDumpArgs, error) {
+	return &mariadb.MariaDBDumpArgs{
 		Host:           job.Host,
 		Port:           portToString(job.Port),
 		Username:       job.Username,
@@ -98,8 +122,8 @@ func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string,
 }
 
 // BuildMongoDumpArgs maps a job into mongodump arguments.
-func BuildMongoDumpArgs(job BackupJob, additionalArgs string, storageParams *storage.Params) (*mongo_dump.DumpMongoArgs, error) {
-	return &mongo_dump.DumpMongoArgs{
+func BuildMongoDumpArgs(job BackupJob, additionalArgs string, storageParams *storage.Params) (*mongo.DumpMongoArgs, error) {
+	return &mongo.DumpMongoArgs{
 		Uri:            job.URI,
 		Database:       job.Database,
 		Compress:       optionBool(job.DatabaseOptions, "gzip"),
@@ -221,6 +245,8 @@ func BuildAdvancedRestoreRequest(job RestoreJob) (*AdvancedRestoreRequest, error
 		PITRTargetTimeline:    job.PITRTargetTimeline,
 		IncrementalFromBackup: job.IncrementalFromBackup,
 		ConfirmFullFallback:   job.ConfirmFullFallback,
+		BinlogTargetTime:      job.MySQL.BinlogTargetTime,
+		BinlogTargetPosition:  job.MySQL.BinlogTargetPosition,
 	}
 
 	if mode == "pitr" && job.PITRTimestamp != "" {
@@ -245,6 +271,7 @@ func BuildPgRestoreArgs(job RestoreJob, password, stagedPath string) (*pg_restor
 		Database:       job.Database,
 		BackupPath:     stagedPath,
 		OnConflict:     effectiveRestoreConflict(job),
+		AllowCascade:   job.AllowCascade,
 		AdditionalArgs: BuildRestoreAdditionalArgs(job),
 	}, nil
 }
@@ -277,6 +304,33 @@ func BuildMariaDBRestoreArgs(job RestoreJob, password, stagedPath string) (*mari
 	}, nil
 }
 
+// BuildMySQLBinlogReplayArgs maps a restore job into mysqlbinlog replay arguments.
+func BuildMySQLBinlogReplayArgs(job RestoreJob, password string, binlogSources []string) (*mysqlbinlog.ReplayArgs, error) {
+	if job.Type != "mysql" && job.Type != "mariadb" {
+		return nil, fmt.Errorf("mysql binlog replay is only valid for mysql or mariadb jobs")
+	}
+
+	args := &mysqlbinlog.ReplayArgs{
+		Engine:        job.Type,
+		Host:          job.Host,
+		Port:          job.Port,
+		Username:      job.Username,
+		Password:      password,
+		Database:      job.Database,
+		BinlogSources: append([]string{}, binlogSources...),
+		TargetTime:    job.MySQL.BinlogTargetTime,
+	}
+
+	if job.MySQL.BinlogTargetPosition != nil {
+		args.TargetPosition = &mysqlbinlog.BinlogPosition{
+			File: job.MySQL.BinlogTargetPosition.File,
+			Pos:  job.MySQL.BinlogTargetPosition.Pos,
+		}
+	}
+
+	return args, nil
+}
+
 // BuildMongoRestoreArgs maps a restore job into mongorestore arguments.
 func BuildMongoRestoreArgs(job RestoreJob, stagedPath string) (*mongo_restore.RestoreArgs, error) {
 	return &mongo_restore.RestoreArgs{
@@ -300,6 +354,25 @@ func RestorePasswordFromEnv(envName string) (string, error) {
 		return "", fmt.Errorf("environment variable '%s' is not set", envName)
 	}
 	return value, nil
+}
+
+// BuildMongoOplogReplayArgs maps a restore job and an oplog archive path into
+// a mongo_restore.OplogReplayArgs for incremental restore replay.
+func BuildMongoOplogReplayArgs(job RestoreJob, archivePath string) (*mongo_restore.OplogReplayArgs, error) {
+	if job.Type != "mongodb" {
+		return nil, fmt.Errorf("mongodb oplog replay is only valid for mongodb jobs")
+	}
+	if strings.TrimSpace(archivePath) == "" {
+		return nil, fmt.Errorf("oplog archive path is required")
+	}
+	uri := job.URI
+	if strings.TrimSpace(uri) == "" {
+		return nil, fmt.Errorf("uri is required for mongodb oplog replay")
+	}
+	return &mongo_restore.OplogReplayArgs{
+		URI:         uri,
+		ArchivePath: archivePath,
+	}, nil
 }
 
 // BuildRestoreAdditionalArgs builds a space-separated args string from restore options.

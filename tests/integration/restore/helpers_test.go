@@ -6,6 +6,11 @@ import (
 	"testing"
 )
 
+func writeFile(t *testing.T, path string, data []byte) error {
+	t.Helper()
+	return os.WriteFile(path, data, 0o600)
+}
+
 func restoreProjectRoot(t *testing.T) string {
 	t.Helper()
 	cwd, err := os.Getwd()

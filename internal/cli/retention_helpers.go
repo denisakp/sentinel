@@ -1,11 +1,26 @@
 package cli
 
+// Retention orchestration, rewired by spec 038 Sub-PR J: the deleted
+// internal/retention.Manager is replaced by direct domain calls
+// (CalculateCandidates + ProtectActiveBaseline), storage DELETE via
+// ports.StorageBackend, and history DELETE via ports.Recorder.
+
 import (
 	"context"
+	"fmt"
+	"time"
 
-	"github.com/denisakp/sentinel/internal/retention"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/config"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/spf13/cobra"
 )
+
+// retentionFetchLimit bounds the history read backing candidate calculation.
+// The deleted Manager.fetchRecords read all rows; ListExecutions is paged, so
+// a single generous page preserves behavior for any realistic history size.
+const retentionFetchLimit = 100_000
 
 func runRetention(cmd *cobra.Command, preview bool) error {
 	path, _ := cmd.Flags().GetString("config")
@@ -21,15 +36,17 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 		return err
 	}
 
-	manager, err := retention.NewManager(cfg)
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 	if err != nil {
 		return err
 	}
-	defer manager.Close()
+	defer func() {
+		_ = mon.Close()
+	}()
 
 	ctx := context.Background()
 	if jobName != "" {
-		deleted, err := manager.Apply(ctx, jobName, dryRun)
+		deleted, err := applyJobRetention(ctx, cfg, mon, jobName, dryRun)
 		if err != nil {
 			return err
 		}
@@ -37,8 +54,8 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 		return nil
 	}
 
-	summary, err := manager.ApplyAll(ctx, dryRun)
-	if err != nil && len(summary.Errors) > 0 {
+	summary := applyAllRetention(ctx, cfg, mon, dryRun)
+	if len(summary.Errors) > 0 {
 		cmd.PrintErrln("retention completed with errors")
 	}
 	for job, count := range summary.ByBackupJob {
@@ -48,7 +65,102 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 	return nil
 }
 
-func printRetentionSummary(cmd *cobra.Command, jobName string, deleted []retention.DeletedBackup, dryRun bool) {
+// applyJobRetention executes the retention policy for one backup job:
+// domain candidate calculation, storage DELETE through ports.StorageBackend,
+// history DELETE through ports.Recorder.RetentionDeleteRecords.
+func applyJobRetention(ctx context.Context, cfg *config.Configuration, rec ports.Recorder, jobName string, dryRun bool) ([]domainret.DeletedBackup, error) {
+	job, ok := cfg.Databases[jobName]
+	if !ok {
+		return nil, fmt.Errorf("backup '%s' not found", jobName)
+	}
+	policy := domainret.Policy{
+		KeepLast: job.Retention.KeepLast,
+		KeepDays: job.Retention.KeepDays,
+		DryRun:   dryRun,
+	}
+
+	records, err := fetchRetentionRecords(ctx, rec, jobName)
+	if err != nil {
+		return nil, err
+	}
+	candidates := domainret.CalculateCandidates(records, policy, time.Now().UTC())
+	candidates = domainret.ProtectActiveBaseline(candidates, records)
+	if dryRun {
+		return candidatesToDeleted(candidates), nil
+	}
+
+	deleted, errs := deleteRetentionCandidates(ctx, candidates, job.Storage)
+	if len(errs) > 0 {
+		return deleted, fmt.Errorf("retention delete failed: %v", errs[0])
+	}
+
+	if err := rec.RetentionDeleteRecords(ctx, jobName, candidates); err != nil {
+		return deleted, err
+	}
+	return deleted, nil
+}
+
+// applyAllRetention runs applyJobRetention for every job carrying a policy.
+func applyAllRetention(ctx context.Context, cfg *config.Configuration, rec ports.Recorder, dryRun bool) domainret.ApplySummary {
+	summary := domainret.ApplySummary{ByBackupJob: make(map[string]int)}
+
+	for name, job := range cfg.Databases {
+		if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
+			continue
+		}
+		deleted, err := applyJobRetention(ctx, cfg, rec, name, dryRun)
+		if err != nil {
+			summary.Errors = append(summary.Errors, err.Error())
+			continue
+		}
+		summary.ByBackupJob[name] = len(deleted)
+		summary.TotalDeleted += int64(len(deleted))
+		for _, item := range deleted {
+			summary.TotalSize += item.FileSize
+		}
+	}
+
+	return summary
+}
+
+// fetchRetentionRecords reads the successful execution history for a job and
+// maps it to domain BackupRecords, newest first (ListExecutions orders by
+// timestamp DESC — ProtectActiveBaseline relies on records[0] being latest).
+func fetchRetentionRecords(ctx context.Context, rec ports.Recorder, jobName string) ([]domainret.BackupRecord, error) {
+	execs, err := rec.ListExecutions(ctx, &ports.Filter{BackupName: jobName, Status: "success"}, retentionFetchLimit, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query backup records: %w", err)
+	}
+
+	records := make([]domainret.BackupRecord, 0, len(execs))
+	for _, e := range execs {
+		records = append(records, domainret.BackupRecord{
+			FilePath:   e.FilePath,
+			FileSize:   e.FileSizeBytes,
+			Timestamp:  e.Timestamp,
+			Status:     e.Status,
+			BackupType: e.BackupType,
+			ChainID:    e.ChainID,
+			ChainIndex: e.ChainIndex,
+		})
+	}
+	return records, nil
+}
+
+func candidatesToDeleted(candidates []domainret.BackupCandidate) []domainret.DeletedBackup {
+	deleted := make([]domainret.DeletedBackup, 0, len(candidates))
+	for _, cand := range candidates {
+		deleted = append(deleted, domainret.DeletedBackup{
+			FilePath:      cand.FilePath,
+			FileSize:      cand.FileSize,
+			DeletionTime:  time.Now().UTC(),
+			ReasonDeleted: cand.ReasonDeleted,
+		})
+	}
+	return deleted
+}
+
+func printRetentionSummary(cmd *cobra.Command, jobName string, deleted []domainret.DeletedBackup, dryRun bool) {
 	mode := "apply"
 	if dryRun {
 		mode = "preview"

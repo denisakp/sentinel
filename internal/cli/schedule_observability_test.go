@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,8 +10,11 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func newScheduleStatusCommandForContractTest() *cobra.Command {
@@ -98,7 +102,7 @@ func TestScheduleStatusUnknownJobDiffersFromMissingArgValidation(t *testing.T) {
 
 func TestScheduleListTableHeadersAndLastStatusRemoval(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{
 			Name:          "prod-postgres",
 			ScheduleExpr:  "0 2 * * *",
@@ -126,7 +130,7 @@ func TestScheduleListTableHeadersAndLastStatusRemoval(t *testing.T) {
 
 func TestScheduleListTypeResolutionIncludesRestore(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{Name: "nightly-backup", ScheduleExpr: "0 2 * * *", NextExecution: next},
 		{Name: "restore-drill", ScheduleExpr: "0 4 * * 0", NextExecution: next},
 	}, map[string]config.RestoreJob{"restore-drill": {Type: "postgres"}})
@@ -144,7 +148,7 @@ func TestScheduleListTypeResolutionIncludesRestore(t *testing.T) {
 
 func TestScheduleListJSONCompatibilityIncludesLastStatus(t *testing.T) {
 	next := time.Date(2026, 3, 12, 2, 0, 0, 0, time.UTC)
-	rows := buildScheduleListRows([]scheduler.JobInfo{
+	rows := buildScheduleListRows([]schedule.JobInfo{
 		{
 			Name:          "prod-postgres",
 			ScheduleExpr:  "0 2 * * *",
@@ -160,5 +164,44 @@ func TestScheduleListJSONCompatibilityIncludesLastStatus(t *testing.T) {
 	payload := string(data)
 	if !strings.Contains(payload, "\"last_status\":\"failed\"") {
 		t.Fatalf("expected last_status in json payload, got %s", payload)
+	}
+}
+
+func TestExecuteRestoreJob_UsesCLIRestoreRunner(t *testing.T) {
+	prevScheduled := runScheduledRestoreExecution
+	prevRunner := runRestoreExecution
+	t.Cleanup(func() {
+		runScheduledRestoreExecution = prevScheduled
+		runRestoreExecution = prevRunner
+	})
+
+	runnerInvoked := false
+	runRestoreExecution = func(ctx context.Context, req *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error) {
+		runnerInvoked = true
+		return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
+	}
+
+	runScheduledRestoreExecution = func(
+		ctx context.Context,
+		cfg *config.Configuration,
+		jobName string,
+		job config.RestoreJob,
+		mon ports.Recorder,
+		limiter chan struct{},
+		runner scheduler.SharedRestoreRunner,
+	) (*internalrestore.ExecutionResult, error) {
+		_, err := runner(ctx, &internalrestore.ExecutionRequest{})
+		if err != nil {
+			return nil, err
+		}
+		return &internalrestore.ExecutionResult{Status: ports.StatusCompleted}, nil
+	}
+
+	err := executeRestoreJob(nil, &config.Configuration{}, nil, config.RestoreJob{Name: "restore-job"}, nil)
+	if err != nil {
+		t.Fatalf("executeRestoreJob() error = %v, want nil", err)
+	}
+	if !runnerInvoked {
+		t.Fatal("expected runRestoreExecution to be used by scheduled restore path")
 	}
 }

@@ -9,20 +9,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/spf13/cobra"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	timestamp := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	executions := []monitor.Execution{
+	executions := []ports.Execution{
 		{
-			ID:           "exec-001",
-			BackupName:   "prod-postgres",
-			Status:       "failed",
-			Timestamp:    timestamp,
-			DurationMs:   1500,
-			ErrorMessage: "dial tcp 10.0.0.1:5432: connect: connection refused after multiple retries",
+			ID:             "exec-001",
+			BackupName:     "prod-postgres",
+			BackupType:     "incremental",
+			ChainID:        "chain-001",
+			ChainIndex:     2,
+			DeltaSizeBytes: 2048,
+			Status:         "failed",
+			Timestamp:      timestamp,
+			DurationMs:     1500,
+			ErrorMessage:   "dial tcp 10.0.0.1:5432: connect: connection refused after multiple retries",
 		},
 	}
 
@@ -42,7 +47,7 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	}
 
 	headers := strings.Fields(lines[0])
-	expected := []string{"ID", "JOB", "STATUS", "TIMESTAMP", "DURATION", "ERROR"}
+	expected := []string{"ID", "JOB", "TYPE", "CHAIN", "STATUS", "TIMESTAMP", "DURATION", "DELTA", "ERROR"}
 	if strings.Join(headers, "|") != strings.Join(expected, "|") {
 		t.Fatalf("unexpected headers: got %v want %v", headers, expected)
 	}
@@ -61,6 +66,11 @@ func TestMonitorListHeaderOrderAndIDHandoff(t *testing.T) {
 	if !strings.Contains(showBuf.String(), "ID: exec-001") {
 		t.Fatalf("monitor show output should include handed-off id, got:\n%s", showBuf.String())
 	}
+	for _, expected := range []string{"Backup Type: incremental", "Chain ID: chain-001", "Chain Index: 2", "Delta Size: 2048"} {
+		if !strings.Contains(showBuf.String(), expected) {
+			t.Fatalf("monitor show output missing %q, got:\n%s", expected, showBuf.String())
+		}
+	}
 }
 
 func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
@@ -75,7 +85,7 @@ func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
 	t.Cleanup(func() { _ = mon.Close() })
 
 	now := time.Now().UTC()
-	records := []monitor.RestoreExecution{
+	records := []ports.RestoreExecution{
 		{RestoreName: "r-success", DatabaseType: "postgres", DatabaseName: "db", Status: "completed", Timestamp: now, CreatedAt: now},
 		{RestoreName: "r-failed", DatabaseType: "postgres", DatabaseName: "db", Status: "failure", Timestamp: now, CreatedAt: now},
 	}
@@ -106,11 +116,11 @@ func TestRestoreHistoryShowsRestoreStatuses(t *testing.T) {
 		}
 	}
 
-	if got := normalizeRestoreStatus(monitor.StatusTimeout); got != monitor.StatusTimeout {
-		t.Fatalf("normalizeRestoreStatus(timeout) = %q, want %q", got, monitor.StatusTimeout)
+	if got := normalizeRestoreStatus(ports.StatusTimeout); got != ports.StatusTimeout {
+		t.Fatalf("normalizeRestoreStatus(timeout) = %q, want %q", got, ports.StatusTimeout)
 	}
-	if got := normalizeRestoreStatus(monitor.StatusSkipped); got != monitor.StatusSkipped {
-		t.Fatalf("normalizeRestoreStatus(skipped) = %q, want %q", got, monitor.StatusSkipped)
+	if got := normalizeRestoreStatus(ports.StatusSkipped); got != ports.StatusSkipped {
+		t.Fatalf("normalizeRestoreStatus(skipped) = %q, want %q", got, ports.StatusSkipped)
 	}
 }
 
@@ -260,7 +270,7 @@ func newCLITestMonitor(t *testing.T) *monitor.Monitor {
 
 func recordCLITestExecution(t *testing.T, mon *monitor.Monitor, job, status string, timestamp time.Time, size int64) {
 	t.Helper()
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:     job,
 		DatabaseType:   "postgres",
 		Timestamp:      timestamp,

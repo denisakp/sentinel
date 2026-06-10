@@ -3,15 +3,20 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/ports"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 var runSharedRestoreExecution = internalrestore.ExecuteRestore
+
+// SharedRestoreRunner is the shared restore execution function signature used
+// by both CLI and scheduler paths.
+type SharedRestoreRunner func(context.Context, *internalrestore.ExecutionRequest) (*internalrestore.ExecutionResult, error)
 
 // RestoreExecutionConfig defines parameters for a scheduled restore operation
 type RestoreExecutionConfig struct {
@@ -34,7 +39,7 @@ type RestoreExecutionConfig struct {
 	BackupSource string // "local", "s3", "gdrive", "azure"
 
 	// Database-specific restore options
-	Options map[string]interface{}
+	Options map[string]any
 
 	// Restore strategy
 	OnConflict string // "ignore", "replace", "error"
@@ -180,10 +185,10 @@ func ExecuteRestoreWithCleanup(
 	executionID string,
 	backupPath string,
 	store storage.Storage,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	restoreFn func(context.Context) error,
-) *RestoreExecutionResult {
-	result := &RestoreExecutionResult{
+) (result *RestoreExecutionResult) {
+	result = &RestoreExecutionResult{
 		ExecutionID: executionID,
 		BackupPath:  backupPath,
 	}
@@ -193,39 +198,51 @@ func ExecuteRestoreWithCleanup(
 	var cleanupSucceeded *bool
 	var cleanupError string
 
-	// Defer cleanup handler - executes regardless of success/failure
+	// Cleanup defer — declared first, runs LAST. Wrapped in inner recover so a
+	// panic during monitor recording itself is best-effort logged.
 	defer func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("scheduler: panic during restore cleanup recording",
+					"error", fmt.Sprintf("%v", r),
+				)
+			}
+		}()
+		execID := result.ExecutionID
 		if result.Error != nil && backupPath != "" {
-			// Restore failed - attempt cleanup of partial restore artifacts
 			cleanupAttempted = true
 			if cleanupErr := store.DeleteBackup(ctx, backupPath); cleanupErr != nil {
-				// Cleanup failed (backup file might be on remote storage, cleanup may not apply)
 				succeeded := false
 				cleanupSucceeded = &succeeded
 				cleanupError = cleanupErr.Error()
 			} else {
-				// Cleanup succeeded or not needed
 				succeeded := true
 				cleanupSucceeded = &succeeded
 			}
-
-			// Record failure with cleanup outcome
-			if mon != nil && executionID != "" {
-				errorMsg := result.Error.Error()
-				if recordErr := mon.RecordFailure(ctx, executionID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
-					// Log but don't override original error
-					fmt.Printf("Warning: failed to record restore failure: %v\n", recordErr)
-				}
+		}
+		if result.Error != nil && mon != nil && execID != "" {
+			errorMsg := result.Error.Error()
+			if recordErr := mon.RecordFailure(ctx, execID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
+				slog.Default().Warn("failed to record restore failure", "error", recordErr)
 			}
-		} else if result.Success && mon != nil && executionID != "" {
-			// Restore succeeded - record success
-			if recordErr := mon.RecordSuccess(ctx, executionID); recordErr != nil {
-				fmt.Printf("Warning: failed to record restore success: %v\n", recordErr)
+		} else if result.Success && mon != nil && execID != "" {
+			if recordErr := mon.RecordSuccess(ctx, execID); recordErr != nil {
+				slog.Default().Warn("failed to record restore success", "error", recordErr)
 			}
 		}
 	}()
 
-	// Execute the restore
+	// Inner-recover — declared second, runs FIRST. Converts panic → result.Error.
+	defer func() {
+		if pErr, stack := handlePanic(recover()); pErr != nil {
+			result.Error = pErr
+			slog.Default().Error("scheduler: restore worker panic",
+				"error", pErr,
+				"stack", string(stack),
+			)
+		}
+	}()
+
 	if err := restoreFn(ctx); err != nil {
 		result.Error = err
 		result.CleanupNeeded = true
@@ -243,16 +260,34 @@ func ExecuteScheduledRestore(
 	cfg *config.Configuration,
 	jobName string,
 	job config.RestoreJob,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	limiter chan struct{},
 ) (*internalrestore.ExecutionResult, error) {
+	return ExecuteScheduledRestoreWithRunner(ctx, cfg, jobName, job, mon, limiter, runSharedRestoreExecution)
+}
+
+// ExecuteScheduledRestoreWithRunner executes a restore job and allows callers
+// to provide the exact restore execution function used by CLI restore paths.
+func ExecuteScheduledRestoreWithRunner(
+	ctx context.Context,
+	cfg *config.Configuration,
+	jobName string,
+	job config.RestoreJob,
+	mon ports.Recorder,
+	limiter chan struct{},
+	runner SharedRestoreRunner,
+) (*internalrestore.ExecutionResult, error) {
+	if runner == nil {
+		runner = runSharedRestoreExecution
+	}
+
 	if limiter != nil {
 		select {
 		case limiter <- struct{}{}:
 			defer func() { <-limiter }()
 		default:
 			result := &internalrestore.ExecutionResult{
-				Status:             monitor.StatusSkipped,
+				Status:             ports.StatusSkipped,
 				Reason:             "concurrency_limit_reached",
 				StartedAt:          time.Now().UTC(),
 				CompletedAt:        time.Now().UTC(),
@@ -263,7 +298,7 @@ func ExecuteScheduledRestore(
 			}
 
 			if mon != nil {
-				_ = mon.RecordRestoreExecution(ctx, &monitor.RestoreExecution{
+				if err := mon.RecordRestoreExecution(ctx, &ports.RestoreExecution{
 					RestoreName:      jobName,
 					DatabaseType:     job.Type,
 					DatabaseName:     job.Database,
@@ -271,20 +306,27 @@ func ExecuteScheduledRestore(
 					ConflictStrategy: effectiveConflictStrategy(job.ConflictStrategy),
 					Timestamp:        result.StartedAt,
 					DurationMs:       0,
-					Status:           monitor.StatusSkipped,
+					Status:           ports.StatusSkipped,
 					Reason:           "concurrency_limit_reached",
 					ErrorReason:      "concurrency_limit_reached",
 					SourceBackupPath: job.BackupSource.BackupPath,
 					CreatedAt:        result.StartedAt,
 					FinishedAt:       &result.CompletedAt,
-				})
+				}); err != nil {
+					slog.Error("failed to record skipped restore execution",
+						"event", "monitor_record_restore_failed",
+						"job", jobName,
+						"reason", "concurrency_limit_reached",
+						"error", err.Error(),
+					)
+				}
 			}
 
 			return result, nil
 		}
 	}
 
-	result, err := runSharedRestoreExecution(ctx, &internalrestore.ExecutionRequest{
+	result, err := runner(ctx, &internalrestore.ExecutionRequest{
 		JobName: jobName,
 		Job:     job,
 		Config:  cfg,
@@ -292,7 +334,7 @@ func ExecuteScheduledRestore(
 		LockDir: cfg.Scheduler.LockDir,
 	})
 	if err != nil {
-		if result != nil && result.Status == monitor.StatusSkipped {
+		if result != nil && result.Status == ports.StatusSkipped {
 			return result, nil
 		}
 		return result, err

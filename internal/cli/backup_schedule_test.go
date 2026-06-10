@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -69,7 +71,7 @@ func TestRunScheduledRetentionWarningNonFatal(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mon.Close() })
 
-	executions := []*monitor.Execution{
+	executions := []*ports.Execution{
 		{
 			BackupName:    "retention-job",
 			DatabaseType:  "postgres",
@@ -128,7 +130,7 @@ func TestRunScheduledRetentionWarningNonFatalGCS(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mon.Close() })
 
-	executions := []*monitor.Execution{
+	executions := []*ports.Execution{
 		{
 			BackupName:    "retention-job",
 			DatabaseType:  "postgres",
@@ -227,7 +229,7 @@ func TestResolveBackupPathGCSDoesNotExposeCredentials(t *testing.T) {
 		GCSProjectID:       "prod-project",
 	}
 
-	path, _ := resolveBackupPath(params)
+	path, _ := backup.ResolveArtifactRef(params.StorageType, params.LocalPath, params.OutName, params.GCSBucket)
 	if path != "gs://prod-backups/db/prod.sql" {
 		t.Fatalf("path = %q", path)
 	}

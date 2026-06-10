@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
+	"github.com/denisakp/sentinel/internal/ports"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	"github.com/denisakp/sentinel/internal/scheduler"
 )
 
@@ -50,8 +50,8 @@ func TestScheduledRestoreOverlapReturnsSkipResult(t *testing.T) {
 		if item.res == nil {
 			t.Fatal("ExecuteScheduledRestore() result = nil")
 		}
-		if item.res.Status != monitor.StatusSkipped {
-			t.Fatalf("result.Status = %q, want %q", item.res.Status, monitor.StatusSkipped)
+		if item.res.Status != ports.StatusSkipped {
+			t.Fatalf("result.Status = %q, want %q", item.res.Status, ports.StatusSkipped)
 		}
 		if item.res.Reason != "concurrency_limit_reached" {
 			t.Fatalf("result.Reason = %q, want concurrency_limit_reached", item.res.Reason)

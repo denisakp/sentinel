@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 )
 
 func TestPostgresBackup(t *testing.T) {
@@ -33,7 +33,7 @@ func TestPostgresBackup(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "postgres_test.backup.sql")
 
-	args := &pg_dump.PgDumpArgs{
+	args := &pg.PgDumpArgs{
 		Username:    db.Username,
 		Password:    db.Password,
 		Host:        db.Host,
@@ -50,7 +50,7 @@ func TestPostgresBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running PostgreSQL backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := pg_dump.Backup(args)
+	_, err := pg.Backup(args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -90,7 +90,7 @@ func TestPostgresRestore(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "postgres_test.backup.sql")
 
-	backupArgs := &pg_dump.PgDumpArgs{
+	backupArgs := &pg.PgDumpArgs{
 		Username:    db.Username,
 		Password:    db.Password,
 		Host:        db.Host,
@@ -104,7 +104,7 @@ func TestPostgresRestore(t *testing.T) {
 		},
 	}
 
-	if err := pg_dump.Backup(backupArgs); err != nil {
+	if _, err := pg.Backup(backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "postgres_fail.backup.sql")
 
-	args := &pg_dump.PgDumpArgs{
+	args := &pg.PgDumpArgs{
 		Username:    "invalid_user",
 		Password:    "invalid_password",
 		Host:        "invalid_host",
@@ -150,7 +150,7 @@ func TestPostgresBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running PostgreSQL backup with invalid credentials (expecting failure)")
-	err = pg_dump.Backup(args)
+	_, err = pg.Backup(args)
 
 	// Verify backup failed as expected
 	if err == nil {
@@ -171,7 +171,7 @@ func TestPostgresDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &pg_dump.PgDumpArgs{
+	args := &pg.PgDumpArgs{
 		Username:    "test_user",
 		Password:    "test_pass",
 		Host:        "localhost",

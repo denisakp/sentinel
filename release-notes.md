@@ -1,5 +1,68 @@
 # Sentinel Release Notes
 
+## [Unreleased]
+
+### Performance
+
+- **backup hashing**: compute the plaintext manifest hash inline with the dump write, eliminating a second full read of the artefact. Each engine adapter (`pg_dump`, `pg_dumpall`, `mysqldump` single + `--all-databases`, `mariadb-dump` single + `--all-databases`, `mongodump` local) now returns `(digest, error)` where `digest` is `hex(sha256(payload))` of the bytes handed to storage; the orchestrator stores it in `.manifest.json` as-is. The encrypted path (AES-256-GCM) and `sentinel backup verify` are unchanged. (PRD 19)
+
+### Deprecated
+
+- **`sentinel backup --password` / `-p`**: deprecated; will be removed in the next minor release. Passing a password on the command line exposes it via `ps`, `/proc/<pid>/cmdline`, and shell history. Use one of three safe channels instead: `--password-env <VAR>`, `--password-file <PATH>` (first line, right-trimmed; warns on group/world-readable mode), or the existing config field `databases.<id>.password_env`. CLI flag precedence over config is preserved (silent override). Conflicts among `--password`, `--password-env`, `--password-file` are hard errors before any DB I/O. Migration recipes: [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md). (Feature 015)
+
+### Security
+
+- **mariadb dump**: migrated MariaDB backup adapter (`pkg/backup/mariadb_dump`) from `--password=<value>` argv to `MYSQL_PWD` env injection, closing the last argv-leak path across supported engines. PostgreSQL (`PGPASSWORD`), MySQL (`MYSQL_PWD`), and MongoDB (URI) channels unchanged. Verified via argv-inspection unit tests in `pkg/backup/mariadb_dump/args_builder_test.go` and `pkg/backup/mariadb_dump/env_injection_test.go`. (Feature 015)
+- **dump adapters**: redact credentials embedded in subprocess stderr before they reach returned errors, logs, the monitor SQLite store, or notifier payloads. Previously, a failing `pg_dump` / `pg_dumpall` / `mysqldump` / `mariadb-dump` / `mongodump` (incl. oplog) invocation could leak `PGPASSWORD=…`, `MYSQL_PWD=…`, `MONGO_INITDB_ROOT_PASSWORD=…`, libpq `password = …`, `--password=…`, `-p<value>`, or URI userinfo (`scheme://user:secret@host`) into operator-visible output. All eight dump-adapter callsites now route stderr through `sanitize.RedactStderr`, which caps the embedded buffer at 64 KiB with an explicit truncation marker. CI gate (`make lint-redact-stderr`, wired into `.github/workflows/integration.yml`) prevents regression. Severity: medium (local-file disclosure on failure); no behavior change on successful backups. Audit artifact: `docs/audit/stderr-redaction-audit.md`. (Feature 012)
+
+### Added
+
+- **mongo backups upload to remote storage**: `mongodump` now honors `--storage s3|gcs|azure|google-drive`. Archive-mode output stages under `<backup_path>/.staging/<job-id>/` and streams to the configured backend via `StorageBackend.Upload`; staging dir is cleaned on success and failure. Local-backend behaviour unchanged. (Feature 024)
+- **monitor schema migration framework**: monitor history DB now carries an explicit `schema_version` integer that is gated on every open. Stale DBs are migrated under a cross-process file lock (`<db>.migrate.lock` via `internal/lock`); forward-incompatible DBs (`current > BinarySchemaVersion`) are refused before any read/write with `monitor.ErrForwardIncompatible`, surfaced at the CLI with a what/why/how block and a non-zero exit. The previous silent legacy-fallback INSERT path in `RecordRestoreExecution` is removed — restore rows always carry `restore_mode` / `planning_status`. New `sentinel monitor doctor [--repair] [--json]` inspects state with stable exit codes (`0/1/2/3/4` for current/stale/forward-incompat/missing/corrupt) and idempotent migration application. Runbook: [`docs/runbooks/monitor-schema-migration.md`](docs/runbooks/monitor-schema-migration.md). (PRD-11 / spec 017)
+
+### Changed (breaking)
+
+- **`additional_args` parser**: replaced the naive regex (`"[^"]*"|\S+`) in `internal/backup/args.go` and the four ad-hoc `parseCLIArgs` (`strings.Fields`) helpers in `pkg/restore/{pg,mysql,mariadb,mongo}_restore/` with `github.com/google/shlex`-backed POSIX tokenization. Quoted values with embedded whitespace (`--exclude-table-data="audit logs"`, `--where="updated_at > '2026-01-01'"`) now reach the dump/restore tool as a single argument with surrounding quotes stripped — matching how every other CLI tool handles arguments. Unterminated quotes are rejected at config-load time (via `ValidateRestoreJob`) AND at job-execution time with `backup.ErrUnterminatedQuote`; NUL bytes are rejected with `backup.ErrNULByte`. Variable expansion (`$VAR`), command substitution (`` `cmd` ``, `$(cmd)`), and glob expansion are NOT performed — those characters pass through literally. **Breaking** for operators whose configs relied on the prior regex leaking surrounding quote characters into `argv`; in practice the leaked quotes were always cosmetic on the wire and the change is a strict correction. Run `sentinel config validate` after upgrading. Reference: [`docs/runbooks/additional-args.md`](docs/runbooks/additional-args.md), [ADR 0009](docs/adr/0009-shlex-args-parser.md). (PRD-16 / spec 023)
+
+### Fixed
+
+- **scheduler**: connectivity-check close errors no longer terminate the process. SQL (`internal/backup/sql.PingSqlDatabase`) and Mongo (`internal/backup/mongo.CheckConnectivity`) helpers now propagate close/disconnect errors through the existing retry path instead of calling `log.Fatalf` / `log.Panic`. A `golangci-lint` `forbidigo` rule and a CI job (`.github/workflows/lint.yml`) prevent reintroduction of `log.Fatal*`, `log.Panic*`, and library-side `os.Exit`. `backup verify` 2/3/4 exit-code contract preserved via `internal/cli/exit_codes.go`. (PRD-03 / spec 016)
+- **tls (MariaDB)**: mutual TLS now works. The MariaDB arg builder previously emitted `--ssl-cert=<path>` but silently dropped the configured `client_key`, breaking the handshake against any MariaDB server requiring X509 client auth (or, with a permissive server, falling back to a non-mTLS connection without operator notice). The builder now also emits `--ssl-key=<path>` whenever `tls.client_key` is set. The pair-validation in `internaltls.Config.Validate()` continues to reject half-configured mTLS at config load. PostgreSQL and MySQL audited and confirmed correct (no change). PRD 05.
+- **scheduler**: bounded executor no longer leaks slots on worker panic; panics now appear in monitor history with a `worker panic: ` error-message prefix and are fed through the retry policy as ordinary failures (PRD 09, ADR 0008 promoted to Accepted).
+- **restore (optional sidecar)**: optional `.manifest.json` sidecars no longer fail the restore when absent. `downloadOptionalSourceObject` in `internal/restore/source.go` previously returned the same `error` for not-found and for transport/permission failures, leaving callers to disambiguate via `errors.Is(err, ErrSourceObjectNotFound)`. The function now returns `(found bool, err error)`: absent ⇒ `(false, nil)`; transport/permission/cancellation ⇒ `(false, wrappedErr)`; present ⇒ `(true, nil)`. Call sites in `StageRestoreSource` and `StageChainArtifacts` updated; mandatory-path behaviour and the `internal/cli/restore.go` operator-facing handling of `ErrSourceObjectNotFound` unchanged. PRD 12.
+- **lock**: closed the TOCTOU window in stale-lock detection. Acquisition now layers a kernel-enforced advisory `flock(2)` over the PID file and enforces the dual stale criterion (PID-dead AND age > threshold) inside the package. New typed errors (`ErrLockHeld`, `ErrLockUnsupported`, `ErrLockIO`) plus three acquisition modes (non-blocking, blocking-with-context, bounded-wait); on-disk v1 lock file format unchanged. POSIX-only (Linux + macOS) — non-POSIX targets return a clear "unsupported platform" error at first call. PRD 10, ADR 0007 promoted to Accepted.
+
+### Security Advisory — Envelope v2
+
+- **Scope**: All encrypted backups produced before this version (Sentinel ≤ v1.1.1) used the v1 envelope, which lacked an on-disk version byte and relied on a streaming nonce scheme whose contract was not enforced by code-level guards.
+- **Impact**: The nonce-reuse risk class affects AES-GCM confidentiality. Operators MUST treat pre-v2 ciphertexts as potentially-weakened.
+- **Default behavior**: From this version on, `sentinel restore` and `sentinel backup verify` refuse pre-v2 (legacy) artifacts. New encrypted backups carry the v2 envelope header (`SENC` + version byte `0x02`) on disk and `encryption.envelope_version = 2` in the manifest.
+- **Opt-in flag**: `--allow-legacy-envelope` (env: `SENTINEL_ALLOW_LEGACY_ENVELOPE=1`) lets operators decrypt legacy artifacts at their own risk. A loud WARNING is printed to stderr and a structured `crypto.legacy_envelope_decrypt` log line is emitted per opt-in decryption.
+- **Recommended remediation**: Re-encrypt prior backups from source. A dedicated `sentinel security reencrypt` helper is tracked under a separate PRD.
+- **Inspecting an artifact**: `xxd -l 5 backup.enc` — v2 starts with `53 45 4E 43 02`; anything else is legacy.
+
+## [v1.1.1] - March 20, 2026
+
+### Restore Observability
+
+- `sentinel restore history` now reads real restore execution records from monitor history instead of placeholder output.
+- Restore history status values are normalized for operators: `success`, `failed`, `timeout`, `skipped`.
+- Restore monitor query support now includes filtered restore execution listing with restore-specific fields.
+
+### Restore Notifications
+
+- Manual `sentinel restore run` now dispatches restore notifications using configured restore notification channels.
+- Restore execution statuses are mapped to notification events consistently:
+  - `success` -> `success`
+  - `failed` and `timeout` -> `failure`
+  - `skipped` -> `warning`
+
+### Tests
+
+- Added CLI coverage for restore notification dispatch across success, failed, timeout, and skipped outcomes.
+- Added CLI restore history observability coverage for status normalization.
+- Added integration coverage combining restore monitor history recording with restore notification delivery.
+
 ## [v1.1.0] - March 15, 2026
 
 ### Added

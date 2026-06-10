@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/crypto"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/spf13/cobra"
 )
 

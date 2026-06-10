@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/restore"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func TestPostgresPITRPlanningFromManifest(t *testing.T) {
@@ -27,11 +28,11 @@ func TestPostgresPITRPlanningFromManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanAdvancedRestoreFromManifestPath() error = %v", err)
 	}
-	if plan.Status != restore.PlanStatusReady {
-		t.Fatalf("Status = %q, want %q", plan.Status, restore.PlanStatusReady)
+	if plan.Status != domainrestore.PlanStatusReady {
+		t.Fatalf("Status = %q, want %q", plan.Status, domainrestore.PlanStatusReady)
 	}
-	if plan.Mode != restore.AdvancedRestoreModePITR {
-		t.Fatalf("Mode = %q, want %q", plan.Mode, restore.AdvancedRestoreModePITR)
+	if plan.Mode != domainrestore.AdvancedRestoreModePITR {
+		t.Fatalf("Mode = %q, want %q", plan.Mode, domainrestore.AdvancedRestoreModePITR)
 	}
 }
 
@@ -55,8 +56,8 @@ func TestPostgresPITRPlanningRejectsOutsideWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanAdvancedRestoreFromManifestPath() error = %v", err)
 	}
-	if plan.Status != restore.PlanStatusRejected {
-		t.Fatalf("Status = %q, want %q", plan.Status, restore.PlanStatusRejected)
+	if plan.Status != domainrestore.PlanStatusRejected {
+		t.Fatalf("Status = %q, want %q", plan.Status, domainrestore.PlanStatusRejected)
 	}
 	if plan.ReasonCode != restore.ReasonCodePITROutsideRecoverableWindow {
 		t.Fatalf("ReasonCode = %q, want %q", plan.ReasonCode, restore.ReasonCodePITROutsideRecoverableWindow)

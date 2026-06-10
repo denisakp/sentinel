@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/notifier"
-	"github.com/denisakp/sentinel/internal/restore"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
+	restore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 )
 
 func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
@@ -22,9 +23,9 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 		PITRInputValue:   targetTime.Format(time.RFC3339),
 		PITRTimestampUTC: &targetTime,
 	}
-	pitrManifest := &manifest.BackupManifest{
+	pitrManifest := &ports.BackupManifest{
 		BackupID: "postgres-base-2026-03-20T22-00-00Z",
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities:                  []string{"pitr"},
 			RecoverableWindowStartUTC:     &windowStart,
 			RecoverableWindowEndUTC:       &windowEnd,
@@ -36,11 +37,11 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 		RestoreMode:           "incremental",
 		IncrementalFromBackup: "postgres-base-2026-03-19",
 	}
-	incrementalManifest := &manifest.BackupManifest{
+	incrementalManifest := &ports.BackupManifest{
 		BackupID: "postgres-delta-2026-03-20",
-		AdvancedRestore: &manifest.AdvancedRestoreMetadata{
+		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"incremental"},
-			IncrementalLineage: &manifest.IncrementalLineageMetadata{
+			IncrementalLineage: &ports.IncrementalLineageMetadata{
 				BaselineBackupID:   "postgres-base-2026-03-19",
 				ExecutionSupported: false,
 				RequiredBackupIDs: []string{
@@ -58,7 +59,7 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 			if err != nil {
 				b.Fatalf("plan pitr restore: %v", err)
 			}
-			if plan.Status != restore.PlanStatusReady {
+			if plan.Status != domainrestore.PlanStatusReady {
 				b.Fatalf("unexpected plan status: %s", plan.Status)
 			}
 		}
@@ -70,7 +71,7 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 			if err != nil {
 				b.Fatalf("plan incremental restore: %v", err)
 			}
-			if plan.Status != restore.PlanStatusConfirmationRequired {
+			if plan.Status != domainrestore.PlanStatusConfirmationRequired {
 				b.Fatalf("unexpected plan status: %s", plan.Status)
 			}
 		}
@@ -78,11 +79,11 @@ func BenchmarkAdvancedRestorePlannerOverhead(b *testing.B) {
 }
 
 func BenchmarkAdvancedRestoreTransferMetricReporting(b *testing.B) {
-	restoreContext := &notifier.RestoreContext{
+	restoreContext := &ports.RestoreContext{
 		RestoreName:        "postgres-incident-recovery",
 		DatabaseType:       "postgres",
 		DatabaseName:       "appdb",
-		Status:             notifier.StatusSuccess,
+		Status:             ports.NotifyStatusSuccess,
 		StartTime:          time.Date(2026, time.March, 20, 23, 55, 0, 0, time.UTC),
 		EndTime:            time.Date(2026, time.March, 21, 0, 9, 32, 0, time.UTC),
 		BytesRestored:      25 * 1024 * 1024 * 1024,

@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 )
 
 type mockBackupStorage struct{}
@@ -32,7 +33,7 @@ func schedulerTestMasterKey() []byte {
 	return k
 }
 
-func createEncryptedBackupForScheduler(t *testing.T, plain []byte, backupID string, masterKey []byte) (string, *manifest.BackupManifest) {
+func createEncryptedBackupForScheduler(t *testing.T, plain []byte, backupID string, masterKey []byte) (string, *ports.BackupManifest) {
 	t.Helper()
 	filePath := filepath.Join(t.TempDir(), "restore-target.bin")
 	if err := os.WriteFile(filePath, plain, 0o644); err != nil {
@@ -86,17 +87,17 @@ func createEncryptedBackupForScheduler(t *testing.T, plain []byte, backupID stri
 		t.Fatalf("stat encrypted backup: %v", err)
 	}
 
-	m := &manifest.BackupManifest{
+	m := &ports.BackupManifest{
 		BackupID:     backupID,
 		Database:     "db",
 		DatabaseType: "postgres",
 		CreatedAt:    time.Now().UTC(),
 		SizeBytes:    info.Size(),
-		Hash: manifest.HashInfo{
+		Hash: ports.HashInfo{
 			Algorithm: "sha256",
 			Value:     hw.Sum(),
 		},
-		Encryption: &manifest.EncryptionInfo{
+		Encryption: &ports.EncryptionInfo{
 			Algorithm:     "AES-256-GCM",
 			KeyDerivation: "PBKDF2-HMAC-SHA256",
 			Iterations:    100000,
@@ -171,7 +172,7 @@ func TestRecordRestoreExecution_PropagatesAdvancedDefaults(t *testing.T) {
 		BackupPath: "backup.sql",
 	}, time.Now().UTC(), true, 100, true, "")
 
-	items, err := mon.ListRestoreExecutions(context.Background(), &monitor.RestoreFilter{RestoreName: "restore-scheduled"}, 10, 0)
+	items, err := mon.ListRestoreExecutions(context.Background(), &ports.RestoreFilter{RestoreName: "restore-scheduled"}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRestoreExecutions() error = %v", err)
 	}

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +24,8 @@ var scheduleCmd = &cobra.Command{
 	Long:  "Start, stop, list, or view status of scheduled backups and restores defined in YAML configuration.\n\nExamples:\n  sentinel schedule start --config sentinel.yaml\n  sentinel schedule list --config sentinel.yaml",
 }
 
+var runScheduledRestoreExecution = scheduler.ExecuteScheduledRestoreWithRunner
+
 var scheduleStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the backup and restore scheduler",
@@ -30,6 +34,9 @@ var scheduleStartCmd = &cobra.Command{
 		path, _ := cmd.Flags().GetString("config")
 		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
+			return err
+		}
+		if err := validateScheduledJobs(cfg); err != nil {
 			return err
 		}
 
@@ -66,7 +73,17 @@ var scheduleStartCmd = &cobra.Command{
 			}
 			jobCopy := job
 			if err := s.AddJob(job.Name, job.Schedule, func() error {
-				return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled)
+				return scheduler.RunBackupWithRetry(ctx, jobCopy.Name, jobCopy.Database, func() (err error) {
+					// Per-attempt panic recovery so a panicking worker
+					// consumes a retry attempt rather than aborting the
+					// retry loop (FR-008).
+					defer func() {
+						if pErr, _ := scheduler.HandlePanic(recover()); pErr != nil {
+							err = pErr
+						}
+					}()
+					return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+				})
 			}); err != nil {
 				return err
 			}
@@ -184,7 +201,7 @@ type scheduleListRow struct {
 	LastStatus    string `json:"last_status"`
 }
 
-func buildScheduleListRows(infos []scheduler.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
+func buildScheduleListRows(infos []schedule.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
 	rows := make([]scheduleListRow, 0, len(infos))
 	for _, info := range infos {
 		jobType := "backup"
@@ -274,11 +291,51 @@ func init() {
 	scheduleStatusCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 }
 
+// validateScheduledJobs runs the pure domain validation (schedule.Validate)
+// over every job the scheduler would register: enabled backup jobs with a
+// schedule and enabled restore jobs with a schedule. Cron-expression parsing
+// stays in the scheduler runtime adapter (FR-004/FR-005).
+func validateScheduledJobs(cfg *config.Configuration) error {
+	for _, job := range cfg.Databases {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     job.Name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindBackup,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("backup job %q: %w", job.Name, err)
+		}
+	}
+	for name, job := range cfg.Restores {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindRestore,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("restore job %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
 // executeRestoreJob executes a single restore job
 func executeRestoreJob(
 	cmd *cobra.Command,
 	cfg *config.Configuration,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	job config.RestoreJob,
 	limiter chan struct{},
 ) error {
@@ -288,12 +345,12 @@ func executeRestoreJob(
 		cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n", job.Name, job.Type, job.Database)
 	}
 
-	result, err := scheduler.ExecuteScheduledRestore(ctx, cfg, job.Name, job, mon, limiter)
+	result, err := runScheduledRestoreExecution(ctx, cfg, job.Name, job, mon, limiter, runRestoreExecution)
 	if err != nil {
 		return err
 	}
 
-	if result != nil && result.Status == monitor.StatusSkipped && cmd != nil {
+	if result != nil && result.Status == ports.StatusSkipped && cmd != nil {
 		cmd.Printf("Restore job %s skipped: %s\\n", job.Name, result.Reason)
 	}
 

@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,7 @@ var backupVerifyCmd = &cobra.Command{
 		cfg, err := config.LoadConfig(cfgPath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, "", fmt.Sprintf("failed to load config: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("load config: %w", ErrVerifyInternal)
 		}
 
 		if outputFmt == "" {
@@ -43,7 +44,7 @@ var backupVerifyCmd = &cobra.Command{
 		mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, "", fmt.Sprintf("failed to open history db: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("open history db: %w", ErrVerifyInternal)
 		}
 		defer mon.Close()
 
@@ -53,31 +54,31 @@ var backupVerifyCmd = &cobra.Command{
 		if err != nil || exec == nil {
 			verifyPrintError(outputFmt, backupID, "",
 				fmt.Sprintf("backup ID %q not found in history\n  Fix: run 'sentinel monitor list' to see available backup IDs", backupID))
-			os.Exit(2)
+			return fmt.Errorf("backup %q: %w", backupID, ErrVerifyNotFound)
 		}
 
 		if exec.FilePath == "" {
 			verifyPrintSkipped(outputFmt, backupID)
-			os.Exit(3)
+			return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 		}
 
 		manifestPath := exec.FilePath + ".manifest.json"
 		m, err := manifest.ReadManifest(manifestPath)
 		if err != nil {
-			if errors.Is(err, manifest.ErrNoManifest) {
+			if errors.Is(err, ports.ErrNoManifest) {
 				verifyPrintSkipped(outputFmt, backupID)
-				os.Exit(3)
+				return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 			}
 			verifyPrintError(outputFmt, backupID, exec.BackupName,
 				fmt.Sprintf("failed to read manifest: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("read manifest: %w", ErrVerifyInternal)
 		}
 
 		computedHash, err := verifyComputeFileHash(exec.FilePath)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, exec.BackupName,
 				fmt.Sprintf("failed to compute hash: %v", err))
-			os.Exit(4)
+			return fmt.Errorf("compute hash: %w", ErrVerifyInternal)
 		}
 
 		verifiedAt := time.Now().UTC()
@@ -101,7 +102,7 @@ var backupVerifyCmd = &cobra.Command{
 				fmt.Printf("  Computed hash: %s\n", computedHash)
 				fmt.Println("  Status:        FAIL - hash mismatch")
 			}
-			os.Exit(1)
+			return errors.New("hash mismatch")
 		}
 
 		if outputFmt == "json" {
@@ -175,4 +176,6 @@ func init() {
 	BackupCmd.AddCommand(backupVerifyCmd)
 	backupVerifyCmd.Flags().String("config", "", "Path to sentinel YAML config")
 	backupVerifyCmd.Flags().String("output", "", "Output format: json or text")
+	backupVerifyCmd.Flags().Bool("allow-legacy-envelope", legacyEnvelopeEnvDefault(),
+		"Decrypt artifacts produced before the v2 envelope fix. UNSAFE: pre-v2 streams used a flawed nonce scheme. Use only to recover plaintext for re-encryption.")
 }

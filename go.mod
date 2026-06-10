@@ -11,10 +11,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2
 	github.com/aws/smithy-go v1.22.0
 	github.com/go-sql-driver/mysql v1.8.1
-	github.com/lib/pq v1.10.9
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/lib/pq v1.12.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.8.1
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	go.mongodb.org/mongo-driver/v2 v2.0.0-beta2
 	golang.org/x/crypto v0.45.0
 	google.golang.org/api v0.204.0
@@ -110,7 +112,6 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
-	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	go.opencensus.io v0.24.0 // indirect

@@ -1,0 +1,43 @@
+version: "2"
+output:
+  formats:
+    text:
+      path: stdout
+linters:
+  default: none
+  enable:
+    - forbidigo
+    - govet
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^log\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$
+          msg: process-killing call in library code; return an error instead. See specs/016-remove-ping-fatal/spec.md FR-007.
+        - pattern: ^os\.Exit$
+          msg: do not exit from command bodies; return an error and let main.go map it. See internal/cli/exit_codes.go.
+      analyze-types: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - forbidigo
+        path: ^main\.go$
+      - linters:
+          - forbidigo
+        path: ^internal/cli/root\.go$
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
