@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // tlsModeSubtest is a common helper that:
