@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sentinel — Go 1.24 CLI for automated DB backup, restore, and disaster recovery (PostgreSQL, MySQL, MariaDB, MongoDB). Entry point: `main.go` → `internal/cli.Execute()`. Built with Cobra.
 
-Current version: v1.3.0. Branch convention: feature branches off `main` (or active line like `1.x`).
+Current version: v1.3.0. Branch convention: feature branches off `develop` (the active integration line where merges land first). Promotion chain: `develop → 1.x` (`1.x` = stable release line). `main` is a frozen v1.0 fossil (2024) — not an active line. The canonical remote is `upstream` (denisakp/sentinel); `origin` is the working fork.
 
 ## Build / Test / Run
 
@@ -90,12 +90,25 @@ Opt-in via `encryption_key_env`. Generate with `sentinel security init-key`. Pla
 
 ## Spec-driven workflow
 
-Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.plan`, `speckit.tasks`, `speckit.implement`, `speckit.clarify`, `speckit.analyze`, `speckit.checklist`, `speckit.constitution`, `speckit.taskstoissues`. Use when feature work touches spec/plan/task artifacts.
+Repo uses Spec Kit (`.specify/`). Skills available: `speckit.specify`, `speckit.clarify`, `speckit.plan`, `speckit.tasks`, `speckit.analyze`, `speckit.taskstoissues`, `speckit.implement`, plus `speckit.checklist` and `speckit.constitution`. Use when feature work touches spec/plan/task artifacts.
+
+### Mandatory feature flow (fixed order)
+Every new feature MUST run these skills in this exact order — no skipping, no reordering:
+
+1. `speckit.specify` — write the feature spec
+2. `speckit.clarify` — resolve ambiguities in the spec
+3. `speckit.plan` — produce the implementation plan
+4. `speckit.tasks` — break the plan into tasks
+5. `speckit.analyze` — cross-check spec/plan/tasks consistency
+6. `speckit.taskstoissues` — file tasks as tracked issues
+7. `speckit.implement` — execute the tasks
+
+`speckit.checklist` and `speckit.constitution` are supporting skills invoked ad hoc, not part of the ordered flow. The canonical machine-readable definition of this order lives in `.specify/workflows/speckit/workflow.yml`; keep it and this section in sync.
 
 ## Docs
 - `README.md` — user-facing usage, config examples
 - `docs/runbooks/` — operational procedures (PITR, incremental chains, encryption, stale-lock recovery, etc.). See `docs/runbooks/README.md` for the index.
-- `docs/roadmap/`, `release-notes.md`
+- `release-notes.md`
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
