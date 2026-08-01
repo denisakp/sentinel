@@ -6,6 +6,7 @@ output:
 linters:
   default: none
   enable:
+    - depguard
     - forbidigo
     - govet
   settings:
@@ -16,6 +17,92 @@ linters:
         - pattern: ^os\.Exit$
           msg: do not exit from command bodies; return an error and let main.go map it. See internal/cli/exit_codes.go.
       analyze-types: true
+    # ADR 0001 hexagonal layering (adapters -> ports <- domain), enforced per spec 039 / PRD 25.
+    # Each documented exception carries a `# spec NNN` / `desc` provenance note (FR-012).
+    depguard:
+      rules:
+        # internal/domain is pure. Applies to production AND test files (spec 039 Q1):
+        # the `internal/ports` prefix covers the *testing fakes domain tests use.
+        domain-pure:
+          list-mode: strict
+          files:
+            - "**/internal/domain/**"
+          allow:
+            - $gostd
+            - github.com/denisakp/sentinel/internal/ports        # subtree: ports/*testing fakes (spec 038)
+            - github.com/denisakp/sentinel/internal/sanitize
+            - github.com/denisakp/sentinel/internal/domain
+            - github.com/google/shlex                             # spec 037 pure-tokenizer precedent
+        # Ports declare interfaces; only the documented ports -> domain/retention exception is allowed.
+        # Top-level *.go only: conformance_test.go imports every adapter by design, and the *testing
+        # helper sub-packages import third-party test libs (testcontainers) — both excluded.
+        ports-mostly-pure:
+          list-mode: strict
+          files:
+            - "**/internal/ports/*.go"
+            - "!**/*_test.go"
+          allow:
+            - $gostd
+            - github.com/denisakp/sentinel/internal/ports
+            - github.com/denisakp/sentinel/internal/domain/retention  # spec 038 Q2 (Recorder retention methods)
+        # Sibling dump adapters must not import each other. dump/* -> db_probe (spec 037) is outside
+        # the deny prefix, so it stays allowed under lax.
+        adapter-dump-axis:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/dump/pg/**"
+            - "**/internal/adapters/dump/mysql/**"
+            - "**/internal/adapters/dump/mariadb/**"
+            - "**/internal/adapters/dump/mongo/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: github.com/denisakp/sentinel/internal/adapters/dump
+              desc: "sibling dump adapters must not import each other (ADR 0001 axis isolation)"
+        # Sibling restore adapters must not import each other. restore/mongo -> dump/mongo (Mongo PEM,
+        # spec 036) is cross-axis, outside this deny prefix -> allowed.
+        adapter-restore-axis:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/restore/pg/**"
+            - "**/internal/adapters/restore/mysql/**"
+            - "**/internal/adapters/restore/mariadb/**"
+            - "**/internal/adapters/restore/mongo/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: github.com/denisakp/sentinel/internal/adapters/restore
+              desc: "sibling restore adapters must not import each other (ADR 0001 axis isolation)"
+        # Sibling storage adapters must not import each other. registry.go (spec 029) is at the storage
+        # package root, outside these engine-dir globs -> not linted.
+        adapter-storage-axis:
+          list-mode: lax
+          files:
+            - "**/internal/adapters/storage/local/**"
+            - "**/internal/adapters/storage/s3/**"
+            - "**/internal/adapters/storage/gcs/**"
+            - "**/internal/adapters/storage/gdrive/**"
+            - "**/internal/adapters/storage/azure/**"
+            - "!**/*_test.go"
+          deny:
+            - pkg: github.com/denisakp/sentinel/internal/adapters/storage
+              desc: "sibling storage adapters must not import each other (ADR 0001 axis isolation)"
+        # config/marshal.go may import ONLY the enumerated dump/restore/storage adapters (spec 035/036
+        # Q1). strict => a new un-listed adapter import fails visibly (FR-004).
+        config-marshal:
+          list-mode: strict
+          files:
+            - "**/internal/config/marshal.go"
+          allow:
+            - $gostd
+            - github.com/denisakp/sentinel/internal/adapters/dump/pg
+            - github.com/denisakp/sentinel/internal/adapters/dump/mysql
+            - github.com/denisakp/sentinel/internal/adapters/dump/mariadb
+            - github.com/denisakp/sentinel/internal/adapters/dump/mongo
+            - github.com/denisakp/sentinel/internal/adapters/restore/pg
+            - github.com/denisakp/sentinel/internal/adapters/restore/mysql
+            - github.com/denisakp/sentinel/internal/adapters/restore/mariadb
+            - github.com/denisakp/sentinel/internal/adapters/restore/mongo
+            - github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog
+            - github.com/denisakp/sentinel/internal/adapters/storage
   exclusions:
     generated: lax
     presets:
