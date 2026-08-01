@@ -5,7 +5,7 @@ NETWORK     := sentinel
 IMAGE       := sentinel-dev:local
 MONGO_NAME  := sentinel-mongo
 
-.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr
+.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr lint
 
 help:
 	@echo "Targets:"
@@ -61,6 +61,12 @@ lint-redact-stderr:
 		exit 1; \
 	fi; \
 	echo "[lint-redact-stderr] OK"
+
+## Run golangci-lint (ADR 0001 hexagonal depguard rules + forbidigo + govet) — same config CI uses.
+## Spec 039 / PRD 25. In the Claude Code dev shell a bare `golangci-lint` is rewritten by the rtk
+## hook (injects --out-format, rejected by v2); make runs it as a subprocess so it is unaffected.
+lint:
+	golangci-lint run --timeout 5m
 
 # ---------------------------------------------------------------------------
 # Internal targets

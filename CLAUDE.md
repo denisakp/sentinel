@@ -64,7 +64,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/adapters/restore/{pg,mysql,mariadb,mongo}/` — engine-specific restore adapters (spec 036). Each package exposes a zero-field `Builder` satisfying `ports.RestoreBuilder` and keeps its existing `Restore` entry point + `RestoreArgs` type (mongo additionally has `OplogReplayArgs` + `ReplayOplog`). Compile-time port assertions in `conformance.go`. Port types `RestoreBuilder`/`RestoreBuildContext`/`RestoreBuildResult`/`RestoreOptions` live in `internal/ports/restore.go`.
 
 ### Import-cycle rule
-Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`, `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`, and `internal/adapters/restore/{pg,mysql,mariadb,mongo}/` MUST NOT import each other. Storage registry imports every storage sibling. Dump and restore adapters don't import sibling adapters within their axis. Domain code reaches concrete storage backends only through `storage.NewBackend(...)` returning `ports.StorageBackend`. Domain code reaches dumps through `ports.DumpBuilder` and restores through `ports.RestoreBuilder` (each engine adapter exposes a `Builder` value).
+**Enforced in CI via `.golangci.yml` (depguard rule groups: `domain-pure`, `ports-mostly-pure`, `adapter-{dump,restore,storage}-axis`, `config-marshal`); see spec 039 / PRD 25. Run locally with `make lint`.** Hexagonal layering per ADR 0001: **`adapters → ports ← domain`**. Adapter sub-packages under `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`, `internal/adapters/dump/{pg,mysql,mariadb,mongo}/`, and `internal/adapters/restore/{pg,mysql,mariadb,mongo}/` MUST NOT import each other. Storage registry imports every storage sibling. Dump and restore adapters don't import sibling adapters within their axis. Domain code reaches concrete storage backends only through `storage.NewBackend(...)` returning `ports.StorageBackend`. Domain code reaches dumps through `ports.DumpBuilder` and restores through `ports.RestoreBuilder` (each engine adapter exposes a `Builder` value).
 
 **Known narrow exceptions** (pre-existing; called out so they aren't flagged as new debt):
 - `internal/config/marshal.go` imports the four dump adapter packages for `*DumpArgs` type names referenced in `Build*DumpArgs` return types (spec 035 clarification Q1) and the four restore adapter packages for `RestoreArgs`/`OplogReplayArgs` type names referenced in `Build*RestoreArgs`/`BuildMongoOplogReplayArgs` return types (spec 036 clarification Q1). Future spec may introduce `ports.DumpArgsFactory`/`RestoreArgsFactory` to remove the direction.
@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/038-domain-extraction-phase2/plan.md`
+`specs/039-hexagonal-lint-enforcement/plan.md`
 <!-- SPECKIT END -->
