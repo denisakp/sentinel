@@ -93,6 +93,9 @@ func ValidateConfig(cfg *Configuration) error {
 		if err := validateDatabaseOptions(job); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
+		if err := validateCompression(job); err != nil {
+			return fmt.Errorf("backup '%s': %w", name, err)
+		}
 		if err := validateNotifications(job); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
@@ -439,6 +442,87 @@ func gfsConfigured(gfs *GFSPolicy) bool {
 		return false
 	}
 	return gfs.KeepDaily > 0 || gfs.KeepWeekly > 0 || gfs.KeepMonthly > 0 || gfs.KeepYearly > 0
+}
+
+// validateCompression validates a job's pipeline compression block (spec 049 /
+// PRD 33). Algorithm must be gzip/zstd/none; when enabled the level must fall
+// within the per-algorithm range; and — per the Option A resolution — pipeline
+// compression may NOT coexist with engine-native compression (double-compress
+// guard).
+func validateCompression(job BackupJob) error {
+	c := job.Compression
+	if c == nil {
+		return nil
+	}
+
+	switch c.Algorithm {
+	case "", "none", "gzip", "zstd":
+		// ok
+	default:
+		return fmt.Errorf("compression.algorithm must be one of: gzip, zstd, none")
+	}
+
+	if !c.Enabled {
+		return nil
+	}
+
+	// After loader normalization an enabled block always carries a concrete
+	// algorithm; resolve defensively for callers validating a raw config.
+	algorithm := c.Algorithm
+	if algorithm == "" {
+		algorithm = "zstd"
+	}
+	if algorithm == "none" {
+		return fmt.Errorf("compression.enabled is true but algorithm is 'none'; set algorithm to gzip or zstd, or disable compression")
+	}
+
+	if c.Level != 0 {
+		switch algorithm {
+		case "gzip":
+			if c.Level < 1 || c.Level > 9 {
+				return fmt.Errorf("compression.level for gzip must be between 1 and 9")
+			}
+		case "zstd":
+			if c.Level < 1 || c.Level > 19 {
+				return fmt.Errorf("compression.level for zstd must be between 1 and 19")
+			}
+		}
+	}
+
+	if hasNativeCompression(job) {
+		return fmt.Errorf("compression cannot be enabled together with engine-native compression (postgres compress/pg_compression_* or mongodb gzip); disable one to avoid double-compression")
+	}
+
+	return nil
+}
+
+// hasNativeCompression reports whether the job configures dump-tool-native
+// compression: postgres pg_dump --compress / --compression (compress,
+// pg_compression_algo, pg_compression_level) or mongodump --gzip.
+func hasNativeCompression(job BackupJob) bool {
+	switch job.Type {
+	case "postgres":
+		if v, ok := job.DatabaseOptions["compress"]; ok {
+			if lvl, ok2 := asInt(v); ok2 && lvl > 0 {
+				return true
+			}
+		}
+		if v, ok := job.DatabaseOptions["pg_compression_algo"]; ok {
+			if s, ok2 := v.(string); ok2 && s != "" && s != "none" {
+				return true
+			}
+		}
+		if _, ok := job.DatabaseOptions["pg_compression_level"]; ok {
+			return true
+		}
+	case "mongodb":
+		if v, ok := job.DatabaseOptions["gzip"]; ok {
+			if b, ok2 := v.(bool); ok2 && b {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func validateDatabaseOptions(job BackupJob) error {

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	compresspkg "github.com/denisakp/sentinel/internal/adapters/compress"
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
 	dumpmariadb "github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
@@ -285,6 +286,17 @@ func buildDomainBackupJob(
 		djob.GCSBucket = storageParams.GCSBucket
 	}
 
+	// Pipeline compression (spec 049 / PRD 33): wired only when the effective
+	// (post-inheritance) job config enables it with a real codec. The validator
+	// has already rejected enabling this alongside engine-native compression.
+	if cc := job.Compression; cc != nil && cc.Enabled && cc.Algorithm != "" && cc.Algorithm != "none" {
+		algorithm := cc.Algorithm
+		level := cc.Level
+		djob.CompressArtifact = func(path string) (bool, *ports.CompressionInfo, string, error) {
+			return compressBackupFile(algorithm, level, path)
+		}
+	}
+
 	if encryptionConfigured(cfg) {
 		djob.EncryptionKeyHint = cfg.EncryptionKeyEnv
 		djob.EncryptArtifact = func(path, backupID string) (bool, *ports.EncryptionInfo, string, error) {
@@ -366,6 +378,63 @@ func archiveMongoOplogArtifacts(ctx context.Context, job config.BackupJob, backu
 	return backup.IncrementalArtifacts{
 		OplogArtifactPath: archiveResult.ArchivePath,
 	}, nil
+}
+
+// compressBackupFile compresses filePath in place using the pipeline codec
+// (gzip/zstd) and returns (compressed, compression info, sha256 of the
+// compressed bytes). It mirrors encryptBackupFile: stream source → codec →
+// HashingWriter → temp file, then atomically replace the original. The
+// compressed digest is the stored-artifact hash when the backup is not
+// subsequently encrypted (spec 049 / PRD 33).
+func compressBackupFile(algorithm string, level int, filePath string) (bool, *ports.CompressionInfo, string, error) {
+	in, err := os.Open(filePath)
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to open file for compression: %w", err)
+	}
+
+	cmpPath := filePath + ".cmp"
+	out, err := os.Create(cmpPath)
+	if err != nil {
+		in.Close()
+		return false, nil, "", fmt.Errorf("failed to create compressed output: %w", err)
+	}
+
+	hw := crypto.NewHashingWriter(out)
+	cw, err := compresspkg.NewCompressWriter(hw, algorithm, level)
+	if err != nil {
+		in.Close()
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", err
+	}
+
+	if _, copyErr := io.Copy(cw, in); copyErr != nil {
+		in.Close()
+		cw.Close()
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed during compression: %w", copyErr)
+	}
+	in.Close()
+
+	if closeErr := cw.Close(); closeErr != nil {
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to finalize compressed data: %w", closeErr)
+	}
+
+	compressedHash := hw.Sum()
+	if closeErr := out.Close(); closeErr != nil {
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to close compressed output: %w", closeErr)
+	}
+
+	if renameErr := os.Rename(cmpPath, filePath); renameErr != nil {
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to replace file with compressed version: %w", renameErr)
+	}
+
+	return true, &ports.CompressionInfo{Algorithm: algorithm, Level: level}, compressedHash, nil
 }
 
 // encryptBackupFile encrypts filePath in-place using AES-256-GCM via

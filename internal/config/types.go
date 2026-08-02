@@ -78,6 +78,25 @@ type MySQLConfig struct {
 	BinlogPath string `yaml:"binlog_path,omitempty"`
 }
 
+// CompressionConfig holds engine-agnostic pipeline compression settings
+// (PRD 33 / spec 049). Compression is an opt-in streaming stage inserted
+// between the dump and the hash/encrypt steps; it primarily targets the
+// uncompressed engines (MySQL/MariaDB). Its presence is a pointer on BackupJob
+// and GlobalDefaults so a job can be distinguished from "unset" (inherit
+// defaults) — mirroring the RetentionPolicy inheritance pattern.
+type CompressionConfig struct {
+	// Enabled turns pipeline compression on. Default false (opt-in): no
+	// behaviour change unless explicitly enabled.
+	Enabled bool `yaml:"enabled"`
+
+	// Algorithm is one of: gzip, zstd, none (default: zstd when enabled and
+	// omitted). "none" means no pipeline compression even when enabled.
+	Algorithm string `yaml:"algorithm,omitempty"`
+
+	// Level is the codec level: gzip 1–9, zstd 1–19 (0 = per-algorithm default).
+	Level int `yaml:"level,omitempty"`
+}
+
 // AzureAuthConfig specifies authentication method for Azure Blob Storage.
 type AzureAuthConfig struct {
 	// Type is one of: managed_identity, connection_string, sas_token
@@ -167,6 +186,10 @@ type GlobalDefaults struct {
 	// Default retention policy
 	Retention RetentionPolicy `yaml:"retention"`
 
+	// Default pipeline compression settings (inherited by jobs without their
+	// own compression: block). Spec 049 / PRD 33.
+	Compression *CompressionConfig `yaml:"compression,omitempty"`
+
 	// Default notification channels
 	Notifications []NotificationChannel `yaml:"notifications"`
 }
@@ -234,6 +257,10 @@ type BackupJob struct {
 
 	// MySQL holds MySQL/MariaDB engine-specific options.
 	MySQL MySQLConfig `yaml:"mysql,omitempty"`
+
+	// Compression holds engine-agnostic pipeline compression settings. When
+	// nil the job inherits defaults.compression (spec 049 / PRD 33).
+	Compression *CompressionConfig `yaml:"compression,omitempty"`
 
 	// Cron expression for scheduling (5-field format)
 	Schedule string `yaml:"schedule,omitempty"`
