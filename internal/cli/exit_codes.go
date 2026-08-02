@@ -9,6 +9,15 @@ var (
 	ErrVerifySkipped  = errors.New("verification skipped: no manifest")
 	ErrVerifyInternal = errors.New("verify internal error")
 
+	// ErrVerifyIntegrityFailed is returned by the `backup verify --all` sweep
+	// when at least one checked backup is a real integrity problem
+	// (corrupted / missing_artifact, or missing_manifest unless
+	// --ignore-missing-manifest). It maps to a DISTINCT exit code so an
+	// alerting pipeline can tell "backups are broken" (integrity) apart from
+	// "the check itself could not run" (operational → ErrVerifyInternal).
+	// Spec 051 / PRD 34.
+	ErrVerifyIntegrityFailed = errors.New("integrity check failed")
+
 	// `sentinel monitor doctor` exit-code carriers. Stable across releases
 	// per specs/017-monitor-schema-migration/contracts/monitor-doctor-cli.md.
 	ErrDoctorStalePending    = errors.New("monitor schema is stale; pending migrations exist")
@@ -30,6 +39,8 @@ func Code(err error) int {
 		return 3
 	case errors.Is(err, ErrVerifyInternal):
 		return 4
+	case errors.Is(err, ErrVerifyIntegrityFailed):
+		return 5
 	case errors.Is(err, ErrDoctorStalePending):
 		return 1
 	case errors.Is(err, ErrDoctorForwardIncompat):

@@ -10,11 +10,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"text/tabwriter"
 	"time"
 
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/spf13/cobra"
@@ -27,18 +30,89 @@ var newVerifyBackend = func(p *storage.BackendParams) (ports.StorageBackend, err
 	return storage.NewBackend(p)
 }
 
+// verify status constants — the four states a backup can be classified into by
+// verifyExecution (spec 051 / PRD 34 FR-004).
+const (
+	verifyStatusOk              = "ok"
+	verifyStatusCorrupted       = "corrupted"
+	verifyStatusMissingArtifact = "missing_artifact"
+	verifyStatusMissingManifest = "missing_manifest"
+)
+
+// verifyAllListLimit bounds the number of executions the `--all` sweep
+// enumerates from the monitor, mirroring the retention fetch cap.
+const verifyAllListLimit = 100000
+
+// verifyOpts carries per-verify options shared by the single-id and the
+// `--all` sweep callers of verifyExecution.
+type verifyOpts struct {
+	// ignoreMissingManifest downgrades a missing_manifest outcome from an
+	// integrity failure to a warning at the sweep's exit-code stage. It does
+	// not change per-execution classification, so verifyExecution ignores it;
+	// handleVerifyAll reads it when mapping results to an exit code.
+	ignoreMissingManifest bool
+}
+
+// verifyResult is the per-backup outcome of a single integrity verification.
+// It feeds both the single-id renderer and the `--all` sweep report/JSON.
+// Err is set only for genuine operational failures (backend init, temp dir,
+// non-not-found download/read errors); for those Status is left empty. For the
+// four classified states Err is nil.
+type verifyResult struct {
+	BackupID      string    `json:"backup_id"`
+	Job           string    `json:"job"`
+	Status        string    `json:"status"`
+	HashMatch     bool      `json:"hash_match"`
+	StoredHash    string    `json:"stored_hash,omitempty"`
+	ComputedHash  string    `json:"computed_hash,omitempty"`
+	HashAlgorithm string    `json:"hash_algorithm,omitempty"`
+	SizeBytes     int64     `json:"size_bytes"`
+	Timestamp     time.Time `json:"timestamp"`
+	Path          string    `json:"path,omitempty"`
+	Err           error     `json:"-"`
+}
+
+// MarshalJSON serialises a verifyResult, surfacing any operational Err as a
+// string "error" field (the error interface itself is not JSON-serialisable).
+func (r verifyResult) MarshalJSON() ([]byte, error) {
+	type alias verifyResult
+	aux := struct {
+		alias
+		Error string `json:"error,omitempty"`
+	}{alias: alias(r)}
+	if r.Err != nil {
+		aux.Error = r.Err.Error()
+	}
+	return json.Marshal(aux)
+}
+
 var backupVerifyCmd = &cobra.Command{
-	Use:   "verify <backup-id>",
-	Short: "Verify the integrity of a stored backup",
-	Long:  "Re-compute SHA-256 fingerprint and compare against the stored manifest value.",
-	Args:  cobra.ExactArgs(1),
+	Use:   "verify [backup-id]",
+	Short: "Verify the integrity of a stored backup (or the whole repository with --all)",
+	Long: "Re-compute the SHA-256 fingerprint of a backup artifact and compare it against the stored\n" +
+		"manifest value. Pass a single <backup-id> to verify one backup, or --all to sweep every\n" +
+		"recorded backup and produce an aggregate report + a single exit code.",
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		backupID := args[0]
+		all, _ := cmd.Flags().GetBool("all")
+		hasID := len(args) == 1
+
+		// FR-002: exactly one of {<backup-id>, --all}. Both or neither is a
+		// usage error.
+		if hasID == all {
+			return fmt.Errorf("provide exactly one of <backup-id> or --all")
+		}
+
 		cfgPath, _ := cmd.Flags().GetString("config")
 		if cfgPath == "" {
 			cfgPath = os.ExpandEnv("$HOME/.sentinel/config.yaml")
 		}
-		outputFmt, _ := cmd.Flags().GetString("output")
+		outputFmt := verifyOutputFormat(cmd)
+
+		var backupID string
+		if hasID {
+			backupID = args[0]
+		}
 
 		cfg, err := config.LoadConfig(cfgPath)
 		if err != nil {
@@ -59,6 +133,10 @@ var backupVerifyCmd = &cobra.Command{
 
 		ctx := context.Background()
 
+		if all {
+			return handleVerifyAll(ctx, cmd, cfg, mon, outputFmt)
+		}
+
 		exec, err := mon.GetExecution(ctx, backupID)
 		if err != nil || exec == nil {
 			verifyPrintError(outputFmt, backupID, "",
@@ -66,106 +144,342 @@ var backupVerifyCmd = &cobra.Command{
 			return fmt.Errorf("backup %q: %w", backupID, ErrVerifyNotFound)
 		}
 
-		if exec.FilePath == "" {
-			verifyPrintSkipped(outputFmt, backupID)
-			return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
+		res := verifyExecution(ctx, cfg, exec, verifyOpts{})
+		return renderSingleVerify(outputFmt, backupID, res)
+	},
+}
+
+// verifyOutputFormat resolves the effective output format from the --output
+// flag, falling back to the hidden --format alias (A6). An empty result means
+// "inherit cfg.LogFormat", resolved by the caller after config load.
+func verifyOutputFormat(cmd *cobra.Command) string {
+	if out, _ := cmd.Flags().GetString("output"); out != "" {
+		return out
+	}
+	fmtFlag, _ := cmd.Flags().GetString("format")
+	return fmtFlag
+}
+
+// verifyExecution verifies a single recorded backup and classifies it into one
+// of the four states (ok / corrupted / missing_artifact / missing_manifest),
+// or reports an operational failure via verifyResult.Err. It is the shared body
+// behind both single-id `verify <id>` and the `--all` sweep, so the two paths
+// classify identically.
+//
+// Local backups verify against exec.FilePath directly. Remote backups
+// (s3/gcs/azure/gdrive) hold a URI or object key there, unreachable via
+// os.Open, so the artifact + its <key>.manifest.json sidecar are downloaded to
+// a temp dir (deleted before this function returns — FR-009) and verified
+// against those local copies.
+func verifyExecution(ctx context.Context, cfg *config.Configuration, exec *ports.Execution, _ verifyOpts) verifyResult {
+	res := verifyResult{
+		BackupID:  exec.ID,
+		Job:       exec.BackupName,
+		Timestamp: exec.Timestamp,
+		Path:      exec.FilePath,
+		SizeBytes: exec.FileSizeBytes,
+	}
+
+	// No artifact reference recorded — nothing to hash. Mirrors the single-id
+	// "skipped" outcome; classified as unverifiable (missing_manifest).
+	if exec.FilePath == "" {
+		res.Status = verifyStatusMissingManifest
+		return res
+	}
+
+	manifestPath := exec.FilePath + ".manifest.json"
+	hashTarget := exec.FilePath
+
+	if isRemoteStorageBackend(exec.StorageBackend) {
+		tmpDir, tmpErr := os.MkdirTemp("", "sentinel-verify-*")
+		if tmpErr != nil {
+			res.Err = fmt.Errorf("failed to create temp dir: %v", tmpErr)
+			return res
+		}
+		defer os.RemoveAll(tmpDir)
+
+		var storageCfg config.StorageConfig
+		if job, ok := cfg.Databases[exec.BackupName]; ok {
+			storageCfg = job.Storage
 		}
 
-		// Local backups verify against exec.FilePath directly. Remote backups
-		// (s3/gcs/azure/gdrive) hold a URI or object key there, unreachable via
-		// os.Open, so we download the artifact + its <key>.manifest.json sidecar
-		// to a temp dir and verify against those local copies. The remote object
-		// reference is still what the report prints (exec.FilePath). A missing
-		// sidecar naturally falls through to the existing "skipped" outcome:
-		// manifestPath then points at a non-existent local file and ReadManifest
-		// returns ports.ErrNoManifest.
-		manifestPath := exec.FilePath + ".manifest.json"
-		hashTarget := exec.FilePath
-		if isRemoteStorageBackend(exec.StorageBackend) {
-			tmpDir, tmpErr := os.MkdirTemp("", "sentinel-verify-*")
-			if tmpErr != nil {
-				verifyPrintError(outputFmt, backupID, exec.BackupName,
-					fmt.Sprintf("failed to create temp dir: %v", tmpErr))
-				return fmt.Errorf("create temp dir: %w", ErrVerifyInternal)
+		localArtifact, fetchErr := fetchRemoteBackupForVerify(ctx, exec, storageCfg, tmpDir)
+		if fetchErr != nil {
+			// A genuinely absent artifact is an integrity gap, not an
+			// operational error; anything else (backend init, credentials,
+			// transport) is operational.
+			if verifyErrIsNotFound(fetchErr) {
+				res.Status = verifyStatusMissingArtifact
+				return res
 			}
-			defer os.RemoveAll(tmpDir)
-
-			var storageCfg config.StorageConfig
-			if job, ok := cfg.Databases[exec.BackupName]; ok {
-				storageCfg = job.Storage
-			}
-
-			localArtifact, fetchErr := fetchRemoteBackupForVerify(ctx, exec, storageCfg, tmpDir)
-			if fetchErr != nil {
-				verifyPrintError(outputFmt, backupID, exec.BackupName,
-					fmt.Sprintf("failed to fetch remote backup: %v", fetchErr))
-				return fmt.Errorf("fetch remote backup: %w", ErrVerifyInternal)
-			}
-			hashTarget = localArtifact
-			manifestPath = localArtifact + ".manifest.json"
+			res.Err = fmt.Errorf("failed to fetch remote backup: %v", fetchErr)
+			return res
 		}
+		hashTarget = localArtifact
+		manifestPath = localArtifact + ".manifest.json"
+	}
 
-		m, err := manifest.ReadManifest(manifestPath)
-		if err != nil {
-			if errors.Is(err, ports.ErrNoManifest) {
-				verifyPrintSkipped(outputFmt, backupID)
-				return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
-			}
-			verifyPrintError(outputFmt, backupID, exec.BackupName,
-				fmt.Sprintf("failed to read manifest: %v", err))
-			return fmt.Errorf("read manifest: %w", ErrVerifyInternal)
+	m, err := manifest.ReadManifest(manifestPath)
+	if err != nil {
+		if errors.Is(err, ports.ErrNoManifest) {
+			res.Status = verifyStatusMissingManifest
+			return res
 		}
+		res.Err = fmt.Errorf("failed to read manifest: %v", err)
+		return res
+	}
+	res.StoredHash = m.Hash.Value
+	res.HashAlgorithm = m.Hash.Algorithm
 
-		computedHash, err := verifyComputeFileHash(hashTarget)
-		if err != nil {
-			verifyPrintError(outputFmt, backupID, exec.BackupName,
-				fmt.Sprintf("failed to compute hash: %v", err))
-			return fmt.Errorf("compute hash: %w", ErrVerifyInternal)
+	computedHash, err := verifyComputeFileHash(hashTarget)
+	if err != nil {
+		// Manifest present but the (local) artifact is gone ⇒ missing_artifact;
+		// any other read error is operational.
+		if verifyErrIsNotFound(err) {
+			res.Status = verifyStatusMissingArtifact
+			return res
 		}
+		res.Err = fmt.Errorf("failed to compute hash: %v", err)
+		return res
+	}
+	res.ComputedHash = computedHash
 
+	if computedHash != m.Hash.Value {
+		res.Status = verifyStatusCorrupted
+		return res
+	}
+
+	res.Status = verifyStatusOk
+	res.HashMatch = true
+	return res
+}
+
+// verifyErrIsNotFound reports whether err indicates the artifact object was
+// genuinely absent (as opposed to an operational backend/transport failure).
+// Covers local/mock (os.ErrNotExist) and the S3/GCS not-found sentinels.
+func verifyErrIsNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, os.ErrNotExist) ||
+		errors.Is(err, s3.ErrObjectNotFound) ||
+		errors.Is(err, gcs.ErrObjectNotFound)
+}
+
+// renderSingleVerify reproduces the historical single-id `verify <id>` output
+// (text + JSON) byte-for-byte from a verifyResult, and returns the matching
+// sentinel error for the exit-code mapping.
+func renderSingleVerify(outputFmt, backupID string, res verifyResult) error {
+	if res.Err != nil {
+		verifyPrintError(outputFmt, backupID, res.Job, res.Err.Error())
+		return fmt.Errorf("verify %q: %w", backupID, ErrVerifyInternal)
+	}
+
+	switch res.Status {
+	case verifyStatusMissingManifest:
+		verifyPrintSkipped(outputFmt, backupID)
+		return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
+
+	case verifyStatusMissingArtifact:
+		verifyPrintError(outputFmt, backupID, res.Job, "backup artifact not found in storage")
+		return fmt.Errorf("backup %q: %w", backupID, ErrVerifyInternal)
+
+	case verifyStatusCorrupted:
 		verifiedAt := time.Now().UTC()
-
-		if computedHash != m.Hash.Value {
-			if outputFmt == "json" {
-				verifyPrintJSON(map[string]interface{}{
-					"backup_id":     backupID,
-					"database":      exec.BackupName,
-					"stored_hash":   m.Hash.Value,
-					"computed_hash": computedHash,
-					"result":        "fail",
-					"error":         "hash mismatch: backup file has been modified or corrupted",
-					"verified_at":   verifiedAt.Format(time.RFC3339),
-				})
-			} else {
-				fmt.Printf("FAIL: Backup %s integrity check failed\n", backupID)
-				fmt.Printf("  Database:      %s\n", exec.BackupName)
-				fmt.Printf("  File:          %s\n", exec.FilePath)
-				fmt.Printf("  Stored hash:   %s\n", m.Hash.Value)
-				fmt.Printf("  Computed hash: %s\n", computedHash)
-				fmt.Println("  Status:        FAIL - hash mismatch")
-			}
-			return errors.New("hash mismatch")
-		}
-
 		if outputFmt == "json" {
 			verifyPrintJSON(map[string]interface{}{
 				"backup_id":     backupID,
-				"database":      exec.BackupName,
-				"file_path":     exec.FilePath,
-				"stored_hash":   m.Hash.Value,
-				"computed_hash": computedHash,
+				"database":      res.Job,
+				"stored_hash":   res.StoredHash,
+				"computed_hash": res.ComputedHash,
+				"result":        "fail",
+				"error":         "hash mismatch: backup file has been modified or corrupted",
+				"verified_at":   verifiedAt.Format(time.RFC3339),
+			})
+		} else {
+			fmt.Printf("FAIL: Backup %s integrity check failed\n", backupID)
+			fmt.Printf("  Database:      %s\n", res.Job)
+			fmt.Printf("  File:          %s\n", res.Path)
+			fmt.Printf("  Stored hash:   %s\n", res.StoredHash)
+			fmt.Printf("  Computed hash: %s\n", res.ComputedHash)
+			fmt.Println("  Status:        FAIL - hash mismatch")
+		}
+		return errors.New("hash mismatch")
+
+	default: // verifyStatusOk
+		verifiedAt := time.Now().UTC()
+		if outputFmt == "json" {
+			verifyPrintJSON(map[string]interface{}{
+				"backup_id":     backupID,
+				"database":      res.Job,
+				"file_path":     res.Path,
+				"stored_hash":   res.StoredHash,
+				"computed_hash": res.ComputedHash,
 				"result":        "pass",
 				"verified_at":   verifiedAt.Format(time.RFC3339),
 			})
 		} else {
 			fmt.Printf("PASS: Backup %s integrity verified\n", backupID)
-			fmt.Printf("  Database: %s\n", exec.BackupName)
-			fmt.Printf("  File:     %s\n", exec.FilePath)
-			fmt.Printf("  Hash:     %s (%s)\n", m.Hash.Value, m.Hash.Algorithm)
+			fmt.Printf("  Database: %s\n", res.Job)
+			fmt.Printf("  File:     %s\n", res.Path)
+			fmt.Printf("  Hash:     %s (%s)\n", res.StoredHash, res.HashAlgorithm)
 			fmt.Println("  Status:   PASS")
 		}
 		return nil
-	},
+	}
+}
+
+// handleVerifyAll runs the repository-wide integrity sweep: enumerate every
+// recorded successful backup from the monitor, verify each via verifyExecution
+// (sequential; temp fetch deleted after each — FR-009), print an aggregate
+// report + summary, and map the results to a single exit code.
+func handleVerifyAll(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, mon *monitor.Monitor, outputFmt string) error {
+	job, _ := cmd.Flags().GetString("job")
+	sinceStr, _ := cmd.Flags().GetString("since")
+	ignoreMissing, _ := cmd.Flags().GetBool("ignore-missing-manifest")
+
+	var cutoff time.Time
+	if sinceStr != "" {
+		window, perr := parseSince(sinceStr)
+		if perr != nil {
+			verifyPrintError(outputFmt, "", job, perr.Error())
+			return fmt.Errorf("parse since: %w", ErrVerifyInternal)
+		}
+		cutoff = time.Now().UTC().Add(-window)
+	}
+
+	filter := &ports.Filter{Status: ports.StatusSuccess}
+	if job != "" {
+		filter.BackupName = job
+	}
+
+	execs, err := mon.ListExecutions(ctx, filter, verifyAllListLimit, 0)
+	if err != nil {
+		verifyPrintError(outputFmt, "", job, fmt.Sprintf("failed to list executions: %v", err))
+		return fmt.Errorf("list executions: %w", ErrVerifyInternal)
+	}
+
+	opts := verifyOpts{ignoreMissingManifest: ignoreMissing}
+	results := make([]verifyResult, 0, len(execs))
+	for i := range execs {
+		if !cutoff.IsZero() && !execs[i].Timestamp.After(cutoff) {
+			continue // --since: skip backups older than the window
+		}
+		results = append(results, verifyExecution(ctx, cfg, &execs[i], opts))
+	}
+
+	if outputFmt == "json" {
+		printVerifyAllJSON(results)
+	} else {
+		printVerifyAllText(results)
+	}
+
+	return verifyAllExitError(results, ignoreMissing)
+}
+
+// verifySummary holds per-status counts for the sweep report.
+type verifySummary struct {
+	Checked         int
+	OK              int
+	Corrupted       int
+	MissingArtifact int
+	MissingManifest int
+	Errored         int
+}
+
+func summarizeVerify(results []verifyResult) verifySummary {
+	s := verifySummary{Checked: len(results)}
+	for _, r := range results {
+		if r.Err != nil {
+			s.Errored++
+			continue
+		}
+		switch r.Status {
+		case verifyStatusOk:
+			s.OK++
+		case verifyStatusCorrupted:
+			s.Corrupted++
+		case verifyStatusMissingArtifact:
+			s.MissingArtifact++
+		case verifyStatusMissingManifest:
+			s.MissingManifest++
+		}
+	}
+	return s
+}
+
+func printVerifyAllText(results []verifyResult) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tJOB\tSTATUS\tHASH_MATCH\tTIMESTAMP")
+	for _, r := range results {
+		status := r.Status
+		hashMatch := "-"
+		if r.Err != nil {
+			status = "error"
+		} else {
+			switch r.Status {
+			case verifyStatusOk:
+				hashMatch = "true"
+			case verifyStatusCorrupted:
+				hashMatch = "false"
+			}
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			r.BackupID, r.Job, status, hashMatch, r.Timestamp.UTC().Format(time.RFC3339))
+	}
+	_ = w.Flush()
+
+	s := summarizeVerify(results)
+	fmt.Printf("%d checked · %d ok · %d corrupted · %d missing_artifact · %d missing_manifest\n",
+		s.Checked, s.OK, s.Corrupted, s.MissingArtifact, s.MissingManifest)
+	if s.Errored > 0 {
+		fmt.Printf("  (%d operational error(s) — see rows marked 'error')\n", s.Errored)
+	}
+}
+
+func printVerifyAllJSON(results []verifyResult) {
+	s := summarizeVerify(results)
+	verifyPrintJSON(map[string]interface{}{
+		"results": results,
+		"summary": map[string]int{
+			"checked":          s.Checked,
+			"ok":               s.OK,
+			"corrupted":        s.Corrupted,
+			"missing_artifact": s.MissingArtifact,
+			"missing_manifest": s.MissingManifest,
+			"errored":          s.Errored,
+		},
+	})
+}
+
+// verifyAllExitError maps sweep results to a sentinel error. An operational
+// failure (backend/monitor/config) that prevented a clean check returns
+// ErrVerifyInternal; a definitive integrity problem returns
+// ErrVerifyIntegrityFailed; all-ok returns nil (A3). missing_manifest counts
+// as an integrity failure unless --ignore-missing-manifest (A2).
+func verifyAllExitError(results []verifyResult, ignoreMissing bool) error {
+	var integrityFail, operationalFail bool
+	for _, r := range results {
+		if r.Err != nil {
+			operationalFail = true
+			continue
+		}
+		switch r.Status {
+		case verifyStatusCorrupted, verifyStatusMissingArtifact:
+			integrityFail = true
+		case verifyStatusMissingManifest:
+			if !ignoreMissing {
+				integrityFail = true
+			}
+		}
+	}
+	if integrityFail {
+		return fmt.Errorf("verify sweep: %w", ErrVerifyIntegrityFailed)
+	}
+	if operationalFail {
+		return fmt.Errorf("verify sweep: %w", ErrVerifyInternal)
+	}
+	return nil
 }
 
 func verifyComputeFileHash(path string) (string, error) {
@@ -325,4 +639,12 @@ func init() {
 	backupVerifyCmd.Flags().String("output", "", "Output format: json or text")
 	backupVerifyCmd.Flags().Bool("allow-legacy-envelope", legacyEnvelopeEnvDefault(),
 		"Decrypt artifacts produced before the v2 envelope fix. UNSAFE: pre-v2 streams used a flawed nonce scheme. Use only to recover plaintext for re-encryption.")
+
+	// Repository-wide integrity sweep (spec 051 / PRD 34).
+	backupVerifyCmd.Flags().Bool("all", false, "Verify every recorded backup (repository-wide integrity sweep); mutually exclusive with <backup-id>")
+	backupVerifyCmd.Flags().String("since", "", "With --all: only verify backups newer than this age (e.g. 30d, 4w, 720h)")
+	backupVerifyCmd.Flags().String("job", "", "With --all: restrict the sweep to a single named backup job")
+	backupVerifyCmd.Flags().Bool("ignore-missing-manifest", false, "With --all: treat missing_manifest as a warning (exit 0) instead of an integrity failure")
+	backupVerifyCmd.Flags().String("format", "", "Alias for --output")
+	_ = backupVerifyCmd.Flags().MarkHidden("format")
 }

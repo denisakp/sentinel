@@ -26,6 +26,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 - [Restore from GCS](./restore-from-gcs.md)
 - [Restore rehearsal (DR drill)](./restore-rehearsal.md)
 - [Verify backup integrity](./verify-backup-integrity.md)
+- [Repository-wide integrity sweep (`backup verify --all`)](./integrity-sweep.md)
 
 ## Incidents
 - [Stale lock recovery](./stale-lock-recovery.md)

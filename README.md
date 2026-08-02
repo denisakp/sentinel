@@ -173,6 +173,11 @@ sentinel monitor export --config sentinel.yaml --format json --output history.js
 sentinel retention preview --config sentinel.yaml
 sentinel retention apply --config sentinel.yaml
 
+# Integrity
+sentinel backup verify <backup-id> --config sentinel.yaml   # verify one backup
+sentinel backup verify --all --config sentinel.yaml          # repository-wide integrity sweep
+sentinel backup verify --all --since 30d --output json --config sentinel.yaml
+
 # Config & storage
 sentinel config validate --config sentinel.yaml
 sentinel storage status --config sentinel.yaml
@@ -305,6 +310,29 @@ Enabling pipeline compression alongside engine-native compression
 (`pg_dump --compress` / `mongodump --gzip`) on the same job is rejected to
 prevent double-compression. Default is off (no behaviour change until enabled).
 See [docs/runbooks/backup-compression.md](docs/runbooks/backup-compression.md).
+
+---
+
+## Integrity sweep
+
+`sentinel backup verify` re-hashes a backup artifact and compares it against its stored
+manifest. Pass a single `<backup-id>` to verify one backup, or `--all` to sweep the **whole
+repository** in one command:
+
+```bash
+sentinel backup verify --all --config sentinel.yaml
+sentinel backup verify --all --since 30d --job prod-postgres --config sentinel.yaml
+sentinel backup verify --all --output json --config sentinel.yaml   # for alerting
+```
+
+The sweep enumerates every recorded successful backup, fetches each from its own storage
+backend (remote artifacts are downloaded and verified, then deleted — no local copy is left
+behind), and classifies each into one of four states — `ok`, `corrupted`, `missing_artifact`,
+`missing_manifest` — with a per-status summary. It is **read-only** (no history writes). Exit
+codes let an automated system act: `0` all-ok, `5` integrity failure (something is corrupt /
+missing), `4` operational error (the check itself couldn't run). `--ignore-missing-manifest`
+downgrades legacy pre-v1.1 backups to a warning. See
+[docs/runbooks/integrity-sweep.md](docs/runbooks/integrity-sweep.md).
 
 ---
 

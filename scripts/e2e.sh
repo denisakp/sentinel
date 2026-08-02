@@ -360,6 +360,86 @@ test_local_backup() {
   fi
 }
 
+# test_verify_all exercises the repository-wide integrity sweep (spec 051 / PRD
+# 34) over the local backups seeded by test_local_backup: an all-intact sweep
+# must exit 0 with every backup "ok"; corrupting a stored artifact must flag it
+# "corrupted" with a non-zero exit; and --output json must be parseable. The
+# corrupted file is restored afterwards so later suites are unaffected.
+test_verify_all() {
+  log ""
+  log "=== Suite: backup verify --all (integrity sweep) [spec 051] ==="
+
+  # A dedicated job whose `output` INCLUDES the .sql extension, so the local
+  # artifact path the manifest step resolves matches the file the dump writes
+  # and a `<name>.sql.manifest.json` sidecar is produced (a bare `output:
+  # pg-verify` would not get a manifest — a separate pre-existing quirk). The
+  # sweep is scoped with `--job` so it only sees this manifest-bearing backup.
+  cat > "$CONFIGS_DIR/verify-all.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+
+databases:
+  pg-verify-e2e:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: pg-verify-e2e.sql
+EOF
+
+  assert_exit_ok "verify-all: backup (writes manifest sidecar)" \
+    backup --config /configs/verify-all.yaml
+  assert_file_nonempty "verify-all: manifest sidecar present" \
+    "$BACKUPS_DIR/pg-verify-e2e.sql.manifest.json"
+
+  # 1. Intact ⇒ exit 0 + summary + ok.
+  assert_exit_ok "verify --all exits 0 (all intact)" \
+    backup verify --all --job pg-verify-e2e --config /configs/verify-all.yaml
+  assert_output_contains "verify --all reports ok" "ok" \
+    backup verify --all --job pg-verify-e2e --config /configs/verify-all.yaml
+
+  # 2. JSON output is parseable (results array + summary object).
+  local json
+  json=$(sentinel backup verify --all --job pg-verify-e2e --output json --config /configs/verify-all.yaml 2>/dev/null)
+  if command -v jq >/dev/null 2>&1; then
+    if echo "$json" | jq -e '.summary.checked >= 1 and (.results | type == "array")' >/dev/null 2>&1; then
+      ok "verify --all --output json is parseable"
+    else
+      fail "verify --all --output json not parseable"
+      echo "$json" | tail -10 | sed 's/^/  [json] /'
+    fi
+  elif echo "$json" | grep -q '"summary"' && echo "$json" | grep -q '"results"'; then
+    ok "verify --all --output json is parseable (grep fallback)"
+  else
+    fail "verify --all --output json not parseable"
+  fi
+
+  # 3. Corrupt the stored artifact FROM INSIDE a container (the sentinel CLI
+  #    reads the mounted file from the container; a host-side append is not
+  #    guaranteed to propagate under some bind-mount drivers). Expect corrupted
+  #    + non-zero exit.
+  docker run --rm -v "$WORKSPACE:/workspace" "$IMAGE" \
+    sh -c "printf 'CORRUPTION\n' >> /workspace/backups/pg-verify-e2e.sql" >/dev/null 2>&1
+  local out code
+  # `verify --all` returns exit 5 on integrity failure by design; capture it
+  # without tripping `set -e` on the command-substitution assignment.
+  out=$(sentinel backup verify --all --job pg-verify-e2e --config /configs/verify-all.yaml 2>&1) && code=0 || code=$?
+  if [[ $code -ne 0 ]] && echo "$out" | grep -qE '[1-9][0-9]* corrupted'; then
+    ok "verify --all detects corruption (corrupted + non-zero exit $code)"
+  else
+    fail "verify --all should report corrupted + non-zero exit (code=$code)"
+    echo "$out" | tail -8 | sed 's/^/  [cmd] /'
+  fi
+}
+
 test_monitor() {
   log ""
   log "=== Suite: monitor ==="
@@ -1069,6 +1149,7 @@ main() {
   test_unit
   test_config_validate
   test_local_backup
+  test_verify_all
   test_compression
   test_monitor
   test_retention
