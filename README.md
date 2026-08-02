@@ -23,20 +23,62 @@ It supports PostgreSQL, MySQL, MariaDB, and MongoDB — with cloud storage, sche
 
 ## Installation
 
+### Download a prebuilt binary (recommended)
+
+No Go toolchain required. Prebuilt binaries are published on every release for
+**linux**, **macOS**, and **Windows** (amd64 + arm64, except windows/arm64),
+each with a SHA-256 `checksums.txt`.
+
+1. Grab the asset for your OS/arch from the
+   [latest release](https://github.com/denisakp/sentinel/releases/latest) —
+   e.g. `sentinel-<version>-linux-amd64.tar.gz` (Windows ships `.zip`).
+2. Download and verify the integrity of your download:
+
+   ```bash
+   VERSION=<version>          # e.g. 1.3.0 (no leading "v")
+   OS=linux                   # linux | darwin | windows
+   ARCH=amd64                 # amd64 | arm64
+   BASE=https://github.com/denisakp/sentinel/releases/latest/download
+
+   curl -LO "$BASE/sentinel-$VERSION-$OS-$ARCH.tar.gz"
+   curl -LO "$BASE/checksums.txt"
+   sha256sum -c checksums.txt --ignore-missing
+   ```
+3. Extract and put it on your `PATH`:
+
+   ```bash
+   tar -xzf "sentinel-$VERSION-$OS-$ARCH.tar.gz"   # unzip on Windows
+   sudo mv sentinel /usr/local/bin/
+   sentinel version
+   sentinel version --tools   # check pg_dump, mysqldump, mongodump versions
+   ```
+
+Prebuilt binaries still expect the relevant DB client tools (`pg_dump`,
+`mysqldump`, `mongodump`, …) on your `PATH`.
+
+### Install with `go install`
+
+If you already have Go 1.24+:
+
+```bash
+go install github.com/denisakp/sentinel@latest
+```
+
+> **Note:** a `go install` build is compiled without release ldflags, so
+> `sentinel version` reports the `dev / unknown / unknown` development
+> fallback rather than a stamped version. Use a prebuilt release binary if you
+> need `sentinel version` to report the real version/commit/build date.
+
+### Build from source (dev only)
+
 Requires Go 1.24+.
 
 ```bash
-git clone https://github.com/denis-yaovi/sentinel.git
+git clone https://github.com/denisakp/sentinel.git
 cd sentinel
 go mod download
-go build -o sentinel
-```
-
-Verify:
-
-```bash
+go build -o sentinel ./...
 ./sentinel version
-./sentinel version --tools   # check pg_dump, mysqldump, mongodump versions
 ```
 
 ---

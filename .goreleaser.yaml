@@ -1,0 +1,78 @@
+# GoReleaser configuration — cross-platform binary distribution (PRD 38).
+#
+# Sentinel is pure Go (no cgo — the SQLite monitor uses the pure-Go
+# modernc.org/sqlite driver), so every target cross-compiles with
+# CGO_ENABLED=0 and no cross-toolchain. Matches the flags used by
+# infra/docker/Dockerfile (CGO_ENABLED=0, -trimpath, -ldflags "-s -w").
+#
+# Validate locally with: goreleaser release --snapshot --clean
+# (produces all 5 binaries + archives + checksums.txt under dist/).
+#
+# TODO(v2): supply-chain signing — cosign keyless (GitHub OIDC, `--yes`)
+# plus SLSA build provenance attestations. Deferred out of v1 per PRD 38
+# Q1 (checksums-only for v1; signing/provenance a fast-follow).
+version: 2
+
+project_name: sentinel
+
+builds:
+  - id: sentinel
+    main: .                  # main.go lives at the repo root
+    binary: sentinel
+    env:
+      - CGO_ENABLED=0        # pure Go — matches infra/docker/Dockerfile
+    flags:
+      - -trimpath
+    ldflags:
+      # Stamp the real internal/version vars. GoVersion is NOT stamped —
+      # internal/version.Get() sources it from runtime.Version() at runtime.
+      - -s -w
+      - -X github.com/denisakp/sentinel/internal/version.Version={{ .Version }}
+      - -X github.com/denisakp/sentinel/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/denisakp/sentinel/internal/version.BuildDate={{ .CommitDate }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # 5-target matrix per roadmap M4 / F-01: linux/{amd64,arm64},
+      # darwin/{amd64,arm64}, windows/amd64. windows/arm64 excluded
+      # (PRD 38 Q2 — one-line add if ever wanted).
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    ids:
+      - sentinel
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - release-notes.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  github:
+    owner: denisakp
+    name: sentinel
+  draft: false
+  # Keep pointing operators at the consolidated changelog (PRD 38 Q6).
+  footer: |
+    ---
+    See `release-notes.md` for the full changes summary. Each release ships
+    prebuilt binaries for linux/darwin/windows (amd64 + arm64, minus
+    windows/arm64) plus a SHA-256 `checksums.txt`; verify downloads with
+    `sha256sum -c checksums.txt`.
