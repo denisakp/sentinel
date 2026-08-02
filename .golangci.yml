@@ -93,13 +93,9 @@ linters:
             - "**/internal/config/marshal.go"
           allow:
             - $gostd
-            - github.com/denisakp/sentinel/internal/ports   # spec 040: config translates BackupJob -> ports.DumpJobSpec
-            # dump adapters retired from this list by spec 040 / PRD 27 (config no longer imports them)
-            - github.com/denisakp/sentinel/internal/adapters/restore/pg
-            - github.com/denisakp/sentinel/internal/adapters/restore/mysql
-            - github.com/denisakp/sentinel/internal/adapters/restore/mariadb
-            - github.com/denisakp/sentinel/internal/adapters/restore/mongo
-            - github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog
+            - github.com/denisakp/sentinel/internal/ports   # spec 040/041: config translates YAML jobs -> ports.{Dump,Restore}JobSpec
+            # dump adapters retired by spec 040 / PRD 27; restore engine adapters retired by spec 041 / PRD 28.
+            - github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog   # BuildMySQLBinlogReplayArgs (separate axis; out of scope)
             - github.com/denisakp/sentinel/internal/adapters/storage
   exclusions:
     generated: lax

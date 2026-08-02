@@ -18,6 +18,7 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/lock"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	restoreregistry "github.com/denisakp/sentinel/internal/adapters/restore"
 	chainassembler "github.com/denisakp/sentinel/internal/adapters/restore/chain_assembler"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
 	mariadbrestore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
@@ -206,11 +207,12 @@ func NewRestoreExecutorFromConfig(req *ExecutionRequest, job config.RestoreJob) 
 			return runMySQLBinlogReplay(ctx, replayArgs)
 		},
 		OplogReplay: func(ctx context.Context, archivePath string) error {
-			replayArgs, err := config.BuildMongoOplogReplayArgs(job, archivePath)
+			spec := config.BuildRestoreJobSpec(job, "", "", archivePath)
+			opts, err := mongorestore.ArgsFactory{}.BuildRestoreArgs(spec, ports.OplogReplay)
 			if err != nil {
 				return err
 			}
-			return runMongoOplogReplay(ctx, replayArgs)
+			return runMongoOplogReplay(ctx, opts.(*mongorestore.OplogReplayArgs))
 		},
 	}
 	// Note: the engine-dispatch closure captures the pre-plan job. The only
@@ -248,34 +250,29 @@ func executeEngineRestore(ctx context.Context, job config.RestoreJob, stagedPath
 		return err
 	}
 
+	if job.Type == "postgres" && job.RestoreMode == "pitr" {
+		return runPostgresPITR(ctx, job, password, stagedPath)
+	}
+
+	spec := config.BuildRestoreJobSpec(job, password, stagedPath, "")
+	factory, err := restoreregistry.NewArgsFactory(job.Type)
+	if err != nil {
+		return fmt.Errorf("unsupported restore type: %s", job.Type)
+	}
+	opts, err := factory.BuildRestoreArgs(spec, ports.PrimaryRestore)
+	if err != nil {
+		return err
+	}
+
 	switch job.Type {
 	case "postgres":
-		if job.RestoreMode == "pitr" {
-			return runPostgresPITR(ctx, job, password, stagedPath)
-		}
-		args, err := config.BuildPgRestoreArgs(job, password, stagedPath)
-		if err != nil {
-			return err
-		}
-		return runPostgresRestore(ctx, args)
+		return runPostgresRestore(ctx, opts.(*pgrestore.RestoreArgs))
 	case "mysql":
-		args, err := config.BuildMySQLRestoreArgs(job, password, stagedPath)
-		if err != nil {
-			return err
-		}
-		return mysqlrestore.Restore(ctx, args)
+		return mysqlrestore.Restore(ctx, opts.(*mysqlrestore.RestoreArgs))
 	case "mariadb":
-		args, err := config.BuildMariaDBRestoreArgs(job, password, stagedPath)
-		if err != nil {
-			return err
-		}
-		return mariadbrestore.Restore(ctx, args)
+		return mariadbrestore.Restore(ctx, opts.(*mariadbrestore.RestoreArgs))
 	case "mongodb":
-		args, err := config.BuildMongoRestoreArgs(job, stagedPath)
-		if err != nil {
-			return err
-		}
-		return mongorestore.Restore(ctx, args)
+		return mongorestore.Restore(ctx, opts.(*mongorestore.RestoreArgs))
 	default:
 		return fmt.Errorf("unsupported restore type: %s", job.Type)
 	}
@@ -284,10 +281,12 @@ func executeEngineRestore(ctx context.Context, job config.RestoreJob, stagedPath
 // executePostgresPITR runs PostgreSQL restore orchestration for PITR
 // requests. Relocated from internal/restore/postgres_pitr.go.
 func executePostgresPITR(ctx context.Context, job config.RestoreJob, password, stagedPath string) error {
-	args, err := config.BuildPgRestoreArgs(job, password, stagedPath)
+	spec := config.BuildRestoreJobSpec(job, password, stagedPath, "")
+	opts, err := pgrestore.ArgsFactory{}.BuildRestoreArgs(spec, ports.PrimaryRestore)
 	if err != nil {
 		return fmt.Errorf("failed to build postgres PITR restore args: %w", err)
 	}
+	args := opts.(*pgrestore.RestoreArgs)
 	if err := pgrestore.Restore(ctx, args); err != nil {
 		return fmt.Errorf("failed to execute postgres PITR restore: %w", err)
 	}

@@ -45,3 +45,43 @@ type RestoreBuildResult struct{}
 type RestoreBuilder interface {
 	Build(ctx RestoreBuildContext) (RestoreBuildResult, error)
 }
+
+// RestorePhase selects which arg shape a RestoreArgsFactory produces
+// (spec 041 / PRD 28). Mongo is the only engine with a second phase.
+type RestorePhase int
+
+const (
+	// PrimaryRestore builds the engine's main *RestoreArgs.
+	PrimaryRestore RestorePhase = iota
+	// OplogReplay builds Mongo's *OplogReplayArgs; non-Mongo engines error.
+	OplogReplay
+)
+
+// RestoreJobSpec is the pure, engine-agnostic, carry-all descriptor handed to a
+// RestoreArgsFactory (spec 041 / PRD 28). No YAML tags, no config/adapter
+// dependency — so config no longer needs to import the restore adapter packages.
+// Every factory input is already resolved here; factories are pure copiers.
+type RestoreJobSpec struct {
+	Engine         string // job type: "postgres" | "mysql" | "mariadb" | "mongodb"
+	Host           string
+	Port           int
+	Username       string
+	Password       string
+	Database       string
+	URI            string // mongo
+	BackupPath     string // staged backup path (primary restore)
+	ArchivePath    string // oplog archive path (mongo OplogReplay)
+	OnConflict     string
+	AllowCascade   bool // pg
+	Gzip           bool // mongo
+	Archive        bool // mongo
+	AdditionalArgs string
+}
+
+// RestoreArgsFactory translates a RestoreJobSpec + phase into the engine-specific
+// restore-args value (which already satisfies RestoreOptions). Implementations
+// live in internal/adapters/restore/<engine>/ beside the engine's Builder
+// (spec 041 / PRD 28).
+type RestoreArgsFactory interface {
+	BuildRestoreArgs(spec RestoreJobSpec, phase RestorePhase) (RestoreOptions, error)
+}
