@@ -9,10 +9,6 @@ import (
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
-	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
-	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
-	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
-	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -231,47 +227,28 @@ func BuildAdvancedRestoreRequest(job RestoreJob) (*AdvancedRestoreRequest, error
 	return request, nil
 }
 
-// BuildPgRestoreArgs maps a restore job into pg_restore arguments.
-func BuildPgRestoreArgs(job RestoreJob, password, stagedPath string) (*pg_restore.RestoreArgs, error) {
-	return &pg_restore.RestoreArgs{
+// BuildRestoreJobSpec translates a YAML RestoreJob into the pure, engine-agnostic
+// ports.RestoreJobSpec consumed by ports.RestoreArgsFactory (spec 041 / PRD 28).
+// It owns conflict/gzip/archive/additional-args resolution; the per-engine restore
+// adapters copy the resolved fields into their *RestoreArgs / *OplogReplayArgs.
+// stagedPath feeds the primary restore; archivePath feeds the mongo oplog replay.
+func BuildRestoreJobSpec(job RestoreJob, password, stagedPath, archivePath string) ports.RestoreJobSpec {
+	return ports.RestoreJobSpec{
+		Engine:         job.Type,
 		Host:           job.Host,
 		Port:           job.Port,
 		Username:       job.Username,
 		Password:       password,
 		Database:       job.Database,
+		URI:            job.URI,
 		BackupPath:     stagedPath,
+		ArchivePath:    archivePath,
 		OnConflict:     effectiveRestoreConflict(job),
 		AllowCascade:   job.AllowCascade,
+		Gzip:           optionBool(job.RestoreOptions, "gzip"),
+		Archive:        optionBool(job.RestoreOptions, "archive"),
 		AdditionalArgs: BuildRestoreAdditionalArgs(job),
-	}, nil
-}
-
-// BuildMySQLRestoreArgs maps a restore job into mysql restore arguments.
-func BuildMySQLRestoreArgs(job RestoreJob, password, stagedPath string) (*mysql_restore.RestoreArgs, error) {
-	return &mysql_restore.RestoreArgs{
-		Host:           job.Host,
-		Port:           job.Port,
-		Username:       job.Username,
-		Password:       password,
-		Database:       job.Database,
-		BackupPath:     stagedPath,
-		OnConflict:     effectiveRestoreConflict(job),
-		AdditionalArgs: BuildRestoreAdditionalArgs(job),
-	}, nil
-}
-
-// BuildMariaDBRestoreArgs maps a restore job into mariadb restore arguments.
-func BuildMariaDBRestoreArgs(job RestoreJob, password, stagedPath string) (*mariadb_restore.RestoreArgs, error) {
-	return &mariadb_restore.RestoreArgs{
-		Host:           job.Host,
-		Port:           job.Port,
-		Username:       job.Username,
-		Password:       password,
-		Database:       job.Database,
-		BackupPath:     stagedPath,
-		OnConflict:     effectiveRestoreConflict(job),
-		AdditionalArgs: BuildRestoreAdditionalArgs(job),
-	}, nil
+	}
 }
 
 // BuildMySQLBinlogReplayArgs maps a restore job into mysqlbinlog replay arguments.
@@ -301,19 +278,6 @@ func BuildMySQLBinlogReplayArgs(job RestoreJob, password string, binlogSources [
 	return args, nil
 }
 
-// BuildMongoRestoreArgs maps a restore job into mongorestore arguments.
-func BuildMongoRestoreArgs(job RestoreJob, stagedPath string) (*mongo_restore.RestoreArgs, error) {
-	return &mongo_restore.RestoreArgs{
-		URI:            job.URI,
-		Database:       job.Database,
-		BackupPath:     stagedPath,
-		OnConflict:     effectiveRestoreConflict(job),
-		Gzip:           optionBool(job.RestoreOptions, "gzip"),
-		Archive:        optionBool(job.RestoreOptions, "archive"),
-		AdditionalArgs: BuildRestoreAdditionalArgs(job),
-	}, nil
-}
-
 // RestorePasswordFromEnv resolves a restore password from the configured env var.
 func RestorePasswordFromEnv(envName string) (string, error) {
 	if envName == "" {
@@ -324,25 +288,6 @@ func RestorePasswordFromEnv(envName string) (string, error) {
 		return "", fmt.Errorf("environment variable '%s' is not set", envName)
 	}
 	return value, nil
-}
-
-// BuildMongoOplogReplayArgs maps a restore job and an oplog archive path into
-// a mongo_restore.OplogReplayArgs for incremental restore replay.
-func BuildMongoOplogReplayArgs(job RestoreJob, archivePath string) (*mongo_restore.OplogReplayArgs, error) {
-	if job.Type != "mongodb" {
-		return nil, fmt.Errorf("mongodb oplog replay is only valid for mongodb jobs")
-	}
-	if strings.TrimSpace(archivePath) == "" {
-		return nil, fmt.Errorf("oplog archive path is required")
-	}
-	uri := job.URI
-	if strings.TrimSpace(uri) == "" {
-		return nil, fmt.Errorf("uri is required for mongodb oplog replay")
-	}
-	return &mongo_restore.OplogReplayArgs{
-		URI:         uri,
-		ArchivePath: archivePath,
-	}, nil
 }
 
 // BuildRestoreAdditionalArgs builds a space-separated args string from restore options.
