@@ -1,13 +1,9 @@
 package mariadb
 
 import (
-	"fmt"
-
-	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/adapters/mysqlargs"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
-	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/utils"
 )
 
 type MariaDBDumpArgs struct {
@@ -24,35 +20,17 @@ type MariaDBDumpArgs struct {
 // engineOptions satisfies ports.EngineOptions.
 func (*MariaDBDumpArgs) IsEngineOptions() {}
 
-// ArgsBuilder builds the arguments for the mariadb_dump command
-func ArgsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
-	if err := validateRequiredArgs(mda); err != nil {
-		return nil, err
-	}
-
-	// set the default host and port if not provided
-	mda.Host = utils.DefaultValue(mda.Host, "127.0.0.1")
-	mda.Port = utils.DefaultValue(mda.Port, "3306")
-
-	// build the required arguments
-	args := []string{
-		fmt.Sprintf("--host=%s", mda.Host),
-		fmt.Sprintf("--port=%s", mda.Port),
-		fmt.Sprintf("--user=%s", mda.Username),
-	}
-
-	if mda.AdditionalArgs != "" {
-		additionalArgs, err := backup.ParseAdditionalArgs(mda.AdditionalArgs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse additional_args: %w", err)
-		}
-		args = append(args, additionalArgs...)
-	} // add additional arguments if provided
-
-	args = append(args, internaltls.BuildTLSArgs("mariadb", mda.TLS)...)
-
-	args = backup.RemoveArgsDuplicate(args) // remove duplicated arguments
-	args = append(args, mda.Database)       // add the database name to the arguments
-
-	return args, nil
+// argsBuilder builds the mariadb-dump arguments by delegating to the shared
+// MySQL-family core with the MariaDB flavor (spec 044 / PRD 15). MariaDB does
+// not emit --skip-password on an empty password.
+func argsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
+	return mysqlargs.BuildArgs(mysqlargs.Input{
+		Host:           mda.Host,
+		Port:           mda.Port,
+		Username:       mda.Username,
+		Password:       mda.Password,
+		Database:       mda.Database,
+		AdditionalArgs: mda.AdditionalArgs,
+		TLS:            mda.TLS,
+	}, mysqlargs.FlavorMariaDB)
 }
