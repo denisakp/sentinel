@@ -153,7 +153,7 @@ func applyNotificationDefaults(channels []NotificationChannel) {
 }
 
 func hasRetention(policy RetentionPolicy) bool {
-	return policy.KeepLast > 0 || policy.KeepDays > 0 || policy.DryRun
+	return policy.KeepLast > 0 || policy.KeepDays > 0 || policy.DryRun || gfsConfigured(policy.GFS)
 }
 
 func boolPtr(v bool) *bool {

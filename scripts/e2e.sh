@@ -381,6 +381,81 @@ test_retention() {
     retention apply --config /configs/local.yaml --dry-run
 }
 
+# test_retention_gfs exercises the Grandfather-Father-Son retention path
+# end-to-end: seed a synthetic multi-day backup history + files, run a real
+# (non-dry-run) apply with a keep_daily:1 policy, and assert exactly the newest
+# daily anchor survives. History seeding needs the sqlite3 CLI on the host; the
+# real-apply assertion is skipped gracefully when it is absent.
+test_retention_gfs() {
+  log ""
+  log "=== Suite: retention (GFS) ==="
+
+  local gfs_dir="$BACKUPS_DIR/gfs"
+  mkdir -p "$gfs_dir"
+  printf 'd0' > "$gfs_dir/d0.sql"
+  printf 'd1' > "$gfs_dir/d1.sql"
+  printf 'd2' > "$gfs_dir/d2.sql"
+
+  cat > "$CONFIGS_DIR/gfs.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+
+databases:
+  gfs-e2e:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: gfs-e2e
+    retention:
+      gfs:
+        keep_daily: 1
+EOF
+
+  # Config must load/validate with a GFS-only retention block.
+  assert_exit_ok "gfs config validate" config validate --config /configs/gfs.yaml
+  # Dry-run apply must be processed (GFS-only job not skipped) — exit 0.
+  assert_exit_ok "gfs retention apply --dry-run" \
+    retention apply --config /configs/gfs.yaml --job gfs-e2e --dry-run
+
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    skip "gfs real-apply: sqlite3 not available to seed history"
+    return
+  fi
+
+  # Seed three success rows across three distinct calendar days (UTC). File
+  # paths are the absolute container paths the local backend deletes.
+  sqlite3 "$HISTORY_DB" <<SQL
+INSERT INTO backup_executions (id, backup_name, database_type, timestamp, status, storage_backend, file_path, file_size_bytes, created_at) VALUES
+ ('gfs-d0','gfs-e2e','postgres','2026-08-02 06:00:00+00:00','success','local','/workspace/backups/gfs/d0.sql',2,'2026-08-02 06:00:00+00:00'),
+ ('gfs-d1','gfs-e2e','postgres','2026-08-01 06:00:00+00:00','success','local','/workspace/backups/gfs/d1.sql',2,'2026-08-01 06:00:00+00:00'),
+ ('gfs-d2','gfs-e2e','postgres','2026-07-31 06:00:00+00:00','success','local','/workspace/backups/gfs/d2.sql',2,'2026-07-31 06:00:00+00:00');
+SQL
+
+  # Preview should attribute the two non-anchor deletions to GFS.
+  assert_output_contains "gfs preview shows gfs reason" "not retained by gfs" \
+    retention preview --config /configs/gfs.yaml --job gfs-e2e
+
+  # Real apply: keep_daily:1 keeps only the newest day's backup (d0).
+  assert_exit_ok "gfs retention apply (real)" \
+    retention apply --config /configs/gfs.yaml --job gfs-e2e
+
+  assert_file_nonempty "gfs kept newest daily anchor (d0)" "$gfs_dir/d0.sql"
+  if [[ ! -f "$gfs_dir/d1.sql" && ! -f "$gfs_dir/d2.sql" ]]; then
+    ok "gfs pruned non-anchor days (d1, d2)"
+  else
+    fail "gfs expected d1.sql and d2.sql deleted (d1 exists: $([[ -f "$gfs_dir/d1.sql" ]] && echo yes || echo no), d2 exists: $([[ -f "$gfs_dir/d2.sql" ]] && echo yes || echo no))"
+  fi
+}
+
 test_restore_dryrun() {
   log ""
   log "=== Suite: restore dry-run ==="
@@ -662,6 +737,7 @@ main() {
   test_local_backup
   test_monitor
   test_retention
+  test_retention_gfs
   test_restore_dryrun
   test_restore_real
   test_encryption

@@ -22,6 +22,40 @@ import (
 // a single generous page preserves behavior for any realistic history size.
 const retentionFetchLimit = 100_000
 
+// buildRetentionPolicy maps a config RetentionPolicy to the domain Policy,
+// carrying the GFS tiers when present. Single config→domain mapping for the
+// retention deletion path (used by manual `retention` commands and the
+// automatic post-scheduled-backup sweep).
+func buildRetentionPolicy(rp config.RetentionPolicy, dryRun bool) domainret.Policy {
+	policy := domainret.Policy{
+		KeepLast: rp.KeepLast,
+		KeepDays: rp.KeepDays,
+		DryRun:   dryRun,
+	}
+	if g := rp.GFS; g != nil {
+		policy.GFS = &domainret.GFSPolicy{
+			KeepDaily:   g.KeepDaily,
+			KeepWeekly:  g.KeepWeekly,
+			KeepMonthly: g.KeepMonthly,
+			KeepYearly:  g.KeepYearly,
+		}
+	}
+	return policy
+}
+
+// retentionEnabled reports whether a job's retention policy would act — flat
+// rules, dry-run, or a non-empty GFS block. A GFS-only policy MUST NOT be
+// skipped (spec 046 FR-008).
+func retentionEnabled(rp config.RetentionPolicy) bool {
+	if rp.KeepLast > 0 || rp.KeepDays > 0 {
+		return true
+	}
+	if g := rp.GFS; g != nil {
+		return g.KeepDaily > 0 || g.KeepWeekly > 0 || g.KeepMonthly > 0 || g.KeepYearly > 0
+	}
+	return false
+}
+
 func runRetention(cmd *cobra.Command, preview bool) error {
 	path, _ := cmd.Flags().GetString("config")
 	jobName, _ := cmd.Flags().GetString("job")
@@ -73,11 +107,7 @@ func applyJobRetention(ctx context.Context, cfg *config.Configuration, rec ports
 	if !ok {
 		return nil, fmt.Errorf("backup '%s' not found", jobName)
 	}
-	policy := domainret.Policy{
-		KeepLast: job.Retention.KeepLast,
-		KeepDays: job.Retention.KeepDays,
-		DryRun:   dryRun,
-	}
+	policy := buildRetentionPolicy(job.Retention, dryRun)
 
 	records, err := fetchRetentionRecords(ctx, rec, jobName)
 	if err != nil {
@@ -105,7 +135,7 @@ func applyAllRetention(ctx context.Context, cfg *config.Configuration, rec ports
 	summary := domainret.ApplySummary{ByBackupJob: make(map[string]int)}
 
 	for name, job := range cfg.Databases {
-		if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
+		if !retentionEnabled(job.Retention) {
 			continue
 		}
 		deleted, err := applyJobRetention(ctx, cfg, rec, name, dryRun)

@@ -417,13 +417,28 @@ func validateStorage(job BackupJob) error {
 }
 
 func validateRetention(job BackupJob) error {
-	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
+	if gfs := job.Retention.GFS; gfs != nil {
+		if gfs.KeepDaily < 0 || gfs.KeepWeekly < 0 || gfs.KeepMonthly < 0 || gfs.KeepYearly < 0 {
+			return fmt.Errorf("retention.gfs keep_daily/keep_weekly/keep_monthly/keep_yearly must be >= 0")
+		}
+	}
+
+	hasGFS := gfsConfigured(job.Retention.GFS)
+	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 && !hasGFS {
 		if job.Retention.DryRun {
-			return fmt.Errorf("keep_last or keep_days is required when retention is enabled")
+			return fmt.Errorf("keep_last, keep_days, or gfs is required when retention is enabled")
 		}
 		return nil
 	}
 	return nil
+}
+
+// gfsConfigured reports whether a GFS policy retains anything (any tier > 0).
+func gfsConfigured(gfs *GFSPolicy) bool {
+	if gfs == nil {
+		return false
+	}
+	return gfs.KeepDaily > 0 || gfs.KeepWeekly > 0 || gfs.KeepMonthly > 0 || gfs.KeepYearly > 0
 }
 
 func validateDatabaseOptions(job BackupJob) error {

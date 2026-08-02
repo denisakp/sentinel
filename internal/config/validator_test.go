@@ -275,6 +275,57 @@ func TestValidateConfig_IncrementalBackupPolicyAcceptsMountedBinlogPath(t *testi
 	}
 }
 
+func TestValidateConfig_GFSRetention(t *testing.T) {
+	enabled := true
+	base := func(rp RetentionPolicy) *Configuration {
+		return &Configuration{
+			Version:              "1.0",
+			MaxConcurrentBackups: 1,
+			Databases: map[string]BackupJob{
+				"pg": {
+					Name:        "pg",
+					Type:        "postgres",
+					Enabled:     &enabled,
+					Host:        "localhost",
+					Username:    "sentinel",
+					PasswordEnv: "PG_PASSWORD",
+					Database:    "appdb",
+					Schedule:    "0 1 * * *",
+					Storage:     StorageConfig{Type: "local", LocalPath: "/tmp"},
+					Retention:   rp,
+				},
+			},
+		}
+	}
+
+	t.Run("negative tier rejected", func(t *testing.T) {
+		err := ValidateConfig(base(RetentionPolicy{GFS: &GFSPolicy{KeepDaily: -1}}))
+		if err == nil || !strings.Contains(err.Error(), "must be >= 0") {
+			t.Fatalf("expected negative GFS tier rejected, got %v", err)
+		}
+	})
+
+	t.Run("gfs-only policy valid", func(t *testing.T) {
+		if err := ValidateConfig(base(RetentionPolicy{GFS: &GFSPolicy{KeepMonthly: 12}})); err != nil {
+			t.Fatalf("GFS-only policy must be valid, got %v", err)
+		}
+	})
+
+	t.Run("flat-zero plus gfs valid", func(t *testing.T) {
+		rp := RetentionPolicy{DryRun: true, GFS: &GFSPolicy{KeepDaily: 7}}
+		if err := ValidateConfig(base(rp)); err != nil {
+			t.Fatalf("dry-run + GFS (flat zero) must be valid, got %v", err)
+		}
+	})
+
+	t.Run("all-zero gfs with flat-zero dry-run still errors", func(t *testing.T) {
+		rp := RetentionPolicy{DryRun: true, GFS: &GFSPolicy{}}
+		if err := ValidateConfig(base(rp)); err == nil {
+			t.Fatal("expected error: dry-run with no flat rule and empty GFS")
+		}
+	})
+}
+
 func baseConfigWithRestore() *Configuration {
 	enabled := true
 	restoreEnabled := true

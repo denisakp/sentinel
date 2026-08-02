@@ -61,6 +61,15 @@ defaults:
   retention:
     keep_last: 30
     keep_days: 90
+    # Optional Grandfather-Father-Son (GFS) long-horizon retention. When set, a
+    # backup is kept if ANY rule keeps it (flat OR any GFS tier). Buckets are
+    # calendar periods in UTC; empty periods are skipped. See
+    # docs/runbooks/retention-gfs.md.
+    gfs:
+      keep_daily: 7      # newest backup of each of the last 7 days
+      keep_weekly: 4     # ... last 4 ISO weeks (Mon–Sun)
+      keep_monthly: 12   # ... last 12 months
+      keep_yearly: 3     # ... last 3 years
 
 databases:
   prod-postgres:
