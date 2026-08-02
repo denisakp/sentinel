@@ -7,6 +7,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 - [Start the scheduler](./start-scheduler.md)
 - [Inspect monitor history](./inspect-monitor-history.md)
 - [Apply retention](./apply-retention.md)
+- [Parallel multi-job restore](./parallel-restore.md)
 - [Check storage backend](./check-storage-backend.md)
 
 ## Setup

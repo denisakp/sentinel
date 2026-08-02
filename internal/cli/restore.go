@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -83,10 +84,10 @@ var (
 	}
 
 	restoreRunCmd = &cobra.Command{
-		Use:   "run <job-name>",
-		Short: "Execute a restore job now",
-		Long:  `Run a configured restore job immediately (including staged backup download for supported sources).`,
-		Args:  cobra.ExactArgs(1),
+		Use:   "run [job-name]",
+		Short: "Execute a restore job now (or --all for every enabled job)",
+		Long:  `Run a configured restore job immediately (including staged backup download for supported sources). Use --all to run every enabled restore job concurrently up to max_concurrent_restores.`,
+		Args:  cobra.MaximumNArgs(1),
 		RunE:  handleRestoreRun,
 	}
 
@@ -126,6 +127,10 @@ var (
 	restoreLogLevel            string
 	restoreAllowLegacyEnvelope bool
 
+	// Run-all flags (spec 045 / PRD 31).
+	restoreRunAll   bool
+	restoreParallel int
+
 	// One-off restore override flags.
 	restoreGCSBucket          string
 	restoreGCSProjectID       string
@@ -156,6 +161,8 @@ func init() {
 	restoreRunCmd.Flags().StringVar(&restoreGCSProjectID, "gcs-project-id", "", "Google Cloud project ID (optional)")
 	restoreRunCmd.Flags().StringVar(&restoreGCSCredentialsFile, "gcs-credentials-file", "", "Google Cloud service account key file")
 	restoreRunCmd.Flags().BoolVar(&restoreKeepFile, "keep-file", false, "Keep staged restore artifact after run for debugging")
+	restoreRunCmd.Flags().BoolVar(&restoreRunAll, "all", false, "Run all enabled restore jobs concurrently (up to max_concurrent_restores)")
+	restoreRunCmd.Flags().IntVar(&restoreParallel, "parallel", 0, "Max concurrent restore jobs for --all (0 = use max_concurrent_restores)")
 }
 
 var restoreCmd = &cobra.Command{
@@ -301,13 +308,39 @@ func handleRestoreDryRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func handleRestoreRun(cmd *cobra.Command, args []string) error {
-	jobName := args[0]
+// jobOutcome is the result of running one restore job: OK plus the stdout to
+// print (Msg) and the error to surface (Err). Used by both the single-job and
+// the --all (run-all) paths so they share identical execution + result handling
+// (spec 045 / PRD 31).
+type jobOutcome struct {
+	Name string
+	OK   bool
+	Msg  string
+	Err  error
+}
 
+func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	cfg, err := loadRestoreConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	ctx := context.Background()
+	if cmd != nil {
+		ctx = cmd.Context()
+	}
+
+	if restoreRunAll {
+		if len(args) > 0 {
+			return fmt.Errorf("cannot combine --all with a job name")
+		}
+		return handleRestoreRunAll(ctx, cfg)
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("a restore job name is required (or use --all to run every enabled job)")
+	}
+	jobName := args[0]
 
 	job, ok := cfg.Restores[jobName]
 	if !ok {
@@ -322,11 +355,17 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	}
 	defer mon.Close()
 
-	ctx := context.Background()
-	if cmd != nil {
-		ctx = cmd.Context()
+	outcome := runOneRestoreJob(ctx, cfg, mon, jobName, job)
+	if outcome.Msg != "" {
+		fmt.Print(outcome.Msg)
 	}
+	return outcome.Err
+}
 
+// runOneRestoreJob executes a single restore job and returns its outcome without
+// printing or returning early, so it can be composed into the run-all fan-out
+// (failure is captured, never propagated to abort siblings).
+func runOneRestoreJob(ctx context.Context, cfg *config.Configuration, mon *monitor.Monitor, jobName string, job config.RestoreJob) jobOutcome {
 	result, err := runRestoreExecution(ctx, &internalrestore.ExecutionRequest{
 		JobName:             jobName,
 		Job:                 job,
@@ -338,29 +377,105 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		notifyRestoreResult(ctx, jobName, job, result, err)
 		if result != nil && result.PlanningStatus == string(domainrestore.PlanStatusConfirmationRequired) {
-			return fmt.Errorf("restore execution requires explicit fallback confirmation; set confirm_full_fallback: true for job %q", jobName)
+			return jobOutcome{Name: jobName, OK: false, Err: fmt.Errorf("restore execution requires explicit fallback confirmation; set confirm_full_fallback: true for job %q", jobName)}
 		}
 		if result != nil && result.Status == ports.StatusSkipped {
-			return fmt.Errorf("restore execution skipped: %s", result.Reason)
+			return jobOutcome{Name: jobName, OK: false, Err: fmt.Errorf("restore execution skipped: %s", result.Reason)}
 		}
-		return mapRestoreSourceError(job, err)
+		return jobOutcome{Name: jobName, OK: false, Err: mapRestoreSourceError(job, err)}
 	}
 
 	notifyRestoreResult(ctx, jobName, job, result, nil)
 
+	var b strings.Builder
+	if result != nil && result.FallbackDecision == string(domainrestore.FallbackCandidateFullRestore) {
+		fmt.Fprintf(&b, "WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
+	}
 	if result != nil && result.StagedFileRetained {
-		if result.FallbackDecision == string(domainrestore.FallbackCandidateFullRestore) {
-			fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
+		fmt.Fprintf(&b, "Restore job %q completed. Staged file retained at: %s\n", jobName, result.StagedFilePath)
+	} else {
+		fmt.Fprintf(&b, "Restore job %q completed successfully\n", jobName)
+	}
+	return jobOutcome{Name: jobName, OK: true, Msg: b.String()}
+}
+
+// effectiveRestoreConcurrency resolves the run-all concurrency: the --parallel
+// override (if > 0), else max_concurrent_restores, else 1.
+func effectiveRestoreConcurrency(cfg *config.Configuration, parallelFlag int) int {
+	if parallelFlag > 0 {
+		return parallelFlag
+	}
+	if cfg.MaxConcurrentRestores > 0 {
+		return cfg.MaxConcurrentRestores
+	}
+	return 1
+}
+
+// handleRestoreRunAll runs every enabled restore job concurrently, bounded by
+// the effective concurrency limit, isolating per-job failures and reporting a
+// per-job aggregate (spec 045 / PRD 31).
+func handleRestoreRunAll(ctx context.Context, cfg *config.Configuration) error {
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize restore monitor: %w", err)
+	}
+	defer mon.Close()
+
+	type namedJob struct {
+		name string
+		job  config.RestoreJob
+	}
+	var enabled []namedJob
+	for name, job := range cfg.Restores {
+		if job.Enabled == nil || *job.Enabled {
+			enabled = append(enabled, namedJob{name: name, job: job})
 		}
-		fmt.Printf("Restore job %q completed. Staged file retained at: %s\n", jobName, result.StagedFilePath)
+	}
+	if len(enabled) == 0 {
+		fmt.Println("No enabled restore jobs to run.")
 		return nil
 	}
 
-	if result != nil && result.FallbackDecision == string(domainrestore.FallbackCandidateFullRestore) {
-		fmt.Printf("WARNING: incremental restore fell back to full restore (reason=%s, fallback_backup_id=%s)\n", result.FallbackReason, result.FallbackBackupID)
-	}
+	limit := effectiveRestoreConcurrency(cfg, restoreParallel)
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	outcomes := make([]jobOutcome, len(enabled))
 
-	fmt.Printf("Restore job %q completed successfully\n", jobName)
+	for i, e := range enabled {
+		wg.Add(1)
+		go func(i int, name string, job config.RestoreJob) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			// Contain any per-job panic so one bad job never aborts the batch.
+			defer func() {
+				if r := recover(); r != nil {
+					outcomes[i] = jobOutcome{Name: name, OK: false, Err: fmt.Errorf("restore job %q panicked: %v", name, r)}
+				}
+			}()
+			applyRestoreRunOverrides(&job)
+			outcomes[i] = runOneRestoreJob(ctx, cfg, mon, name, job)
+		}(i, e.name, e.job)
+	}
+	wg.Wait()
+
+	failed := 0
+	for _, o := range outcomes {
+		status := "OK"
+		if !o.OK {
+			status = "FAILED"
+			failed++
+		}
+		detail := strings.TrimSpace(o.Msg)
+		if o.Err != nil {
+			detail = o.Err.Error()
+		}
+		fmt.Printf("  %-30s %-7s %s\n", o.Name, status, detail)
+	}
+	fmt.Printf("Restore run-all: %d/%d succeeded (concurrency=%d)\n", len(outcomes)-failed, len(outcomes), limit)
+	if failed > 0 {
+		return fmt.Errorf("%d of %d restore jobs failed", failed, len(outcomes))
+	}
 	return nil
 }
 

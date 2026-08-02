@@ -55,6 +55,9 @@ func applyDefaults(cfg *Configuration) {
 	if cfg.MaxConcurrentBackups == 0 {
 		cfg.MaxConcurrentBackups = defaultMaxConcurrentJobs
 	}
+	if cfg.MaxConcurrentRestores == 0 {
+		cfg.MaxConcurrentRestores = defaultMaxConcurrentRestores
+	}
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = defaultLogFormat
 	}

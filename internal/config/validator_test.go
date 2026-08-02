@@ -313,3 +313,28 @@ func baseConfigWithRestore() *Configuration {
 		},
 	}
 }
+
+func TestValidateConfig_MaxConcurrentRestoresRange(t *testing.T) {
+	base := func(v int) *Configuration {
+		return &Configuration{
+			Version:               "1.0",
+			MaxConcurrentBackups:  1,
+			MaxConcurrentRestores: v,
+			Databases: map[string]BackupJob{
+				"db": {Type: "postgres", Host: "h", Username: "u", PasswordEnv: "PW", Database: "d", Schedule: "0 2 * * *", Storage: StorageConfig{Type: "local", LocalPath: "/tmp"}},
+			},
+		}
+	}
+	if err := ValidateConfig(base(-1)); err == nil {
+		t.Error("negative max_concurrent_restores must be rejected")
+	}
+	if err := ValidateConfig(base(101)); err == nil {
+		t.Error("max_concurrent_restores > 100 must be rejected")
+	}
+	if err := ValidateConfig(base(4)); err != nil {
+		t.Errorf("valid max_concurrent_restores rejected: %v", err)
+	}
+	if err := ValidateConfig(base(0)); err != nil {
+		t.Errorf("unset (0) max_concurrent_restores must pass (loader defaults it): %v", err)
+	}
+}

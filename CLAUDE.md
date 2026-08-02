@@ -37,7 +37,7 @@ Each command file in `internal/cli/` exports a `*cobra.Command` and registers su
 Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `config`, `db`, `security`, `storage`, `version`.
 
 ### Package layout
-- `internal/cli/` — Cobra commands (one file per command group)
+- `internal/cli/` — Cobra commands (one file per command group). `restore run` accepts `--all` (run every enabled restore job concurrently, bounded by top-level `max_concurrent_restores`, default 1) + `--parallel N` override; `handleRestoreRunAll` fans out over a `chan struct{}` semaphore reusing `runOneRestoreJob` (spec 045 / PRD 31 — job axis; DB axis deferred, restore has no multi-DB auto-discovery).
 - `internal/config/` — `types.go` (YAML schema), `loader.go`, `validator.go`
 - `internal/adapters/monitor/` — SQLite execution history adapter implementing `ports.Recorder` (spec 032). `NewMonitor(dbPath) (*Monitor, error)`; always `defer .Close()`. Schema is version-gated via `BinarySchemaVersion`; migrations run under a file lock on every open and forward-incompat DBs are refused (`ErrForwardIncompatible`). Inspect with `sentinel monitor doctor [--repair]`.
 - `internal/scheduler/` — cron loop (`scheduler.go`), execution (`executor.go`), restore hook (`restore_integration.go`)
@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/044-dedupe-mysql-mariadb-args/plan.md`
+`specs/045-parallel-multi-job-restore/plan.md`
 <!-- SPECKIT END -->
