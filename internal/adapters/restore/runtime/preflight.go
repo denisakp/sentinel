@@ -24,6 +24,15 @@ import (
 // domain sentinel.
 var ErrHashMismatch = domainrestore.ErrHashMismatch
 
+// SkipHashVerifyWarnMsg is the prominent, unmissable WARNING line written to
+// stderr when a manifest hash mismatch is bypassed via the per-invocation
+// --skip-hash-verify restore flag. Mirrors the operator-facing shape of the
+// CLI's LegacyEnvelopeOptInWarnMsg, but lives driving-side beside its single
+// emission point (preflight): the CLI package imports runtime, not the
+// reverse, so the constant cannot live in internal/cli. Takes the backup ID
+// and the artifact path.
+const SkipHashVerifyWarnMsg = "WARNING: restoring backup %q from %q with --skip-hash-verify — the manifest SHA-256 does NOT match the artifact; integrity is unverified and you are proceeding at your own risk\n"
+
 // PreRestoreVerifyAndDecrypt is the single entry point for restore pre-flight:
 //
 //  1. Reads the backup file at filePath
@@ -59,13 +68,29 @@ func PreRestoreVerifyAndDecryptWithOptions(
 	}
 
 	if computed != m.Hash.Value {
-		return nil, fmt.Errorf("%w: stored=%s computed=%s file=%q",
-			ErrHashMismatch, m.Hash.Value, computed, filePath)
+		if !decryptOpts.SkipHashVerify {
+			return nil, fmt.Errorf("%w: stored=%s computed=%s file=%q",
+				ErrHashMismatch, m.Hash.Value, computed, filePath)
+		}
+		// Explicit, per-invocation operator override via --skip-hash-verify.
+		// Never silent: emit both a structured security event and a prominent
+		// stderr line. For encrypted artifacts this only silences the SHA-256
+		// compare — AES-256-GCM auth-tag verification below is an independent
+		// integrity gate this flag does NOT bypass, so a truly corrupt
+		// ciphertext still fails to decrypt.
+		slog.WarnContext(ctx, "SECURITY WARNING: manifest hash mismatch bypassed via --skip-hash-verify",
+			"event", "skip_hash_verify",
+			"backup_id", m.BackupID,
+			"stored", m.Hash.Value,
+			"computed", computed,
+			"file", filePath,
+			"encrypted", m.Encryption != nil)
+		fmt.Fprintf(os.Stderr, SkipHashVerifyWarnMsg, m.BackupID, filePath)
+	} else {
+		slog.InfoContext(ctx, "hash verification passed",
+			"backup_id", m.BackupID,
+			"hash", computed)
 	}
-
-	slog.InfoContext(ctx, "hash verification passed",
-		"backup_id", m.BackupID,
-		"hash", computed)
 
 	// Open the file for reading (plaintext or ciphertext)
 	f, err := os.Open(filePath)
