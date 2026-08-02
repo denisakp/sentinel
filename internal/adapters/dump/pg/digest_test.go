@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/ports/dbprobertesting"
 )
 
 // installFakePgDump installs a fake `pg_dump` (or pg_dumpall) on PATH that
@@ -25,11 +26,10 @@ func installFakeEngine(t *testing.T, engineName, payload string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-func stubConnectivity(t *testing.T) {
+// stubConnectivity returns a passing prober (spec 043: connectivity is injected).
+func stubConnectivity(t *testing.T) *dbprobertesting.MockProber {
 	t.Helper()
-	orig := checkConnectivity
-	checkConnectivity = func(string, string, string, string, string, string) (bool, error) { return true, nil }
-	t.Cleanup(func() { checkConnectivity = orig })
+	return &dbprobertesting.MockProber{}
 }
 
 func expectedDigest(payload string) string {
@@ -50,10 +50,10 @@ func TestBackup_ReturnsInlineDigest(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			installFakeEngine(t, "pg_dump", tc.payload)
-			stubConnectivity(t)
+			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(&PgDumpArgs{
+			digest, err := Backup(prober, &PgDumpArgs{
 				Host: "127.0.0.1", Port: "5432", Username: "u", Database: "d",
 				Storage: &storage.Params{StorageType: "local", LocalPath: out, OutName: "x.sql"},
 			})

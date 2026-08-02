@@ -82,6 +82,8 @@ type DatabaseConfig struct {
 	Username string
 	Password string
 	TLS      *Config
+	Database string // spec 043: target database for a database-scoped ping (SQL dump path); "" = server-level
+	URI      string // spec 043: connection URI for the mongodb ping
 }
 
 // Prober abstracts the TLS connection probe (current concrete implementation:

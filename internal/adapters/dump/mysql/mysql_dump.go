@@ -2,28 +2,33 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	sql "github.com/denisakp/sentinel/internal/adapters/db_probe"
+	"strconv"
+
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
 )
 
-// checkConnectivity is overridable in tests.
-var checkConnectivity = sql.CheckConnectivity
-
-// Backup backs up a MySQL database using mysqldump
-func Backup(mda *MySqlDumpArgs) (string, error) {
+// Backup backs up a MySQL database using mysqldump. The prober checks
+// connectivity to the target database before mysqldump runs (spec 043).
+func Backup(prober ports.DBProber, mda *MySqlDumpArgs) (string, error) {
 	args, err := argsBuilder(mda)
 	if err != nil {
 		return "", fmt.Errorf("failed to build mysql_dump args - %w", err)
 	}
 
 	// check database connectivity
-	if ok, err := checkConnectivity("mysql", mda.Host, mda.Port, mda.Username, mda.Password, mda.Database); !ok {
+	port, _ := strconv.Atoi(mda.Port)
+	if err := prober.Ping(context.Background(), ports.DatabaseConfig{
+		Type: "mysql", Host: mda.Host, Port: port,
+		Username: mda.Username, Password: mda.Password, Database: mda.Database,
+	}); err != nil {
 		return "", err
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/ports/dbprobertesting"
 )
 
 // fakeBackend captures Upload invocations for assertion in tests.
@@ -54,17 +55,15 @@ exit %d
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// stubConnectivity replaces checkConnectivity for the duration of a test.
-func stubConnectivity(t *testing.T) {
+// stubConnectivity returns a passing prober (spec 043: connectivity is injected).
+func stubConnectivity(t *testing.T) *dbprobertesting.MockProber {
 	t.Helper()
-	orig := checkConnectivity
-	checkConnectivity = func(string) error { return nil }
-	t.Cleanup(func() { checkConnectivity = orig })
+	return &dbprobertesting.MockProber{}
 }
 
 func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 	installFakeMongodump(t, 0)
-	stubConnectivity(t)
+	prober := stubConnectivity(t)
 
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
@@ -80,7 +79,7 @@ func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	digest, err := Backup(da)
+	digest, err := Backup(prober, da)
 	if err != nil {
 		t.Fatalf("Backup: %v", err)
 	}
@@ -105,7 +104,7 @@ func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 
 func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 	installFakeMongodump(t, 0)
-	stubConnectivity(t)
+	prober := stubConnectivity(t)
 
 	tmp := t.TempDir()
 	fake := &fakeBackend{uploadErr: errors.New("upload boom")}
@@ -121,7 +120,7 @@ func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	_, err := Backup(da)
+	_, err := Backup(prober, da)
 	if err == nil || !strings.Contains(err.Error(), "upload boom") {
 		t.Fatalf("expected upload error, got %v", err)
 	}
@@ -132,7 +131,7 @@ func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 
 func TestBackup_MongodumpFail_CleansStaging(t *testing.T) {
 	installFakeMongodump(t, 1) // non-zero exit
-	stubConnectivity(t)
+	prober := stubConnectivity(t)
 
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
@@ -148,7 +147,7 @@ func TestBackup_MongodumpFail_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	_, err := Backup(da)
+	_, err := Backup(prober, da)
 	if err == nil || !strings.Contains(err.Error(), "failed to run mongo_dump") {
 		t.Fatalf("expected mongo_dump error, got %v", err)
 	}

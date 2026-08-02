@@ -23,7 +23,14 @@ func NewAdapter() *Adapter { return &Adapter{} }
 // Ping implements ports.DBProber.
 func (a *Adapter) Ping(ctx context.Context, conn ports.DatabaseConfig) error {
 	_ = ctx // ping helpers use blocking sql.Open; ctx-aware variant is future work
-	ok, err := CheckConnectivity(conn.Type, conn.Host, portStr(conn.Port), conn.Username, conn.Password, "")
+	if conn.Type == "mongodb" {
+		// spec 043: mongo connectivity is URI-based; CheckConnectivity/PingSqlDatabase
+		// cannot express it (defineScheme rejects mongodb).
+		return CheckMongoConnectivity(conn.URI)
+	}
+	// spec 043: pass conn.Database so the ping targets the specific database
+	// (matches the dump adapters' prior behaviour). Empty Database => server-level.
+	ok, err := CheckConnectivity(conn.Type, conn.Host, portStr(conn.Port), conn.Username, conn.Password, conn.Database)
 	if err != nil {
 		return err
 	}

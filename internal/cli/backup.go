@@ -175,7 +175,7 @@ var BackupCmd = &cobra.Command{
 				Storage:              params,
 			}
 
-			_, err = pg.Backup(pda)
+			_, err = pg.Backup(dbprobe.NewAdapter(), pda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -193,7 +193,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mysql.Backup(mda)
+			_, err = mysql.Backup(dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -211,7 +211,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mariadb.Backup(mda)
+			_, err = mariadb.Backup(dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -229,7 +229,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mongo.Backup(da)
+			_, err = mongo.Backup(dbprobe.NewAdapter(), da)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -389,15 +389,15 @@ func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *st
 		if cmd.Flags().Changed("pg-compression-level") {
 			pgArgs.CompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
 		}
-		return pgArgs, pg.Builder{}, nil
+		return pgArgs, pg.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mysql":
 		mysqlArgs := opts.(*mysql.MySqlDumpArgs)
 		mysqlArgs.Storage = storageParams
-		return mysqlArgs, mysql.Builder{}, nil
+		return mysqlArgs, mysql.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mariadb":
 		mariaArgs := opts.(*mariadb.MariaDBDumpArgs)
 		mariaArgs.Storage = storageParams
-		return mariaArgs, mariadb.Builder{}, nil
+		return mariaArgs, mariadb.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mongodb":
 		mongoArgs := opts.(*mongo.DumpMongoArgs)
 		mongoArgs.Storage = storageParams
@@ -407,7 +407,7 @@ func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *st
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		return mongoArgs, mongo.Builder{}, nil
+		return mongoArgs, mongo.NewBuilder(dbprobe.NewAdapter()), nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
@@ -570,7 +570,7 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		return mongoArgs, mongo.Builder{}, nil
+		return mongoArgs, mongo.NewBuilder(dbprobe.NewAdapter()), nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
