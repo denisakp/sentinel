@@ -2,21 +2,21 @@ package pg
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os/exec"
+	"strconv"
 
-	sql "github.com/denisakp/sentinel/internal/adapters/db_probe"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
-// checkConnectivity is overridable in tests.
-var checkConnectivity = sql.CheckConnectivity
-
-// Backup backs up a PostgresSQL database using pg_dump
-func Backup(pda *PgDumpArgs) (string, error) {
+// Backup backs up a PostgresSQL database using pg_dump. The prober checks
+// connectivity to the target database before pg_dump runs (spec 043 / PRD 30).
+func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
@@ -35,8 +35,12 @@ func Backup(pda *PgDumpArgs) (string, error) {
 		return "", fmt.Errorf("failed to build pg_dump args - %w", err)
 	}
 
-	// check connectivity
-	if ok, err := checkConnectivity("postgres", pda.Host, pda.Port, pda.Username, pda.Password, pda.Database); !ok {
+	// check connectivity to the target database
+	port, _ := strconv.Atoi(pda.Port)
+	if err := prober.Ping(context.Background(), ports.DatabaseConfig{
+		Type: "postgres", Host: pda.Host, Port: port,
+		Username: pda.Username, Password: pda.Password, Database: pda.Database,
+	}); err != nil {
 		return "", err
 	}
 

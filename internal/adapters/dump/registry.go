@@ -30,3 +30,21 @@ func NewArgsFactory(engine string) (ports.DumpArgsFactory, error) {
 		return nil, fmt.Errorf("unsupported engine %q", engine)
 	}
 }
+
+// NewBuilder returns the ports.DumpBuilder for the given engine, wired with the
+// injected connectivity prober (spec 043 / PRD 30), or an error for an
+// unsupported engine.
+func NewBuilder(engine string, prober ports.DBProber) (ports.DumpBuilder, error) {
+	switch engine {
+	case "postgres":
+		return pg.NewBuilder(prober), nil
+	case "mysql":
+		return mysql.NewBuilder(prober), nil
+	case "mariadb":
+		return mariadb.NewBuilder(prober), nil
+	case "mongodb":
+		return mongo.NewBuilder(prober), nil
+	default:
+		return nil, fmt.Errorf("unsupported engine %q", engine)
+	}
+}

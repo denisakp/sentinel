@@ -45,8 +45,9 @@ linters:
             - $gostd
             - github.com/denisakp/sentinel/internal/ports
             - github.com/denisakp/sentinel/internal/domain/retention  # spec 038 Q2 (Recorder retention methods)
-        # Sibling dump adapters must not import each other. dump/* -> db_probe (spec 037) is outside
-        # the deny prefix, so it stays allowed under lax.
+        # Sibling dump adapters must not import each other. (The former dump/* -> db_probe
+        # connectivity cross-import was removed by spec 043 / PRD 30 — dump builders now receive a
+        # ports.DBProber by constructor injection.)
         adapter-dump-axis:
           list-mode: lax
           files:

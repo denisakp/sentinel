@@ -9,24 +9,21 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/denisakp/sentinel/internal/adapters/db_probe"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 )
 
-// backupBackendFactory and checkConnectivity are overridable in tests.
-var (
-	backupBackendFactory = storage.NewBackend
-	checkConnectivity    = db_probe.CheckMongoConnectivity
-)
+// backupBackendFactory is overridable in tests.
+var backupBackendFactory = storage.NewBackend
 
 // Backup backs up a MongoDB database using mongo_dump. For storage_type=="local"
 // the legacy directory-tree dump path is preserved. For remote backends (s3, gcs,
 // google-drive, azure) mongodump runs in archive mode against a staging file
 // under <backup_path>/.staging/<job-id>/, then the file is streamed to the
 // configured StorageBackend and the staging dir is removed (success or failure).
-func Backup(da *DumpMongoArgs) (string, error) {
+func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 	storageHandler, err := storage.NewStorage(da.Storage)
 	if err != nil {
 		return "", err
@@ -72,7 +69,7 @@ func Backup(da *DumpMongoArgs) (string, error) {
 		}
 	}()
 
-	if err := checkConnectivity(da.Uri); err != nil {
+	if err := prober.Ping(context.Background(), ports.DatabaseConfig{Type: "mongodb", URI: da.Uri}); err != nil {
 		return "", err
 	}
 

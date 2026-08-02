@@ -41,10 +41,10 @@ func TestBackup_LocalReturnsInlineDigest(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			installFakeMongodumpWithPayload(t, tc.payload)
-			stubConnectivity(t)
+			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(&DumpMongoArgs{
+			digest, err := Backup(prober, &DumpMongoArgs{
 				Uri: "mongodb://stub",
 				Storage: &storage.Params{
 					StorageType: "local",
@@ -64,7 +64,7 @@ func TestBackup_LocalReturnsInlineDigest(t *testing.T) {
 
 func TestBackup_RemoteReturnsEmptyDigest(t *testing.T) {
 	installFakeMongodump(t, 0)
-	stubConnectivity(t)
+	prober := stubConnectivity(t)
 
 	tmp := t.TempDir()
 	fake := &fakeBackend{}
@@ -72,7 +72,7 @@ func TestBackup_RemoteReturnsEmptyDigest(t *testing.T) {
 	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
-	digest, err := Backup(&DumpMongoArgs{
+	digest, err := Backup(prober, &DumpMongoArgs{
 		Uri: "mongodb://stub",
 		Storage: &storage.Params{
 			StorageType: "s3",
