@@ -3,7 +3,9 @@ package mysql
 import (
 	"fmt"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/utils"
 )
 
 // Builder satisfies ports.DumpBuilder by wrapping Backup. It carries an
@@ -22,5 +24,22 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	if err != nil {
 		return ports.BuildResult{}, err
 	}
-	return ports.BuildResult{Digest: digest}, nil
+	return ports.BuildResult{Digest: digest, LocalPath: localArtifactPath(args.Storage)}, nil
+}
+
+// localArtifactPath reconstructs the on-disk path Backup wrote to using the
+// same helpers the adapter uses (Backup leaves Storage.OutName finalized but
+// stores the full path only in a local variable). Returns "" when the storage
+// handler cannot be resolved. Enables the domain to hash/encrypt/manifest the
+// artifact before a remote upload (spec 047).
+func localArtifactPath(p *storage.Params) string {
+	sh, err := storage.NewStorage(p)
+	if err != nil {
+		return ""
+	}
+	backupPath, err := sh.GetBackupPath(p.LocalPath)
+	if err != nil {
+		return ""
+	}
+	return utils.FullPath(backupPath, p.OutName)
 }

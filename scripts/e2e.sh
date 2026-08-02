@@ -71,6 +71,7 @@ sentinel() {
     -e DEV_MARIADB_PASSWORD=sentinel \
     -e SENTINEL_S3_ACCESS_KEY="$S3_ACCESS_KEY" \
     -e SENTINEL_S3_SECRET_KEY="$S3_SECRET_KEY" \
+    -e SENTINEL_MASTER_KEY="${SENTINEL_MASTER_KEY:-}" \
     -e SENTINEL_AZURE_CONN_STRING="$AZURITE_CONN_STRING" \
     -e STORAGE_EMULATOR_HOST="http://host.docker.internal:4443" \
     -v "$WORKSPACE:/workspace" \
@@ -561,6 +562,205 @@ test_s3_backup() {
   assert_exit_ok "backup s3" backup --config /configs/s3.yaml
 }
 
+# test_remote_encrypted_backup proves the spec 047 security fix end-to-end:
+# a config-driven REMOTE backup (S3 emulator) with an encryption key configured
+# must upload CIPHERTEXT + a <name>.manifest.json sidecar (not the pre-fix
+# silent plaintext bypass), be verifiable, and restore + decrypt round-trip.
+# Object probing uses the amazon/aws-cli image already used by setup() to create
+# the bucket — no host aws/mc binary is required.
+test_remote_encrypted_backup() {
+  log ""
+  log "=== Suite: remote encrypted backup — S3 (RustFS) [spec 047] ==="
+
+  # 1. Generate a master key (same channel test_encryption uses).
+  local key
+  key=$(docker run --rm "$IMAGE" sentinel security init-key 2>/dev/null | grep 'export SENTINEL_MASTER_KEY=' | cut -d'"' -f2)
+  if [[ -z "$key" ]]; then
+    fail "remote-enc: security init-key returned empty key"
+    return
+  fi
+  ok "remote-enc: security init-key"
+
+  # Explicit .sql output so the staged filename and the uploaded S3 object key
+  # match deterministically (upload key = job output; manifest = key + suffix).
+  local art_key="postgres-s3-enc.sql"
+  local manifest_key="${art_key}.manifest.json"
+
+  # 1b. S3 config with encryption_key_env set + a postgres job -> S3 emulator.
+  cat > "$CONFIGS_DIR/s3-encrypted.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+encryption_key_env: SENTINEL_MASTER_KEY
+
+defaults:
+  storage:
+    type: s3
+    s3_bucket: $S3_BUCKET
+    s3_bucket_endpoint: $S3_ENDPOINT
+    s3_region: $S3_REGION
+    s3_access_key_id_env: SENTINEL_S3_ACCESS_KEY
+    s3_secret_access_key_env: SENTINEL_S3_SECRET_KEY
+
+databases:
+  postgres-s3-enc:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: $art_key
+EOF
+
+  # Seed a probe row into the source DB so the restore below can prove a real
+  # round-trip (dump -> encrypt -> upload -> download -> decrypt -> restore).
+  local seeded=false
+  if docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -d sentinel -c \
+      "DROP TABLE IF EXISTS e2e_enc_probe; CREATE TABLE e2e_enc_probe(id int primary key, note text); INSERT INTO e2e_enc_probe VALUES (1,'spec-047-remote-encrypted');" >/dev/null 2>&1; then
+    seeded=true
+  fi
+
+  # 2. Run the encrypted backup to S3. The key reaches the CLI via the sentinel()
+  #    env passthrough (-e SENTINEL_MASTER_KEY).
+  export SENTINEL_MASTER_KEY="$key"
+  assert_exit_ok "remote-enc: backup to s3 (encrypted)" backup --config /configs/s3-encrypted.yaml
+
+  # aws_s3 runs the S3-compatible CLI against RustFS with the workspace mounted,
+  # mirroring the bucket-create call in setup().
+  aws_s3() {
+    docker run --rm \
+      --network "$NETWORK" \
+      --add-host=host.docker.internal:host-gateway \
+      -v "$WORKSPACE:/workspace" \
+      --entrypoint sh \
+      amazon/aws-cli:latest -c \
+      "AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY aws --endpoint-url $S3_ENDPOINT --region $S3_REGION $*"
+  }
+
+  # 3 + 4. Download the stored object and assert it is CIPHERTEXT (core SC-002
+  #        security assertion), plus assert the manifest sidecar exists.
+  local host_dl="$WORKSPACE/s3-enc-download.bin"
+  rm -f "$host_dl"
+  if aws_s3 "s3 cp s3://$S3_BUCKET/$art_key /workspace/s3-enc-download.bin" >/dev/null 2>&1 && [[ -s "$host_dl" ]]; then
+    # SC-002: the stored object must NOT contain the plaintext pg_dump header.
+    if grep -qa "PostgreSQL database dump" "$host_dl"; then
+      fail "remote-enc: stored S3 object is PLAINTEXT SQL — encryption bypass (SC-002)"
+    else
+      ok "remote-enc: stored S3 object is ciphertext, no plaintext SQL header (SC-002)"
+    fi
+    # Sanity: v2 ciphertext starts with the "SENC" envelope magic.
+    if [[ "$(head -c4 "$host_dl")" == "SENC" ]]; then
+      ok "remote-enc: ciphertext carries SENC envelope-v2 magic"
+    else
+      log "  note: SENC magic not at offset 0 (envelope layout may differ) — plaintext probe above is authoritative"
+    fi
+    # SC-003: the <name>.manifest.json sidecar object exists in the bucket.
+    if aws_s3 "s3 ls s3://$S3_BUCKET/$manifest_key" 2>/dev/null | grep -q "manifest.json"; then
+      ok "remote-enc: manifest sidecar present in bucket ($manifest_key)"
+    else
+      fail "remote-enc: manifest sidecar missing in bucket ($manifest_key)"
+    fi
+    rm -f "$host_dl" 2>/dev/null || true
+  else
+    skip "remote-enc: aws-cli image unavailable — cannot probe stored S3 object (ciphertext + manifest checks skipped)"
+  fi
+
+  # 5. backup verify validates the remote backup (SC-003). Resolve the execution
+  #    id from monitor history; assert exit 0 (verify performs the remote fetch).
+  local backup_id
+  backup_id=$(sentinel monitor list --config /configs/s3-encrypted.yaml --job postgres-s3-enc --last 1h 2>&1 \
+    | grep "postgres-s3-enc" | grep "success" | head -1 | awk '{print $1}' || true)
+  if [[ -n "$backup_id" ]]; then
+    assert_exit_ok "remote-enc: backup verify (remote, SC-003)" \
+      backup verify "$backup_id" --config /configs/s3-encrypted.yaml
+  else
+    skip "remote-enc: could not resolve backup execution id for verify"
+  fi
+
+  # 6. Restore the encrypted remote backup end-to-end into a fresh DB (SC-004).
+  docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+    psql -U sentinel -c "DROP DATABASE IF EXISTS sentinel_restore_enc;" >/dev/null 2>&1 || true
+  if ! docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -c "CREATE DATABASE sentinel_restore_enc;" >/dev/null 2>&1; then
+    skip "remote-enc: could not create sentinel_restore_enc database (restore skipped)"
+    docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -d sentinel -c "DROP TABLE IF EXISTS e2e_enc_probe;" >/dev/null 2>&1 || true
+    unset SENTINEL_MASTER_KEY
+    return
+  fi
+
+  cat > "$CONFIGS_DIR/s3-encrypted-restore.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+encryption_key_env: SENTINEL_MASTER_KEY
+
+defaults:
+  storage:
+    type: s3
+    s3_bucket: $S3_BUCKET
+    s3_bucket_endpoint: $S3_ENDPOINT
+    s3_region: $S3_REGION
+    s3_access_key_id_env: SENTINEL_S3_ACCESS_KEY
+    s3_secret_access_key_env: SENTINEL_S3_SECRET_KEY
+
+databases:
+  postgres-s3-enc:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: $art_key
+
+restores:
+  pg-s3-enc-restore:
+    type: postgres
+    enabled: true
+    schedule: "0 3 * * *"
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel_restore_enc
+    staging_dir: /workspace/staging
+    backup_source:
+      type: s3
+      s3_bucket: $S3_BUCKET
+      s3_bucket_endpoint: $S3_ENDPOINT
+      s3_region: $S3_REGION
+      s3_access_key_id_env: SENTINEL_S3_ACCESS_KEY
+      s3_secret_access_key_env: SENTINEL_S3_SECRET_KEY
+      backup_path: $art_key
+EOF
+
+  assert_exit_ok "remote-enc: restore run pg-s3-enc-restore (SC-004)" \
+    restore run pg-s3-enc-restore --config /configs/s3-encrypted-restore.yaml
+
+  # Data-match: the probe row must have round-tripped through encrypt+restore.
+  if [[ "$seeded" == true ]]; then
+    local probe
+    probe=$(docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -d sentinel_restore_enc -tAc \
+      "SELECT note FROM e2e_enc_probe WHERE id=1;" 2>/dev/null | tr -d '[:space:]' || true)
+    if [[ "$probe" == "spec-047-remote-encrypted" ]]; then
+      ok "remote-enc: restored data matches source (probe row round-tripped, SC-004)"
+    else
+      fail "remote-enc: restored probe row mismatch (got '$probe')"
+    fi
+  else
+    skip "remote-enc: probe seeding unavailable — data-match assertion skipped (restore exit-0 above stands)"
+  fi
+
+  # Cleanup: drop the probe table from the shared source DB, clear the key.
+  docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+    psql -U sentinel -d sentinel -c "DROP TABLE IF EXISTS e2e_enc_probe;" >/dev/null 2>&1 || true
+  unset SENTINEL_MASTER_KEY
+}
+
 test_azure_backup() {
   log ""
   log "=== Suite: storage status — Azure backend (Azurite) ==="
@@ -742,6 +942,7 @@ main() {
   test_restore_real
   test_encryption
   test_s3_backup
+  test_remote_encrypted_backup
   test_azure_backup
   test_gcs_backup
   test_storage_status

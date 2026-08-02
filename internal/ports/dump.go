@@ -54,6 +54,11 @@ type BuildResult struct {
 	Digest       string      // sha256 hex of dump bytes when available; "" for remote-staged dumps
 	BytesWritten int64       // size of produced artifact when known; 0 if not measured
 	Cleanup      DumpCleanup // post-dump cleanup handle; nil today for every engine
+	// LocalPath is the on-disk path of the produced artifact, always populated
+	// (local storage: the final destination; remote storage: a staging file the
+	// caller must upload then clean up). Enables the domain to hash/encrypt/
+	// manifest the artifact uniformly before upload (spec 047).
+	LocalPath string
 }
 
 // DumpBuilder is the unified port every dump engine adapter implements.

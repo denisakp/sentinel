@@ -18,7 +18,10 @@ import (
 
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
+	dumpmariadb "github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
 	dumpmongo "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	dumpmysql "github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	dumppg "github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
@@ -124,11 +127,34 @@ func NewBackupExecutorFromConfig(
 		}
 	}
 
+	// Remote-artifact security (spec 047): redirect the dump to a local staging
+	// dir so the domain pipeline can hash/encrypt/manifest the artifact before
+	// the Executor uploads it (encrypted) + its manifest sidecar to the remote
+	// backend. Wired only for stageable single-artifact dumps (the engine
+	// Builders); the pg/mysql/mariadb dump-all closure writes remotely itself
+	// and is left untouched. Local storage is never staged.
+	var storageBackend ports.StorageBackend
+	stagingDir := ""
+	if shouldStageRemote(storageParams, engineOpts, dumps) {
+		sd, backend, err := redirectDumpToStaging(storageParams, engineOpts)
+		if err != nil {
+			return nil, fmt.Errorf("backup '%s': %w", job.Name, err)
+		}
+		stagingDir = sd
+		storageBackend = backend
+	} else if isRemoteStorage(storageParams) && encryptionConfigured(cfg) {
+		// Fail-loud (spec 047 / FR-008): the auto-discovery "single" dump-all
+		// path (a dumpBuilderFunc) uploads to remote storage itself and cannot
+		// be staged in place, so the artifact cannot be encrypted before it
+		// leaves the host. Refuse rather than leak plaintext to the bucket.
+		return nil, fmt.Errorf("backup '%s': encrypted remote backup is not supported for the auto-discovery 'single' strategy; use strategy 'individual' or local storage", job.Name)
+	}
+
 	exec := backup.NewExecutor(
 		dumps,
-		nil, // ports.StorageBackend — reserved; retention sweep stays driving-side (progress.md Sub-PR K)
-		nil, // ports.EncryptWriter — per-file encryption goes through Job.EncryptArtifact
-		nil, // ports.Hasher — digests computed inline by dump adapters
+		storageBackend, // ports.StorageBackend — remote upload target (nil for local)
+		nil,            // ports.EncryptWriter — per-file encryption goes through Job.EncryptArtifact
+		nil,            // ports.Hasher — digests computed inline by dump adapters
 		rec,
 		notif,
 		nil, // ports.LockManager — job serialization owned by the scheduler runtime
@@ -136,11 +162,86 @@ func NewBackupExecutorFromConfig(
 		manifest.Adapter{},
 	)
 
+	djob := buildDomainBackupJob(cfg, job, storageParams, scheduled, forceFull, engineOpts)
+	djob.StagingDir = stagingDir
+
 	return &backupExecution{
 		exec:      exec,
-		job:       buildDomainBackupJob(cfg, job, storageParams, scheduled, forceFull, engineOpts),
+		job:       djob,
 		notifWarn: notifWarn,
 	}, nil
+}
+
+// isRemoteStorage reports whether storageParams targets a non-local backend.
+func isRemoteStorage(p *storage.Params) bool {
+	return p != nil && p.StorageType != "" && p.StorageType != "local"
+}
+
+// encryptionConfigured reports whether the config enables at-rest encryption.
+func encryptionConfigured(cfg *config.Configuration) bool {
+	return cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "")
+}
+
+// shouldStageRemote decides whether to redirect a remote dump through a local
+// staging dir. It applies only to real single-artifact engine Builders; the
+// pg/mysql/mariadb dump-all path (a dumpBuilderFunc that writes remotely on its
+// own) is excluded so its behaviour is unchanged.
+func shouldStageRemote(p *storage.Params, engineOpts ports.EngineOptions, dumps ports.DumpBuilder) bool {
+	if engineOpts == nil || !isRemoteStorage(p) {
+		return false
+	}
+	if _, isDumpAll := dumps.(dumpBuilderFunc); isDumpAll {
+		return false
+	}
+	return true
+}
+
+// redirectDumpToStaging creates a unique local staging dir and points the dump
+// at it (SQL engines write there as local storage; mongo stages an archive
+// there via RemoteStagingDir). It also constructs the real remote backend the
+// Executor uploads to. On any error the staging dir is removed.
+func redirectDumpToStaging(storageParams *storage.Params, engineOpts ports.EngineOptions) (string, ports.StorageBackend, error) {
+	stagingDir, err := os.MkdirTemp("", "sentinel-stage-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create staging dir: %w", err)
+	}
+
+	backend, err := storage.NewBackend(storageParams)
+	if err != nil {
+		_ = os.RemoveAll(stagingDir)
+		return "", nil, fmt.Errorf("failed to initialize %s backend: %w", storageParams.StorageType, err)
+	}
+
+	switch opts := engineOpts.(type) {
+	case *dumppg.PgDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmysql.MySqlDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmariadb.MariaDBDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmongo.DumpMongoArgs:
+		// Mongo keeps its remote Storage params (it needs --archive mode); it
+		// stages the archive into stagingDir and defers upload to the Executor.
+		opts.RemoteStagingDir = stagingDir
+	default:
+		// Unknown engine options: nothing to redirect. Drop the unused backend
+		// + staging dir so we don't leave the dump writing to a dead end.
+		_ = os.RemoveAll(stagingDir)
+		return "", nil, nil
+	}
+
+	return stagingDir, backend, nil
+}
+
+// localStagingParams builds local storage params writing into stagingDir while
+// preserving the configured output name (the Executor uploads to the real
+// remote key held on the domain Job).
+func localStagingParams(remote *storage.Params, stagingDir string) *storage.Params {
+	return &storage.Params{
+		StorageType: "local",
+		LocalPath:   stagingDir,
+		OutName:     remote.OutName,
+	}
 }
 
 // buildDomainBackupJob translates the config shapes into the pure domain Job.
@@ -184,7 +285,7 @@ func buildDomainBackupJob(
 		djob.GCSBucket = storageParams.GCSBucket
 	}
 
-	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
+	if encryptionConfigured(cfg) {
 		djob.EncryptionKeyHint = cfg.EncryptionKeyEnv
 		djob.EncryptArtifact = func(path, backupID string) (bool, *ports.EncryptionInfo, string, error) {
 			return encryptBackupFile(cfg, path, backupID)
@@ -216,7 +317,7 @@ func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storag
 	if err != nil {
 		return nil, err
 	}
-	outcome, warnings, secErr := be.exec.ApplyArtifactSecurity(context.Background(), be.job, plaintextDigest)
+	outcome, warnings, secErr := be.exec.ApplyArtifactSecurity(context.Background(), be.job, plaintextDigest, be.job.LocalPath)
 	for _, w := range warnings {
 		fmt.Println(w)
 	}

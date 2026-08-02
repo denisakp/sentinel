@@ -21,6 +21,7 @@ import (
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
 	"github.com/denisakp/sentinel/internal/config"
 	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
@@ -279,7 +280,13 @@ func downloadSourceObject(ctx context.Context, source config.RestoreBackupSource
 		if err != nil {
 			return fmt.Errorf("failed to initialize s3 restore backend: %w", err)
 		}
-		return backend.Download(ctx, object, dest)
+		if err := backend.Download(ctx, object, dest); err != nil {
+			if errors.Is(err, s3.ErrObjectNotFound) {
+				return fmt.Errorf("%w: %s", ErrSourceObjectNotFound, object)
+			}
+			return err
+		}
+		return nil
 	case "gcs":
 		backend, err := newGCSRestoreBackend(source)
 		if err != nil {

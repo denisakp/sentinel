@@ -229,7 +229,7 @@ func TestResolveBackupPathGCSDoesNotExposeCredentials(t *testing.T) {
 		GCSProjectID:       "prod-project",
 	}
 
-	path, _ := backup.ResolveArtifactRef(params.StorageType, params.LocalPath, params.OutName, params.GCSBucket)
+	path, _ := backup.ResolveArtifactRef(params.StorageType, params.LocalPath, params.OutName, params.GCSBucket, "")
 	if path != "gs://prod-backups/db/prod.sql" {
 		t.Fatalf("path = %q", path)
 	}

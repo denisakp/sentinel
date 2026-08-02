@@ -2,6 +2,8 @@ package mongo
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/denisakp/sentinel/internal/ports"
 )
@@ -23,5 +25,19 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	if err != nil {
 		return ports.BuildResult{}, err
 	}
-	return ports.BuildResult{Digest: digest}, nil
+	return ports.BuildResult{Digest: digest, LocalPath: mongoLocalPath(args)}, nil
+}
+
+// mongoLocalPath returns the on-disk artifact path for the domain pipeline
+// (spec 047). For the executor-owned remote path it is the staged archive
+// inside RemoteStagingDir; otherwise it is the (local) dump destination Backup
+// resolved into Storage.OutName.
+func mongoLocalPath(args *DumpMongoArgs) string {
+	if strings.TrimSpace(args.RemoteStagingDir) != "" {
+		return filepath.Join(args.RemoteStagingDir, archiveFileName(args.Compress))
+	}
+	if args.Storage != nil {
+		return args.Storage.OutName
+	}
+	return ""
 }
