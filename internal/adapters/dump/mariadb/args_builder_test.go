@@ -66,13 +66,13 @@ func TestArgsBuilder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ArgsBuilder(tt.args)
+			got, err := argsBuilder(tt.args)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ArgsBuilder() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("argsBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ArgsBuilder() got = %v, want %v", got, tt.want)
+				t.Errorf("argsBuilder() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -86,7 +86,7 @@ func TestArgsBuilderNeverContainsPassword(t *testing.T) {
 		{Username: "root", Database: "test", Password: "secret", Host: "h", Port: "3306"},
 	}
 	for i, c := range cases {
-		got, err := ArgsBuilder(c)
+		got, err := argsBuilder(c)
 		if err != nil {
 			t.Fatalf("case %d: %v", i, err)
 		}

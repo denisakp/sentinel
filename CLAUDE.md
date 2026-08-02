@@ -59,7 +59,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/adapters/restore/chain_assembler/` — `ports.ChainAssembler` adapter over `pg_combinebackup` (spec 038 FR-013); conformance assertion + `combinePostgresChain` test seam. Test fake: `internal/ports/chainassemblertesting.MockAssembler`.
 - `internal/utils/` — shared helpers (`file.go`, `time.go`, `scheduled_output.go`)
 - `internal/version/`
-- `internal/adapters/dump/{pg,mysql,mariadb,mongo}/` — engine-specific dump adapters (spec 035). Each package exposes a zero-field `Builder` satisfying `ports.DumpBuilder` and keeps its existing `Backup`/`BackupAll` entry points + `*DumpArgs` types. Compile-time port assertions in `conformance.go`. Port types `DumpBuilder`/`DumpCleanup`/`BuildContext`/`BuildResult` live in `internal/ports/dump.go`. (Mongo PEM lifecycle moved out to the neutral `internal/adapters/mongo_tls/` by spec 042 / PRD 29.)
+- `internal/adapters/dump/{pg,mysql,mariadb,mongo}/` — engine-specific dump adapters (spec 035). Each package exposes a zero-field `Builder` satisfying `ports.DumpBuilder` and keeps its existing `Backup`/`BackupAll` entry points + `*DumpArgs` types. Compile-time port assertions in `conformance.go`. Port types `DumpBuilder`/`DumpCleanup`/`BuildContext`/`BuildResult` live in `internal/ports/dump.go`. (Mongo PEM lifecycle moved out to the neutral `internal/adapters/mongo_tls/` by spec 042 / PRD 29. The mysql + mariadb args-builder body + validator are shared via `internal/adapters/mysqlargs.BuildArgs(Input, Flavor)` — a sibling outside `dump/` so the axis rule allows both engines to import it — by spec 044 / PRD 15; each engine's `argsBuilder` delegates with its `Flavor`. Dump builders are constructed via `internal/adapters/dump/registry.go::NewBuilder(engine, prober)` with an injected `ports.DBProber`, spec 043 / PRD 30.)
 - `internal/adapters/restore/incremental/{mysqlbinlog,pgcombine}/` — external-binary wrappers for incremental replay (spec 035). `pgcombine` is reached only through `internal/adapters/restore/chain_assembler/` (`ports.ChainAssembler`); `mysqlbinlog` is consumed by `internal/cli/backup_factory.go` (archive) and `internal/adapters/restore/runtime/` (replay).
 - `internal/adapters/restore/{pg,mysql,mariadb,mongo}/` — engine-specific restore adapters (spec 036). Each package exposes a zero-field `Builder` satisfying `ports.RestoreBuilder` and keeps its existing `Restore` entry point + `RestoreArgs` type (mongo additionally has `OplogReplayArgs` + `ReplayOplog`). Compile-time port assertions in `conformance.go`. Port types `RestoreBuilder`/`RestoreBuildContext`/`RestoreBuildResult`/`RestoreOptions` live in `internal/ports/restore.go`.
 
@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/043-dbprober-injection-dump-adapters/plan.md`
+`specs/044-dedupe-mysql-mariadb-args/plan.md`
 <!-- SPECKIT END -->

@@ -1,16 +1,9 @@
 package mysql
 
-import "fmt"
+import "github.com/denisakp/sentinel/internal/adapters/mysqlargs"
 
-// validateRequiredArgs validates required arguments for MySQL dump
+// validateRequiredArgs delegates to the shared MySQL-family validator
+// (spec 044 / PRD 15).
 func validateRequiredArgs(mda *MySqlDumpArgs) error {
-	if mda.Database == "" {
-		return fmt.Errorf("database name is missing")
-	}
-
-	if mda.Username == "" {
-		return fmt.Errorf("username is missing")
-	}
-
-	return nil
+	return mysqlargs.ValidateRequired(mda.Username, mda.Database)
 }

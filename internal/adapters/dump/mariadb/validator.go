@@ -1,14 +1,9 @@
 package mariadb
 
-import "fmt"
+import "github.com/denisakp/sentinel/internal/adapters/mysqlargs"
 
+// validateRequiredArgs delegates to the shared MySQL-family validator
+// (spec 044 / PRD 15).
 func validateRequiredArgs(mda *MariaDBDumpArgs) error {
-	if mda.Database == "" {
-		return fmt.Errorf("database name is missing")
-	}
-
-	if mda.Username == "" {
-		return fmt.Errorf("username is missing")
-	}
-	return nil
+	return mysqlargs.ValidateRequired(mda.Username, mda.Database)
 }

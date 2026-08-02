@@ -20,7 +20,7 @@ import (
 // probe uses the "mysql" scheme, as the prior checkConnectivity call did.
 func Backup(prober ports.DBProber, mda *MariaDBDumpArgs) (string, error) {
 	// Validate the required arguments
-	args, err := ArgsBuilder(mda)
+	args, err := argsBuilder(mda)
 	if err != nil {
 		return "", fmt.Errorf("failed to build arguments: %w", err)
 	}

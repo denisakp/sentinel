@@ -10,7 +10,7 @@ import (
 // buildExecCmd mirrors the construction inside Backup so callers can assert env
 // shape without driving a real subprocess.
 func buildExecCmd(mda *MariaDBDumpArgs) (*exec.Cmd, error) {
-	args, err := ArgsBuilder(mda)
+	args, err := argsBuilder(mda)
 	if err != nil {
 		return nil, err
 	}
