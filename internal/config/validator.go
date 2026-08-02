@@ -9,10 +9,10 @@ import (
 
 	"github.com/robfig/cron/v3"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	backupincremental "github.com/denisakp/sentinel/internal/domain/backup/incremental"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 var allowedPostgresOptions = map[string]bool{
@@ -52,6 +52,9 @@ func ValidateConfig(cfg *Configuration) error {
 	// only a genuinely out-of-range value (negative or > 100). Spec 045 / PRD 31.
 	if cfg.MaxConcurrentRestores != 0 && (cfg.MaxConcurrentRestores < 1 || cfg.MaxConcurrentRestores > 100) {
 		return fmt.Errorf("max_concurrent_restores must be between 1 and 100")
+	}
+	if err := validateIntegrity(cfg.Integrity); err != nil {
+		return err
 	}
 
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -387,6 +390,18 @@ func validateOplogReplaySelectors(job RestoreJob) error {
 		return fmt.Errorf("mongodb.oplog_target_timestamp must be RFC3339 with timezone: %w", err)
 	}
 	return nil
+}
+
+// validateIntegrity validates the repository-wide integrity block (spec 051 /
+// PRD 34). Only SHA-256 is supported by the integrity layer today; empty means
+// the default (sha256).
+func validateIntegrity(cfg IntegrityConfig) error {
+	switch cfg.Algorithm {
+	case "", "sha256":
+		return nil
+	default:
+		return fmt.Errorf("integrity.algorithm must be 'sha256' (or empty for the default)")
+	}
 }
 
 func validateStorage(job BackupJob) error {

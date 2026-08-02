@@ -45,6 +45,16 @@ type SchedulerConfig struct {
 	LockDir string `yaml:"lock_dir"`
 }
 
+// IntegrityConfig holds repository-wide integrity settings. It is the shared
+// home for the `backup verify --all` sweep (spec 051 / PRD 34) and the sibling
+// scheduled-integrity feature (PRD 35) that will attach a `scheduled_check`
+// sub-block here.
+type IntegrityConfig struct {
+	// Algorithm is the hash algorithm used for integrity verification. Only
+	// "sha256" is supported today; empty means the default (sha256).
+	Algorithm string `yaml:"algorithm,omitempty"`
+}
+
 // RestoreRuntimeConfig holds shared runtime settings for restore execution.
 type RestoreRuntimeConfig struct {
 	// StagingDir is the base directory used for staged restore artifacts.
@@ -159,6 +169,9 @@ type Configuration struct {
 
 	// Scheduler holds advanced concurrency and timeout settings
 	Scheduler SchedulerConfig `yaml:"scheduler,omitempty"`
+
+	// Integrity holds repository-wide integrity settings (spec 051 / PRD 34).
+	Integrity IntegrityConfig `yaml:"integrity,omitempty"`
 
 	// Log format: "json" or "text" (default: "json")
 	LogFormat string `yaml:"log_format"`

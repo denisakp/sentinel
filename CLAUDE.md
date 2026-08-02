@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/047-remote-artifact-security/plan.md`
+`specs/051-backup-verify-all/plan.md`
 <!-- SPECKIT END -->
