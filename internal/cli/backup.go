@@ -16,6 +16,7 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
+	"github.com/denisakp/sentinel/internal/adapters/dump"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
@@ -362,12 +363,20 @@ func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *st
 		return nil, nil, err
 	}
 
+	spec := config.BuildDumpJobSpec(job, password, additionalArgs)
+	factory, err := dump.NewArgsFactory(job.Type)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts, err := factory.BuildDumpArgs(spec)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch job.Type {
 	case "postgres":
-		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		pgArgs := opts.(*pg.PgDumpArgs)
+		pgArgs.Storage = storageParams
 		if cmd.Flags().Changed("pg-out-format") {
 			pgArgs.PgOutFormat, _ = cmd.Flags().GetString("pg-out-format")
 		}
@@ -382,22 +391,16 @@ func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *st
 		}
 		return pgArgs, pg.Builder{}, nil
 	case "mysql":
-		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mysqlArgs := opts.(*mysql.MySqlDumpArgs)
+		mysqlArgs.Storage = storageParams
 		return mysqlArgs, mysql.Builder{}, nil
 	case "mariadb":
-		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mariaArgs := opts.(*mariadb.MariaDBDumpArgs)
+		mariaArgs.Storage = storageParams
 		return mariaArgs, mariadb.Builder{}, nil
 	case "mongodb":
-		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mongoArgs := opts.(*mongo.DumpMongoArgs)
+		mongoArgs.Storage = storageParams
 		if cmd.Flags().Changed("compress") {
 			mongoArgs.Compress, _ = cmd.Flags().GetBool("compress")
 		}
@@ -501,12 +504,20 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 		return nil, nil, err
 	}
 
+	spec := config.BuildDumpJobSpec(job, password, additionalArgs)
+	factory, err := dump.NewArgsFactory(job.Type)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts, err := factory.BuildDumpArgs(spec)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch job.Type {
 	case "postgres":
-		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		pgArgs := opts.(*pg.PgDumpArgs)
+		pgArgs.Storage = storageParams
 		allArgs := &pg.PgDumpAllArgs{
 			Host:           pgArgs.Host,
 			Port:           pgArgs.Port,
@@ -520,10 +531,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mysql":
-		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mysqlArgs := opts.(*mysql.MySqlDumpArgs)
+		mysqlArgs.Storage = storageParams
 		allArgs := &mysql.MySqlDumpAllArgs{
 			Host:           mysqlArgs.Host,
 			Port:           mysqlArgs.Port,
@@ -537,10 +546,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mariadb":
-		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mariaArgs := opts.(*mariadb.MariaDBDumpArgs)
+		mariaArgs.Storage = storageParams
 		allArgs := &mariadb.MariaDBDumpAllArgs{
 			Host:           mariaArgs.Host,
 			Port:           mariaArgs.Port,
@@ -554,10 +561,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mongodb":
-		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
-		if err != nil {
-			return nil, nil, err
-		}
+		mongoArgs := opts.(*mongo.DumpMongoArgs)
+		mongoArgs.Storage = storageParams
 		mongoArgs.Database = ""
 		if cmd.Flags().Changed("compress") {
 			mongoArgs.Compress, _ = cmd.Flags().GetBool("compress")

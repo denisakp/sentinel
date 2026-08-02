@@ -8,15 +8,12 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
-	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
-	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
-	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
-	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
 	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
 	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
 	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 const defaultIncrementalMaxChainDepth = 6
@@ -61,75 +58,48 @@ func BuildStorageParams(job BackupJob) *storage.Params {
 	}
 }
 
-// BuildPgDumpArgs maps a job into pg_dump arguments.
-func BuildPgDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*pg.PgDumpArgs, error) {
-	pgArgs := &pg.PgDumpArgs{
-		Host:             job.Host,
-		Port:             portToString(job.Port),
-		Username:         job.Username,
-		Password:         password,
-		Database:         job.Database,
-		AdditionalArgs:   additionalArgs,
-		Storage:          storageParams,
-		CompressionLevel: 1,
+// BuildDumpJobSpec translates a YAML BackupJob into the pure, engine-agnostic
+// ports.DumpJobSpec consumed by ports.DumpArgsFactory (spec 040 / PRD 27). It
+// owns all DatabaseOptions resolution; the per-engine adapters copy the resolved
+// fields into their *DumpArgs. Storage params are set on the concrete result by
+// the command layer, not carried here.
+func BuildDumpJobSpec(job BackupJob, password string, additionalArgs string) ports.DumpJobSpec {
+	spec := ports.DumpJobSpec{
+		Engine:         job.Type,
+		Host:           job.Host,
+		Port:           portToString(job.Port),
+		Username:       job.Username,
+		Password:       password,
+		Database:       job.Database,
+		URI:            job.URI,
+		AdditionalArgs: additionalArgs,
 	}
 
-	if value, ok := optionString(job.DatabaseOptions, "pg_out_format"); ok {
-		pgArgs.PgOutFormat = value
-	}
-	if value, ok := optionInt(job.DatabaseOptions, "compress"); ok {
-		if value > 0 {
-			pgArgs.Compress = true
-			pgArgs.CompressionLevel = value
+	switch job.Type {
+	case "postgres":
+		spec.CompressionLevel = 1
+		if value, ok := optionString(job.DatabaseOptions, "pg_out_format"); ok {
+			spec.PgOutFormat = value
 		}
+		if value, ok := optionInt(job.DatabaseOptions, "compress"); ok {
+			if value > 0 {
+				spec.Compress = true
+				spec.CompressionLevel = value
+			}
+		}
+		if value, ok := optionString(job.DatabaseOptions, "pg_compression_algo"); ok {
+			spec.CompressionAlgorithm = value
+			spec.Compress = true
+		}
+		if value, ok := optionInt(job.DatabaseOptions, "pg_compression_level"); ok {
+			spec.Compress = true
+			spec.CompressionLevel = value
+		}
+	case "mongodb":
+		spec.Compress = optionBool(job.DatabaseOptions, "gzip")
 	}
-	if value, ok := optionString(job.DatabaseOptions, "pg_compression_algo"); ok {
-		pgArgs.CompressionAlgorithm = value
-		pgArgs.Compress = true
-	}
-	if value, ok := optionInt(job.DatabaseOptions, "pg_compression_level"); ok {
-		pgArgs.Compress = true
-		pgArgs.CompressionLevel = value
-	}
 
-	return pgArgs, nil
-}
-
-// BuildMySQLDumpArgs maps a job into mysqldump arguments.
-func BuildMySQLDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mysql.MySqlDumpArgs, error) {
-	return &mysql.MySqlDumpArgs{
-		Host:           job.Host,
-		Port:           portToString(job.Port),
-		Username:       job.Username,
-		Password:       password,
-		Database:       job.Database,
-		AdditionalArgs: additionalArgs,
-		Storage:        storageParams,
-	}, nil
-}
-
-// BuildMariaDBDumpArgs maps a job into mariadb-dump arguments.
-func BuildMariaDBDumpArgs(job BackupJob, password string, additionalArgs string, storageParams *storage.Params) (*mariadb.MariaDBDumpArgs, error) {
-	return &mariadb.MariaDBDumpArgs{
-		Host:           job.Host,
-		Port:           portToString(job.Port),
-		Username:       job.Username,
-		Password:       password,
-		Database:       job.Database,
-		AdditionalArgs: additionalArgs,
-		Storage:        storageParams,
-	}, nil
-}
-
-// BuildMongoDumpArgs maps a job into mongodump arguments.
-func BuildMongoDumpArgs(job BackupJob, additionalArgs string, storageParams *storage.Params) (*mongo.DumpMongoArgs, error) {
-	return &mongo.DumpMongoArgs{
-		Uri:            job.URI,
-		Database:       job.Database,
-		Compress:       optionBool(job.DatabaseOptions, "gzip"),
-		AdditionalArgs: additionalArgs,
-		Storage:        storageParams,
-	}, nil
+	return spec
 }
 
 // PasswordFromEnv resolves the password from the environment variable.
