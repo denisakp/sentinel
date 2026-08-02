@@ -48,6 +48,11 @@ func ValidateConfig(cfg *Configuration) error {
 	if cfg.MaxConcurrentBackups < 1 || cfg.MaxConcurrentBackups > 100 {
 		return fmt.Errorf("max_concurrent_backups must be between 1 and 100")
 	}
+	// 0 means "unset" (LoadConfig defaults it to 1 before validation); reject
+	// only a genuinely out-of-range value (negative or > 100). Spec 045 / PRD 31.
+	if cfg.MaxConcurrentRestores != 0 && (cfg.MaxConcurrentRestores < 1 || cfg.MaxConcurrentRestores > 100) {
+		return fmt.Errorf("max_concurrent_restores must be between 1 and 100")
+	}
 
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 

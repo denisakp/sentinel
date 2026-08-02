@@ -134,6 +134,10 @@ type Configuration struct {
 	// Global concurrency limit (default: 3) — kept for backward compatibility
 	MaxConcurrentBackups int `yaml:"max_concurrent_backups"`
 
+	// Global concurrency limit for `restore run --all` (default: 1 — serial;
+	// parallelism is opt-in). Spec 045 / PRD 31.
+	MaxConcurrentRestores int `yaml:"max_concurrent_restores"`
+
 	// Scheduler holds advanced concurrency and timeout settings
 	Scheduler SchedulerConfig `yaml:"scheduler,omitempty"`
 
