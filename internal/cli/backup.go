@@ -593,11 +593,15 @@ func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job co
 	if cfg == nil {
 		return
 	}
-	if job.Retention.KeepLast == 0 && job.Retention.KeepDays == 0 {
+	if !retentionEnabled(job.Retention) {
 		return
 	}
 
-	cmd.Printf("Retention: evaluating backup '%s' (keep_last=%d, keep_days=%d)\n", job.Name, job.Retention.KeepLast, job.Retention.KeepDays)
+	gfsSuffix := ""
+	if g := job.Retention.GFS; g != nil {
+		gfsSuffix = fmt.Sprintf(", gfs=[daily=%d weekly=%d monthly=%d yearly=%d]", g.KeepDaily, g.KeepWeekly, g.KeepMonthly, g.KeepYearly)
+	}
+	cmd.Printf("Retention: evaluating backup '%s' (keep_last=%d, keep_days=%d%s)\n", job.Name, job.Retention.KeepLast, job.Retention.KeepDays, gfsSuffix)
 
 	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 	if err != nil {

@@ -26,7 +26,6 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/config"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
-	domainret "github.com/denisakp/sentinel/internal/domain/retention"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -174,10 +173,7 @@ func buildDomainBackupJob(
 		MaxChainDepth:      maxChainDepth,
 		ForceFull:          forceFull,
 		Scheduled:          scheduled,
-		Retention: domainret.Policy{
-			KeepLast: job.Retention.KeepLast,
-			KeepDays: job.Retention.KeepDays,
-		},
+		Retention: buildRetentionPolicy(job.Retention, false),
 		VerifyArtifactHash: verifyIncrementalArtifactHash,
 	}
 

@@ -296,6 +296,28 @@ type RetentionPolicy struct {
 
 	// Dry-run mode: preview deletions without executing
 	DryRun bool `yaml:"dry_run,omitempty"`
+
+	// GFS enables Grandfather-Father-Son calendar-tier retention alongside the
+	// flat keep_last/keep_days rules. When set, a backup is kept if any rule
+	// (flat or GFS) keeps it. Omit for unchanged behaviour.
+	GFS *GFSPolicy `yaml:"gfs,omitempty"`
+}
+
+// GFSPolicy defines Grandfather-Father-Son calendar-tier retention. Each field
+// is a count of the most-recent occupied calendar buckets whose newest backup is
+// retained. All values MUST be >= 0; bucketing is computed in UTC.
+type GFSPolicy struct {
+	// Keep the newest backup of each of the last N calendar days
+	KeepDaily int `yaml:"keep_daily,omitempty"`
+
+	// Keep the newest backup of each of the last N ISO weeks (Mon–Sun)
+	KeepWeekly int `yaml:"keep_weekly,omitempty"`
+
+	// Keep the newest backup of each of the last N calendar months
+	KeepMonthly int `yaml:"keep_monthly,omitempty"`
+
+	// Keep the newest backup of each of the last N calendar years
+	KeepYearly int `yaml:"keep_yearly,omitempty"`
 }
 
 // NotificationChannel defines how to send backup alerts (discriminated union)

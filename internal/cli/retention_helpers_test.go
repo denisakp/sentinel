@@ -31,6 +31,74 @@ func newRetentionTestMonitor(t *testing.T, historyPath string) *monitor.Monitor 
 	return mon
 }
 
+func TestRetentionEnabledConsidersGFS(t *testing.T) {
+	cases := []struct {
+		name string
+		rp   config.RetentionPolicy
+		want bool
+	}{
+		{"empty", config.RetentionPolicy{}, false},
+		{"flat", config.RetentionPolicy{KeepLast: 1}, true},
+		{"gfs-only", config.RetentionPolicy{GFS: &config.GFSPolicy{KeepMonthly: 12}}, true},
+		{"gfs-empty", config.RetentionPolicy{GFS: &config.GFSPolicy{}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := retentionEnabled(tc.rp); got != tc.want {
+				t.Fatalf("retentionEnabled(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplyJobRetentionGFSOnlyJobProcessed(t *testing.T) {
+	historyPath := filepath.Join(t.TempDir(), "history.db")
+	cfg := &config.Configuration{
+		Version:       "1.0",
+		HistoryDBPath: historyPath,
+		Databases: map[string]config.BackupJob{
+			"pg-job": {
+				Name:      "pg-job",
+				Type:      "postgres",
+				Storage:   config.StorageConfig{Type: "local"},
+				Retention: config.RetentionPolicy{GFS: &config.GFSPolicy{KeepDaily: 1}},
+			},
+		},
+	}
+
+	mon := newRetentionTestMonitor(t, historyPath)
+	base := time.Date(2026, 8, 2, 6, 0, 0, 0, time.UTC)
+	// Three distinct days; keep_daily:1 keeps the newest day's newest backup.
+	fixtures := []*ports.Execution{
+		{BackupName: "pg-job", DatabaseType: "postgres", Timestamp: base, Status: "success", FilePath: "d0.sql", FileSizeBytes: 10},
+		{BackupName: "pg-job", DatabaseType: "postgres", Timestamp: base.Add(-24 * time.Hour), Status: "success", FilePath: "d1.sql", FileSizeBytes: 10},
+		{BackupName: "pg-job", DatabaseType: "postgres", Timestamp: base.Add(-48 * time.Hour), Status: "success", FilePath: "d2.sql", FileSizeBytes: 10},
+	}
+	for _, e := range fixtures {
+		if err := mon.RecordExecution(context.Background(), e); err != nil {
+			t.Fatalf("RecordExecution() error = %v", err)
+		}
+	}
+
+	// Dry-run: a GFS-only job must be processed (not skipped) and report the
+	// two non-anchor backups with the GFS reason.
+	deleted, err := applyJobRetention(context.Background(), cfg, mon, "pg-job", true)
+	if err != nil {
+		t.Fatalf("applyJobRetention() error = %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Fatalf("candidates = %d, want 2 (%#v)", len(deleted), deleted)
+	}
+	for _, d := range deleted {
+		if d.FilePath == "d0.sql" {
+			t.Fatalf("newest daily anchor d0.sql must be kept, got it as candidate")
+		}
+		if d.ReasonDeleted != "not retained by gfs" {
+			t.Fatalf("candidate %s reason = %q, want gfs reason", d.FilePath, d.ReasonDeleted)
+		}
+	}
+}
+
 func TestApplyJobRetentionGCSDeletesRecordsAfterArtifactDelete(t *testing.T) {
 	mock := storagetesting.NewMockBackend()
 	mock.PutBytes("old.sql", []byte("x"))
