@@ -127,6 +127,10 @@ var (
 	restoreLogLevel            string
 	restoreAllowLegacyEnvelope bool
 
+	// Run-only integrity escape hatch (PRD 39). Per-invocation, flag-only,
+	// off by default — never env-defaulted or config-driven.
+	restoreSkipHashVerify bool
+
 	// Run-all flags (spec 045 / PRD 31).
 	restoreRunAll   bool
 	restoreParallel int
@@ -163,6 +167,14 @@ func init() {
 	restoreRunCmd.Flags().BoolVar(&restoreKeepFile, "keep-file", false, "Keep staged restore artifact after run for debugging")
 	restoreRunCmd.Flags().BoolVar(&restoreRunAll, "all", false, "Run all enabled restore jobs concurrently (up to max_concurrent_restores)")
 	restoreRunCmd.Flags().IntVar(&restoreParallel, "parallel", 0, "Max concurrent restore jobs for --all (0 = use max_concurrent_restores)")
+	// Registered on the run command only (not persistently) so it cannot leak
+	// onto list/status/dry-run. Flag-only, off by default — no env default (an
+	// env default would silently defeat integrity checking across every restore
+	// on a host). PRD 39.
+	restoreRunCmd.Flags().BoolVar(&restoreSkipHashVerify, "skip-hash-verify", false,
+		"UNSAFE: proceed even if the artifact's SHA-256 does not match the manifest. "+
+			"Downgrades the integrity abort to a logged WARNING. Use only for a manifest/artifact "+
+			"you have independently verified, or last-copy disaster recovery.")
 }
 
 var restoreCmd = &cobra.Command{
@@ -373,6 +385,7 @@ func runOneRestoreJob(ctx context.Context, cfg *config.Configuration, mon *monit
 		LockDir:             cfg.Scheduler.LockDir,
 		Monitor:             mon,
 		AllowLegacyEnvelope: restoreAllowLegacyEnvelope,
+		SkipHashVerify:      restoreSkipHashVerify,
 	})
 	if err != nil {
 		notifyRestoreResult(ctx, jobName, job, result, err)

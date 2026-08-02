@@ -62,6 +62,10 @@ type ExecutionRequest struct {
 	ConflictEvaluator func(context.Context, config.RestoreJob, string) error
 	// AllowLegacyEnvelope opt-in for decrypting pre-v2 artifacts. Off by default.
 	AllowLegacyEnvelope bool
+	// SkipHashVerify downgrades a manifest hash mismatch from a hard abort to a
+	// logged WARNING. Off by default; set only by the per-invocation
+	// --skip-hash-verify restore flag (never env-defaulted).
+	SkipHashVerify bool
 }
 
 // ExecutionResult preserves the pre-carve result shape (now the domain
@@ -190,7 +194,7 @@ func NewRestoreExecutorFromConfig(req *ExecutionRequest, job config.RestoreJob) 
 		LoadPlanManifest: manifest.LoadRestoreManifest,
 		ReadManifest:     manifest.ReadManifest,
 		Preflight: func(ctx context.Context, artifact *domainrestore.StagedArtifact) (string, error) {
-			return applyRestorePreflight(ctx, req.Config, artifact, req.AllowLegacyEnvelope)
+			return applyRestorePreflight(ctx, req.Config, artifact, req.AllowLegacyEnvelope, req.SkipHashVerify)
 		},
 		RestoreOptions: func(stagedPath string) (ports.RestoreOptions, error) {
 			return stagedPathOptions{path: stagedPath}, nil
@@ -295,7 +299,7 @@ func executePostgresPITR(ctx context.Context, job config.RestoreJob, password, s
 
 // applyPreflight verifies integrity and decrypts the staged artifact in
 // place. Relocated verbatim from internal/restore/executor.go.
-func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, allowLegacyEnvelope bool) (string, error) {
+func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *StagedArtifact, allowLegacyEnvelope, skipHashVerify bool) (string, error) {
 	if artifact == nil {
 		return "", fmt.Errorf("staged artifact is required")
 	}
@@ -317,9 +321,10 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 	}
 
 	reader, err := PreRestoreVerifyAndDecryptWithOptions(ctx, m, artifact.Path, keyProvider, ports.DecryptOptions{
-		AllowLegacy: allowLegacyEnvelope,
-		Source:      artifact.Path,
-		BackupID:    m.BackupID,
+		AllowLegacy:    allowLegacyEnvelope,
+		SkipHashVerify: skipHashVerify,
+		Source:         artifact.Path,
+		BackupID:       m.BackupID,
 	})
 	if err != nil {
 		if errors.Is(err, ErrHashMismatch) {

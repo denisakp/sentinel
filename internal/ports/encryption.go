@@ -31,6 +31,11 @@ type DecryptReader interface {
 type DecryptOptions struct {
 	// AllowLegacy permits decrypting pre-v2 (unversioned) artifacts. Off by default.
 	AllowLegacy bool
+	// SkipHashVerify downgrades a manifest hash mismatch from a hard abort to a
+	// logged WARNING. Off by default; set only by the per-invocation
+	// --skip-hash-verify restore flag. Never env-defaulted. It bypasses only the
+	// manifest SHA-256 compare — AES-256-GCM auth-tag verification stays enforced.
+	SkipHashVerify bool
 	// Source is a human-readable path/URI identifying the artifact (for log lines).
 	Source string
 	// BackupID is the AAD used during encryption.
