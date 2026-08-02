@@ -68,6 +68,21 @@ For each configured backend, `storage status` returns reachable and `monitor lis
 | Azure Blob    | `https://<account>.blob.core.windows.net/...`   |
 | Google Drive  | `gdrive://<file-id>`                            |
 
+## Remote artifact security (spec 047)
+
+Config-driven backups to a remote backend (S3, GCS, Azure Blob, Google Drive) are
+now hashed, encrypted (when `encryption_key_env` is set), and manifested on par
+with local storage. Alongside each remote artifact Sentinel uploads a
+`<name>.manifest.json` sidecar carrying the integrity hash and encryption
+metadata, so `sentinel backup verify` and restore can locate and validate the
+object. Expect two objects per backup in the bucket: the artifact and its sidecar.
+
+- Verify a remote backend actually holds ciphertext (not plaintext) after an
+  encrypted backup — see [enable-encryption](./enable-encryption.md).
+- Known limitation: encrypted remote backups are unsupported for the
+  auto-discovery `strategy: single` path — that combination fails loud. Use
+  `strategy: individual` or local storage. See [enable-encryption](./enable-encryption.md).
+
 ## Rollback / recovery
 
 Not applicable — read-only operation.

@@ -38,6 +38,14 @@ type Job struct {
 	OutName     string
 	GCSBucket   string
 
+	// StagingDir is set by the driving factory for REMOTE backups (spec 047):
+	// the dump is redirected to write a real local artifact here so the domain
+	// pipeline can hash/encrypt/manifest it before the Executor uploads the
+	// (encrypted) artifact + manifest sidecar to the remote backend. The
+	// Executor removes this directory on both success and failure. Empty for
+	// local storage (no staging, no upload).
+	StagingDir string
+
 	// Incremental configuration, normalized by the driving adapter.
 	IncrementalEnabled bool
 	MaxChainDepth      int

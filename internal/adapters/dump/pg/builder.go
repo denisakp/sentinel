@@ -25,5 +25,9 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	if err != nil {
 		return ports.BuildResult{}, err
 	}
-	return ports.BuildResult{Digest: digest}, nil
+	// argsBuilder mutates Storage.OutName in place to the full on-disk path
+	// pg_dump wrote to (FullPath(backupPath, outName)); surface it so the
+	// domain can hash/encrypt/manifest the artifact before a remote upload
+	// (spec 047).
+	return ports.BuildResult{Digest: digest, LocalPath: args.Storage.OutName}, nil
 }

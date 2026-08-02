@@ -9,14 +9,23 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/spf13/cobra"
 )
+
+// newVerifyBackend is a test seam over the storage registry, mirroring
+// newRetentionDeleteBackend in retention_cleaner.go. It lets tests inject a
+// fake backend for the remote-verify fetch path.
+var newVerifyBackend = func(p *storage.BackendParams) (ports.StorageBackend, error) {
+	return storage.NewBackend(p)
+}
 
 var backupVerifyCmd = &cobra.Command{
 	Use:   "verify <backup-id>",
@@ -62,7 +71,40 @@ var backupVerifyCmd = &cobra.Command{
 			return fmt.Errorf("backup %q: %w", backupID, ErrVerifySkipped)
 		}
 
+		// Local backups verify against exec.FilePath directly. Remote backups
+		// (s3/gcs/azure/gdrive) hold a URI or object key there, unreachable via
+		// os.Open, so we download the artifact + its <key>.manifest.json sidecar
+		// to a temp dir and verify against those local copies. The remote object
+		// reference is still what the report prints (exec.FilePath). A missing
+		// sidecar naturally falls through to the existing "skipped" outcome:
+		// manifestPath then points at a non-existent local file and ReadManifest
+		// returns ports.ErrNoManifest.
 		manifestPath := exec.FilePath + ".manifest.json"
+		hashTarget := exec.FilePath
+		if isRemoteStorageBackend(exec.StorageBackend) {
+			tmpDir, tmpErr := os.MkdirTemp("", "sentinel-verify-*")
+			if tmpErr != nil {
+				verifyPrintError(outputFmt, backupID, exec.BackupName,
+					fmt.Sprintf("failed to create temp dir: %v", tmpErr))
+				return fmt.Errorf("create temp dir: %w", ErrVerifyInternal)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			var storageCfg config.StorageConfig
+			if job, ok := cfg.Databases[exec.BackupName]; ok {
+				storageCfg = job.Storage
+			}
+
+			localArtifact, fetchErr := fetchRemoteBackupForVerify(ctx, exec, storageCfg, tmpDir)
+			if fetchErr != nil {
+				verifyPrintError(outputFmt, backupID, exec.BackupName,
+					fmt.Sprintf("failed to fetch remote backup: %v", fetchErr))
+				return fmt.Errorf("fetch remote backup: %w", ErrVerifyInternal)
+			}
+			hashTarget = localArtifact
+			manifestPath = localArtifact + ".manifest.json"
+		}
+
 		m, err := manifest.ReadManifest(manifestPath)
 		if err != nil {
 			if errors.Is(err, ports.ErrNoManifest) {
@@ -74,7 +116,7 @@ var backupVerifyCmd = &cobra.Command{
 			return fmt.Errorf("read manifest: %w", ErrVerifyInternal)
 		}
 
-		computedHash, err := verifyComputeFileHash(exec.FilePath)
+		computedHash, err := verifyComputeFileHash(hashTarget)
 		if err != nil {
 			verifyPrintError(outputFmt, backupID, exec.BackupName,
 				fmt.Sprintf("failed to compute hash: %v", err))
@@ -138,6 +180,111 @@ func verifyComputeFileHash(path string) (string, error) {
 		return "", fmt.Errorf("failed to hash file %q: %w", path, err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// isRemoteStorageBackend reports whether a recorded execution's storage
+// backend is a non-local (remote) target whose artifact must be downloaded
+// before it can be verified.
+func isRemoteStorageBackend(storageType string) bool {
+	return storageType != "" && storageType != "local"
+}
+
+// fetchRemoteBackupForVerify downloads the remote backup artifact referenced by
+// exec into tmpDir and, when present, its <key>.manifest.json sidecar alongside
+// it (so a subsequent manifest.ReadManifest + hash compare runs on local
+// files). It returns the local artifact path. A missing manifest sidecar is not
+// an error: the sidecar is simply not downloaded, and the caller's ReadManifest
+// then surfaces the existing "no manifest / skipped" outcome. Storage /
+// credential failures are returned as errors (never a silent skip).
+func fetchRemoteBackupForVerify(ctx context.Context, exec *ports.Execution, storageCfg config.StorageConfig, tmpDir string) (string, error) {
+	params, object, err := verifyBackendParamsAndObject(exec.StorageBackend, exec.FilePath, storageCfg)
+	if err != nil {
+		return "", err
+	}
+
+	backend, err := newVerifyBackend(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to initialize %s backend: %w", exec.StorageBackend, err)
+	}
+
+	localArtifact := filepath.Join(tmpDir, filepath.Base(object))
+	if err := backend.Download(ctx, object, localArtifact); err != nil {
+		return "", fmt.Errorf("failed to download backup artifact %q: %w", object, err)
+	}
+
+	// Optional manifest sidecar: tolerate absence (pre-v1.1 backup or a remote
+	// upload whose sidecar step failed) by leaving it undownloaded.
+	manifestObject := object + ".manifest.json"
+	exists, err := backend.Exists(ctx, manifestObject)
+	if err != nil {
+		return "", fmt.Errorf("failed to check manifest sidecar %q: %w", manifestObject, err)
+	}
+	if exists {
+		if err := backend.Download(ctx, manifestObject, localArtifact+".manifest.json"); err != nil {
+			return "", fmt.Errorf("failed to download manifest sidecar %q: %w", manifestObject, err)
+		}
+	}
+
+	return localArtifact, nil
+}
+
+// verifyBackendParamsAndObject maps a recorded remote artifact reference
+// (exec.FilePath) plus the job's resolved storage config into the storage
+// registry params and the object key to download. It mirrors the per-type
+// param construction in retention_cleaner.go and reuses parseBucketObjectRef to
+// split bucket/object from either a scheme URI (gs://…) or a plain object key.
+func verifyBackendParamsAndObject(storageType, filePath string, cfg config.StorageConfig) (*storage.BackendParams, string, error) {
+	switch storageType {
+	case "s3":
+		_, object, err := parseBucketObjectRef(filePath, "s3", cfg.S3Bucket)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to parse s3 path %q: %w", filePath, err)
+		}
+		return &storage.BackendParams{
+			StorageType:        "s3",
+			AWSBucket:          cfg.S3Bucket,
+			AWSRegion:          cfg.S3Region,
+			AWSBucketEndpoint:  cfg.S3BucketEndpoint,
+			AWSAccessKeyID:     cfg.S3AccessKeyID,
+			AWSSecretAccessKey: cfg.S3SecretAccessKey,
+		}, object, nil
+
+	case "gcs":
+		bucket, object, err := parseBucketObjectRef(filePath, "gs", cfg.GCSBucket)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to parse gcs uri %q: %w", filePath, err)
+		}
+		return &storage.BackendParams{
+			StorageType:        "gcs",
+			GCSBucket:          bucket,
+			GCSProjectID:       cfg.GCSProjectID,
+			GCSCredentialsFile: cfg.GCSCredentialsFile,
+		}, object, nil
+
+	case "azure":
+		_, object, err := parseBucketObjectRef(filePath, "azure", cfg.AzureContainer)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to parse azure path %q: %w", filePath, err)
+		}
+		return &storage.BackendParams{
+			StorageType:         "azure",
+			AzureStorageAccount: cfg.AzureStorageAccount,
+			AzureStorageKey:     cfg.AzureStorageKey,
+			AzureContainer:      cfg.AzureContainer,
+		}, object, nil
+
+	case "google-drive":
+		// Google Drive addresses files by name/path, not bucket/object, so the
+		// recorded reference is the object key as-is.
+		return &storage.BackendParams{
+			StorageType:          "google-drive",
+			GoogleDriveFolderId:  cfg.GDriveFolderID,
+			GoogleServiceAccount: cfg.GDriveSAFile,
+		}, filePath, nil
+
+	default:
+		return nil, "", fmt.Errorf("remote verify not supported for storage type %q", storageType)
+	}
 }
 
 func verifyPrintError(format, backupID, database, msg string) {

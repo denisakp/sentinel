@@ -44,8 +44,11 @@ func LocalArtifactInfo(storageType, localPath, outName string) (string, int64) {
 }
 
 // ResolveArtifactRef returns the history-row artifact reference + size for
-// any storage type ("unknown" when unresolvable).
-func ResolveArtifactRef(storageType, localPath, outName, gcsBucket string) (string, int64) {
+// any storage type ("unknown" when unresolvable). For remote storage the
+// reference is the remote object key (or gs:// URL) and the size is read from
+// the staged artifact at stagedPath when present (spec 047; previously always
+// 0 for remote).
+func ResolveArtifactRef(storageType, localPath, outName, gcsBucket, stagedPath string) (string, int64) {
 	if storageType == "" || storageType == "local" {
 		path, size := LocalArtifactInfo(storageType, localPath, outName)
 		if path == "" {
@@ -54,31 +57,71 @@ func ResolveArtifactRef(storageType, localPath, outName, gcsBucket string) (stri
 		return path, size
 	}
 
+	size := stagedArtifactSize(stagedPath)
+
 	if outName != "" {
 		if storageType == "gcs" {
-			return fmt.Sprintf("gs://%s/%s", gcsBucket, outName), 0
+			return fmt.Sprintf("gs://%s/%s", gcsBucket, outName), size
 		}
-		return outName, 0
+		return outName, size
 	}
 
-	return "unknown", 0
+	return "unknown", size
+}
+
+// stagedArtifactSize returns the on-disk size of the staged remote artifact,
+// or 0 when the path is empty, missing, or a directory.
+func stagedArtifactSize(stagedPath string) int64 {
+	if stagedPath == "" {
+		return 0
+	}
+	info, err := os.Stat(stagedPath)
+	if err != nil || info.IsDir() {
+		return 0
+	}
+	return info.Size()
 }
 
 // ApplyArtifactSecurity records the dump's plaintext digest in a manifest,
-// captures incremental side artifacts, and optionally encrypts the local
-// artifact in place. plaintextDigest empty or a non-local artifact yields
-// (nil, nil), preserving the pre-carve early return.
+// captures incremental side artifacts, and optionally encrypts the artifact
+// in place.
+//
+// For LOCAL storage the artifact path is resolved from the job's on-disk
+// output (unchanged pre-carve behaviour: a missing/non-local artifact yields
+// (nil, nil)). For REMOTE storage the artifact is the staged file at
+// stagedPath (spec 047): security runs there so the Executor can upload the
+// encrypted artifact + manifest sidecar, closing the plaintext-remote-upload
+// bypass. stagedPath may be empty in unit tests / non-stageable dump-all
+// paths; the encryption hook is still invoked (hooks own the file I/O).
 //
 // Non-fatal manifest-write failures are reported through res.Warnings by
 // Run; callers invoking this directly receive them on the outcome's
 // ManifestPath being empty.
-func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintextDigest string) (*SecurityOutcome, []string, error) {
-	filePath, fileSize := LocalArtifactInfo(job.StorageType, job.LocalPath, job.OutName)
-	if filePath == "" {
-		return nil, nil, nil
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		return nil, nil, nil
+func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintextDigest, stagedPath string) (*SecurityOutcome, []string, error) {
+	remote := job.StorageType != "" && job.StorageType != "local"
+
+	var filePath string
+	var fileSize int64
+	if remote {
+		// Nothing to secure: no staged artifact AND no encryption configured
+		// (the standalone post-dump wrapper, or a non-stageable dump-all with
+		// no key). Preserve the historical no-op. A configured encryption hook
+		// forces the security path even without a staged file so a key that
+		// could not be applied fails loud upstream rather than silently
+		// uploading plaintext.
+		if stagedPath == "" && job.EncryptArtifact == nil {
+			return nil, nil, nil
+		}
+		filePath = stagedPath
+		fileSize = stagedArtifactSize(filePath)
+	} else {
+		filePath, fileSize = LocalArtifactInfo(job.StorageType, job.LocalPath, job.OutName)
+		if filePath == "" {
+			return nil, nil, nil
+		}
+		if _, err := os.Stat(filePath); err != nil {
+			return nil, nil, nil
+		}
 	}
 
 	var warnings []string
@@ -180,7 +223,10 @@ func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintext
 			},
 		},
 	}
-	if e.manifests == nil {
+	if filePath == "" {
+		// Degenerate case (unit test mock builder / non-stageable dump-all with
+		// no staged file): skip manifest I/O rather than writing to a bogus path.
+	} else if e.manifests == nil {
 		warnings = append(warnings, fmt.Sprintf("Warning: failed to write manifest for '%s': manifest store not configured", job.Name))
 	} else if writeErr := e.manifests.Write(manifestPath, m); writeErr != nil {
 		warnings = append(warnings, fmt.Sprintf("Warning: failed to write manifest for '%s': %v", job.Name, writeErr))

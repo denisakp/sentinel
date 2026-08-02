@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,9 +10,15 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 
 	"github.com/denisakp/sentinel/internal/ports"
 )
+
+// ErrObjectNotFound is returned by Download when the requested object does not
+// exist, so callers can treat a missing (optional) object as absence rather
+// than a hard failure — parity with the local/GCS backends (spec 047).
+var ErrObjectNotFound = errors.New("s3: object not found")
 
 // S3Backend implements StorageBackend for Amazon S3 and S3-compatible storage.
 type S3Backend struct {
@@ -49,6 +56,13 @@ func (b *S3Backend) Download(ctx context.Context, src, dest string) error {
 		Key:    aws.String(src),
 	})
 	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.ErrorCode() {
+			case "NoSuchKey", "NotFound":
+				return fmt.Errorf("%w: %s", ErrObjectNotFound, src)
+			}
+		}
 		return fmt.Errorf("s3: failed to get object %q: %w", src, err)
 	}
 	defer resp.Body.Close()

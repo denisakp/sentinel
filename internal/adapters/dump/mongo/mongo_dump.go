@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/denisakp/sentinel/internal/ports"
@@ -36,21 +39,31 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 
 	remote := da.Storage.StorageType != "" && da.Storage.StorageType != "local"
 
-	// For remote backends, GetBackupPath returns a remote identifier (bucket,
-	// folder id, etc.). Resolve a local filesystem root for the staging dir
-	// instead via the local storage handler.
-	if remote {
+	// executorOwned: the backup Executor owns hash/encrypt/manifest/upload/
+	// cleanup for this remote archive (spec 047). Backup only stages the
+	// archive into the caller-provided dir and returns its plaintext digest.
+	executorOwned := remote && strings.TrimSpace(da.RemoteStagingDir) != ""
+
+	var staging *stagingDir
+	var stagingArchive string
+	switch {
+	case executorOwned:
+		if err := os.MkdirAll(da.RemoteStagingDir, 0o755); err != nil {
+			return "", fmt.Errorf("failed to prepare staging dir: %w", err)
+		}
+		backupPath = da.RemoteStagingDir
+		stagingArchive = filepath.Join(da.RemoteStagingDir, archiveFileName(da.Compress))
+	case remote:
+		// For remote backends, GetBackupPath returns a remote identifier
+		// (bucket, folder id, etc.). Resolve a local filesystem root for the
+		// staging dir instead via the local storage handler.
 		localHandler := &local.LocalStorage{}
 		localRoot, lerr := localHandler.GetBackupPath(da.Storage.LocalPath)
 		if lerr != nil {
 			return "", fmt.Errorf("failed to resolve local staging root: %w", lerr)
 		}
 		backupPath = localRoot
-	}
 
-	var staging *stagingDir
-	var stagingArchive string
-	if remote {
 		staging, err = newStagingDir(backupPath, "")
 		if err != nil {
 			return "", fmt.Errorf("failed to create staging dir: %w", err)
@@ -92,6 +105,17 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 		return "", fmt.Errorf("failed to run mongo_dump: %w (command: mongodump %s)", err, strings.Join(args, " "))
 	}
 
+	if executorOwned {
+		// Hand the staged archive to the Executor: return its plaintext digest
+		// and leave the file in place (no upload, no cleanup here).
+		digest, herr := hashFile(stagingArchive)
+		if herr != nil {
+			return "", fmt.Errorf("failed to hash staged archive: %w", herr)
+		}
+		fmt.Printf("Backup staged for upload\n")
+		return digest, nil
+	}
+
 	if remote {
 		backend, err := backupBackendFactory(da.Storage)
 		if err != nil {
@@ -113,4 +137,20 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 
 	fmt.Printf("Backup complete !\n")
 	return digest, nil
+}
+
+// hashFile returns the hex-encoded SHA-256 of the file at path, streaming it so
+// large archives are not buffered in memory.
+func hashFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

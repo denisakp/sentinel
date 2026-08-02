@@ -18,6 +18,14 @@ type DumpMongoArgs struct {
 	AdditionalArgs string          // Additional arguments for the mongo_dump command
 	Storage        *storage.Params // Storage parameters
 	TLS            *ports.Config
+
+	// RemoteStagingDir, when set for a remote backend, is a caller-provided
+	// directory the mongodump archive is staged into. In this "executor-owned"
+	// mode Backup does NOT upload and does NOT remove the directory — the
+	// backup Executor hashes/encrypts/manifests the archive, uploads it (+ the
+	// manifest sidecar), and cleans up (spec 047). Empty → legacy self-owned
+	// remote path (stage under <backup_path>/.staging/<job-id>/, upload, clean).
+	RemoteStagingDir string
 }
 
 // engineOptions satisfies ports.EngineOptions.

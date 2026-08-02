@@ -21,6 +21,7 @@ type fakeDumpBuilder struct {
 	digest    string
 	err       error
 	writePath string
+	localPath string // reported as BuildResult.LocalPath (staged artifact path)
 	calls     int
 }
 
@@ -34,7 +35,7 @@ func (f *fakeDumpBuilder) Build(_ ports.BuildContext) (ports.BuildResult, error)
 			return ports.BuildResult{}, err
 		}
 	}
-	return ports.BuildResult{Digest: f.digest}, nil
+	return ports.BuildResult{Digest: f.digest, LocalPath: f.localPath}, nil
 }
 
 // stubRecorder records executions in memory. Embedding the nil interface
@@ -135,6 +136,113 @@ func TestExecutorRunSuccess(t *testing.T) {
 	}
 	if dumps.calls != 1 {
 		t.Fatalf("dump calls = %d, want 1", dumps.calls)
+	}
+}
+
+// TestExecutorRemoteBackupIsHashedAndEncrypted is the RED confirmation test for
+// the remote-artifact security bypass (fix/remote-artifact-security). A backup
+// job targeting REMOTE storage (s3/gcs/azure/gdrive) with encryption configured
+// MUST still be encrypted, hashed, and have its security info recorded — exactly
+// like a local job. Today ApplyArtifactSecurity early-returns for non-local
+// storage (LocalArtifactInfo → ""), so the encryption hook never runs, no hash
+// is recorded, and the artifact is uploaded in plaintext. This test asserts the
+// CORRECT behaviour and therefore fails until the pipeline is fixed.
+func TestExecutorRemoteBackupIsHashedAndEncrypted(t *testing.T) {
+	encryptCalled := false
+	job := Job{
+		Name:              "remote-job",
+		Engine:            "postgres",
+		Database:          "app",
+		Options:           fakeOptions{},
+		StorageType:       "s3", // remote backend
+		OutName:           "backup.sql",
+		EncryptionKeyHint: "SENTINEL_KEY",
+		EncryptArtifact: func(_, _ string) (bool, *ports.EncryptionInfo, string, error) {
+			encryptCalled = true
+			return true, &ports.EncryptionInfo{}, "enc-hash", nil
+		},
+	}
+	dumps := &fakeDumpBuilder{digest: "plain-hash"}
+	rec := &stubRecorder{}
+
+	e := NewExecutor(dumps, nil, nil, nil, rec, nil, nil, nil, &stubManifestStore{})
+	res, err := e.Run(context.Background(), job)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if !encryptCalled {
+		t.Error("BYPASS: encryption hook was NOT called for a remote backup — artifact uploaded in plaintext")
+	}
+	if rec.secCalls != 1 {
+		t.Errorf("BYPASS: RecordSecurityInfo calls = %d, want 1 — no hash/checksum recorded for remote backup", rec.secCalls)
+	}
+	if res.HashValue == "" {
+		t.Error("BYPASS: res.HashValue is empty for a remote backup — integrity hash not persisted")
+	}
+}
+
+// TestExecutorRemoteBackupCleansStagingOnSuccess asserts the spec 047 staging
+// cleanup guarantee: after a successful remote backup Run, the staging dir
+// (holding the plaintext/ciphertext artifact) is removed — nothing is left on
+// disk once the artifact has been uploaded + recorded.
+func TestExecutorRemoteBackupCleansStagingOnSuccess(t *testing.T) {
+	stagingDir := t.TempDir()
+	stagedArtifact := filepath.Join(stagingDir, "out.sql")
+
+	job := Job{
+		Name:        "remote-clean",
+		Engine:      "postgres",
+		Database:    "app",
+		Options:     fakeOptions{},
+		StorageType: "s3", // remote
+		OutName:     "backup.sql",
+		StagingDir:  stagingDir,
+	}
+	// The dump writes a staged artifact and reports its path as LocalPath.
+	dumps := &fakeDumpBuilder{digest: "abc123", writePath: stagedArtifact, localPath: stagedArtifact}
+	rec := &stubRecorder{}
+
+	// nil StorageBackend → upload is a no-op; we only assert staging cleanup.
+	e := NewExecutor(dumps, nil, nil, nil, rec, nil, nil, nil, &stubManifestStore{})
+	if _, err := e.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if _, err := os.Stat(stagingDir); !os.IsNotExist(err) {
+		t.Fatalf("staging dir still exists after success (stat err = %v) — plaintext/ciphertext left behind", err)
+	}
+}
+
+// TestExecutorRemoteBackupCleansStagingOnFailure asserts the staging dir is
+// removed even when the run fails after staging — a forced dump error here — so
+// a partially-produced artifact never lingers on disk.
+func TestExecutorRemoteBackupCleansStagingOnFailure(t *testing.T) {
+	stagingDir := t.TempDir()
+	// Simulate an artifact that was partially written before the failure.
+	if err := os.WriteFile(filepath.Join(stagingDir, "out.sql"), []byte("partial"), 0o644); err != nil {
+		t.Fatalf("seed staged artifact: %v", err)
+	}
+
+	job := Job{
+		Name:        "remote-fail",
+		Engine:      "postgres",
+		Database:    "app",
+		Options:     fakeOptions{},
+		StorageType: "s3", // remote
+		OutName:     "backup.sql",
+		StagingDir:  stagingDir,
+	}
+	dumps := &fakeDumpBuilder{err: errors.New("pg_dump: exit status 1")}
+	rec := &stubRecorder{}
+
+	e := NewExecutor(dumps, nil, nil, nil, rec, nil, nil, nil, &stubManifestStore{})
+	if _, err := e.Run(context.Background(), job); err == nil {
+		t.Fatal("Run() error = nil, want dump failure")
+	}
+
+	if _, err := os.Stat(stagingDir); !os.IsNotExist(err) {
+		t.Fatalf("staging dir still exists after failure (stat err = %v) — artifact left behind", err)
 	}
 }
 

@@ -44,14 +44,21 @@ func newStagingDir(backupPath, jobID string) (*stagingDir, error) {
 	return &stagingDir{Root: root, JobID: jobID}, nil
 }
 
-// ArchivePath returns the canonical archive file path inside the staging dir.
-// When gzip is true, ".gz" is appended.
-func (s *stagingDir) ArchivePath(gzip bool) string {
+// archiveFileName returns the canonical archive file name for a mongodump
+// archive. When gzip is true, ".gz" is appended. Shared by stagingDir and the
+// executor-owned staging path (spec 047) so both compute the same name.
+func archiveFileName(gzip bool) string {
 	name := "dump.archive"
 	if gzip {
 		name += ".gz"
 	}
-	return filepath.Join(s.Root, name)
+	return name
+}
+
+// ArchivePath returns the canonical archive file path inside the staging dir.
+// When gzip is true, ".gz" is appended.
+func (s *stagingDir) ArchivePath(gzip bool) string {
+	return filepath.Join(s.Root, archiveFileName(gzip))
 }
 
 // Cleanup removes the staging directory tree. It is idempotent and best-effort:
