@@ -2,7 +2,7 @@ package mongo
 
 import (
 	"github.com/denisakp/sentinel/internal/sanitize"
-	mongotls "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	mongotls "github.com/denisakp/sentinel/internal/adapters/mongo_tls"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
