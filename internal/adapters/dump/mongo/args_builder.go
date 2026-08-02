@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	mongotls "github.com/denisakp/sentinel/internal/adapters/mongo_tls"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -22,7 +23,7 @@ type DumpMongoArgs struct {
 // engineOptions satisfies ports.EngineOptions.
 func (*DumpMongoArgs) IsEngineOptions() {}
 
-func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string, *MongoTLSMaterial, error) {
+func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string, *mongotls.MongoTLSMaterial, error) {
 	// set default values
 	da.Uri = utils.DefaultValue(da.Uri, "mongodb://localhost:27017")
 
@@ -71,7 +72,7 @@ func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string
 		args = append(args, parsedAdditionalArgs...)
 	}
 
-	material, tlsArgs, err := PrepareMongoTLS(da.TLS, da.Storage.OutName)
+	material, tlsArgs, err := mongotls.PrepareMongoTLS(da.TLS, da.Storage.OutName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("prepare mongo tls material: %w", err)
 	}

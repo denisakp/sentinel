@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	mongotls "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	mongotls "github.com/denisakp/sentinel/internal/adapters/mongo_tls"
 	"github.com/denisakp/sentinel/internal/version"
 	"github.com/spf13/cobra"
 )

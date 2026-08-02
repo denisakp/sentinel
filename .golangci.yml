@@ -58,8 +58,9 @@ linters:
           deny:
             - pkg: github.com/denisakp/sentinel/internal/adapters/dump
               desc: "sibling dump adapters must not import each other (ADR 0001 axis isolation)"
-        # Sibling restore adapters must not import each other. restore/mongo -> dump/mongo (Mongo PEM,
-        # spec 036) is cross-axis, outside this deny prefix -> allowed.
+        # Sibling restore adapters must not import each other. (The former restore/mongo -> dump/mongo
+        # Mongo PEM cross-axis import was removed by spec 042 / PRD 29 — the lifecycle now lives in the
+        # neutral internal/adapters/mongo_tls, imported symmetrically by both Mongo adapters.)
         adapter-restore-axis:
           list-mode: lax
           files:
