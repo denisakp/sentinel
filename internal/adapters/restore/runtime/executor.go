@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/denisakp/sentinel/internal/adapters/compress"
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	"github.com/denisakp/sentinel/internal/adapters/lock"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
@@ -331,6 +332,19 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 			return "", fmt.Errorf("integrity_check_failed: %w", err)
 		}
 		return "", err
+	}
+
+	// Decompress stage (spec 049 / PRD 33): inserted AFTER decrypt, driven by
+	// the manifest (no operator flag). A manifest without a compression block
+	// (legacy backups, native-compressed PG/Mongo dumps) skips this entirely,
+	// so existing backups restore byte-for-byte unchanged.
+	if m.Compression != nil && m.Compression.Algorithm != "" && m.Compression.Algorithm != "none" {
+		dr, derr := compress.NewDecompressReader(reader, m.Compression.Algorithm)
+		if derr != nil {
+			return "", fmt.Errorf("failed to initialise decompressor for %q: %w", artifact.Path, derr)
+		}
+		defer dr.Close()
+		reader = dr
 	}
 
 	decryptedPath := artifact.Path + ".plaintext"

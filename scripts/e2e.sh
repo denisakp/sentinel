@@ -504,6 +504,140 @@ EOF
     restore dry-run pg-e2e-restore --config /configs/restore.yaml
 }
 
+# test_compression proves the spec 049 / PRD 33 pipeline compression end-to-end:
+# a config-driven LOCAL backup with compression enabled must produce a
+# COMPRESSED artifact (zstd magic, not plaintext SQL) + a manifest recording the
+# algorithm, and restore must auto-decompress (no operator flag) and round-trip.
+test_compression() {
+  log ""
+  log "=== Suite: compression — local, zstd [spec 049] ==="
+
+  local art="$BACKUPS_DIR/postgres-comp.sql"
+  local manifest="${art}.manifest.json"
+  rm -f "$art" "$manifest"
+
+  cat > "$CONFIGS_DIR/compression.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+
+databases:
+  postgres-comp:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: postgres-comp.sql
+    compression:
+      enabled: true
+      algorithm: zstd
+EOF
+
+  # Seed a probe row so the restore below proves a real round-trip.
+  local seeded=false
+  if docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -d sentinel -c \
+      "DROP TABLE IF EXISTS e2e_comp_probe; CREATE TABLE e2e_comp_probe(id int primary key, note text); INSERT INTO e2e_comp_probe VALUES (1,'spec-049-compression');" >/dev/null 2>&1; then
+    seeded=true
+  fi
+
+  assert_exit_ok "compression: backup local (zstd)" backup --config /configs/compression.yaml
+
+  # Core assertion: the stored artifact is zstd-compressed (magic 28 b5 2f fd),
+  # NOT plaintext SQL.
+  if [[ -s "$art" ]]; then
+    local magic
+    magic=$(head -c4 "$art" | od -An -tx1 | tr -d ' \n')
+    if [[ "$magic" == "28b52ffd" ]]; then
+      ok "compression: artifact carries zstd magic (compressed, not plaintext)"
+    else
+      fail "compression: artifact magic=$magic, expected zstd 28b52ffd (not compressed?)"
+    fi
+    if grep -qa "PostgreSQL database dump" "$art"; then
+      fail "compression: artifact contains plaintext SQL header — not compressed"
+    else
+      ok "compression: no plaintext SQL header in artifact"
+    fi
+  else
+    fail "compression: artifact missing ($art)"
+  fi
+
+  # Manifest records the compression algorithm.
+  if [[ -s "$manifest" ]] && grep -qa '"compression"' "$manifest" && grep -qa 'zstd' "$manifest"; then
+    ok "compression: manifest records algorithm (zstd)"
+  else
+    fail "compression: manifest missing compression block"
+  fi
+
+  # Restore auto-decompresses (no operator flag) and round-trips the data.
+  if [[ "$seeded" == true ]]; then
+    docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -c "DROP DATABASE IF EXISTS sentinel_restore_comp;" >/dev/null 2>&1 || true
+    if docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+        psql -U sentinel -c "CREATE DATABASE sentinel_restore_comp;" >/dev/null 2>&1; then
+      cat > "$CONFIGS_DIR/compression-restore.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+
+databases:
+  postgres-comp:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    output: postgres-comp.sql
+
+restores:
+  pg-comp-restore:
+    type: postgres
+    enabled: true
+    schedule: "0 3 * * *"
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel_restore_comp
+    staging_dir: /workspace/staging
+    backup_source:
+      type: local
+      local_path: /workspace/backups
+      backup_path: postgres-comp.sql
+EOF
+      assert_exit_ok "compression: restore run (auto-decompress)" \
+        restore run pg-comp-restore --config /configs/compression-restore.yaml
+      local got
+      got=$(docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+        psql -U sentinel -d sentinel_restore_comp -t -c "SELECT note FROM e2e_comp_probe WHERE id=1;" 2>/dev/null | tr -d ' \n')
+      if [[ "$got" == "spec-049-compression" ]]; then
+        ok "compression: restore round-trip data matches (auto-decompressed)"
+      else
+        fail "compression: restored data mismatch (got '$got')"
+      fi
+    else
+      skip "compression: could not create sentinel_restore_comp (restore skipped)"
+    fi
+    docker compose -f "$INFRA_DIR/docker-compose.yml" exec -T pgsql \
+      psql -U sentinel -d sentinel -c "DROP TABLE IF EXISTS e2e_comp_probe;" >/dev/null 2>&1 || true
+  else
+    skip "compression: could not seed probe row (restore round-trip skipped)"
+  fi
+}
+
 test_encryption() {
   log ""
   log "=== Suite: encryption ==="
@@ -935,6 +1069,7 @@ main() {
   test_unit
   test_config_validate
   test_local_backup
+  test_compression
   test_monitor
   test_retention
   test_retention_gfs

@@ -59,6 +59,12 @@ type Job struct {
 	// (the env var name, never the key).
 	EncryptionKeyHint string
 
+	// CompressArtifact compresses the artifact at path in place and returns
+	// (compressed, compression info, compressed-bytes hash). Runs BEFORE
+	// hash/encrypt in the pipeline (dump → compress → hash → encrypt). nil =
+	// compression disabled/unconfigured. Spec 049 / PRD 33.
+	CompressArtifact CompressArtifactFunc
+
 	// EncryptArtifact encrypts the artifact at path in place and returns
 	// (encrypted, envelope info, ciphertext hash). nil = plaintext config.
 	EncryptArtifact EncryptArtifactFunc
@@ -75,6 +81,11 @@ type Job struct {
 
 // EncryptArtifactFunc is the in-place artifact encryption hook.
 type EncryptArtifactFunc func(path, backupID string) (encrypted bool, info *ports.EncryptionInfo, encryptedHash string, err error)
+
+// CompressArtifactFunc is the in-place artifact compression hook. It returns
+// whether compression fired, the manifest metadata to record, and the SHA-256
+// digest of the compressed bytes (the stored artifact when not encrypted).
+type CompressArtifactFunc func(path string) (compressed bool, info *ports.CompressionInfo, compressedHash string, err error)
 
 // ArchiveFunc captures incremental side artifacts for the given dump path.
 type ArchiveFunc func(ctx context.Context, artifactPath string) (IncrementalArtifacts, error)

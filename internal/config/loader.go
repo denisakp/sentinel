@@ -100,6 +100,11 @@ func applyDefaults(cfg *Configuration) {
 		if !hasRetention(job.Retention) && hasRetention(cfg.Defaults.Retention) {
 			job.Retention = cfg.Defaults.Retention
 		}
+		if job.Compression == nil && cfg.Defaults.Compression != nil {
+			inherited := *cfg.Defaults.Compression
+			job.Compression = &inherited
+		}
+		applyCompressionDefaults(job.Compression)
 		if job.Notifications == nil && len(cfg.Defaults.Notifications) > 0 {
 			job.Notifications = cfg.Defaults.Notifications
 		}
@@ -154,6 +159,27 @@ func applyNotificationDefaults(channels []NotificationChannel) {
 
 func hasRetention(policy RetentionPolicy) bool {
 	return policy.KeepLast > 0 || policy.KeepDays > 0 || policy.DryRun || gfsConfigured(policy.GFS)
+}
+
+// applyCompressionDefaults normalizes an enabled compression block in place:
+// an omitted algorithm becomes zstd (the recommended default), and an omitted
+// level (0) becomes the per-algorithm default. Disabled or nil blocks are left
+// untouched. Spec 049 / PRD 33.
+func applyCompressionDefaults(c *CompressionConfig) {
+	if c == nil || !c.Enabled {
+		return
+	}
+	if c.Algorithm == "" {
+		c.Algorithm = "zstd"
+	}
+	if c.Level == 0 {
+		switch c.Algorithm {
+		case "gzip":
+			c.Level = 6
+		case "zstd":
+			c.Level = 3
+		}
+	}
 }
 
 func boolPtr(v bool) *bool {

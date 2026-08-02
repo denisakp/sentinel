@@ -41,8 +41,20 @@ type BackupManifest struct {
 	CreatedAt       time.Time                `json:"created_at"`
 	SizeBytes       int64                    `json:"size_bytes"`
 	Hash            HashInfo                 `json:"hash"`
+	Compression     *CompressionInfo         `json:"compression,omitempty"`
 	Encryption      *EncryptionInfo          `json:"encryption,omitempty"`
 	AdvancedRestore *AdvancedRestoreMetadata `json:"advanced_restore,omitempty"`
+}
+
+// CompressionInfo records the pipeline compression applied to a backup
+// artifact (PRD 33 / spec 049). Present only when pipeline compression fired;
+// a manifest without this block ⇒ the artifact is uncompressed (or compressed
+// natively by the dump tool, e.g. pg_dump --compress / mongodump --gzip),
+// and restore performs no decompress stage. Restore reads Algorithm to select
+// the decompressor — no operator flag.
+type CompressionInfo struct {
+	Algorithm string `json:"algorithm"`
+	Level     int    `json:"level,omitempty"`
 }
 
 // HashInfo holds the integrity fingerprint for a backup file.

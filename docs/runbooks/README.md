@@ -14,6 +14,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 ## Setup
 - [Environment setup](./environment-setup.md)
 - [Enable encryption](./enable-encryption.md)
+- [Backup compression (gzip/zstd)](./backup-compression.md)
 - [Database credentials](./credentials.md)
 - [Alerting setup](./alerting-setup.md)
 - [DB migration status](./db-migration-status.md)

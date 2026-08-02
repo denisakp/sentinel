@@ -132,6 +132,28 @@ func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintext
 		HashValue:     plaintextDigest,
 	}
 
+	// Compression is opt-in and runs first — before hash/encrypt (pipeline
+	// order: dump → compress → hash → encrypt). The artifact is compressed in
+	// place so every downstream step (incremental size math, encryption,
+	// manifest SizeBytes) operates on the compressed bytes. The compressed
+	// digest becomes the stored-artifact hash (Q3); encryption, when
+	// configured, overrides it with the ciphertext digest below. Spec 049 /
+	// PRD 33.
+	var compInfo *ports.CompressionInfo
+	if job.CompressArtifact != nil && filePath != "" {
+		compressed, cmeta, compHash, compErr := job.CompressArtifact(filePath)
+		if compErr != nil {
+			return nil, nil, fmt.Errorf("failed to compress backup: %w", compErr)
+		}
+		if compressed {
+			compInfo = cmeta
+			result.HashValue = compHash
+			if info, statErr := os.Stat(filePath); statErr == nil && !info.IsDir() {
+				fileSize = info.Size()
+			}
+		}
+	}
+
 	meta := DeriveIncrementalContext(ctx, e.rec, job, fileSize)
 	if meta.BackupType == "incremental" && (job.Engine == "mysql" || job.Engine == "mariadb") {
 		if job.ArchiveBinlogs == nil {
@@ -201,7 +223,8 @@ func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintext
 			Value:          result.HashValue,
 			PlaintextValue: plaintextHash,
 		},
-		Encryption: encInfo,
+		Compression: compInfo,
+		Encryption:  encInfo,
 		AdvancedRestore: &ports.AdvancedRestoreMetadata{
 			Capabilities: []string{"full", "incremental"},
 			IncrementalLineage: &ports.IncrementalLineageMetadata{

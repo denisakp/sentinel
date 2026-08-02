@@ -285,6 +285,29 @@ Plaintext is the default when no encryption config is present. See [docs/runbook
 
 ---
 
+## Compression
+
+Pipeline compression is opt-in and engine-agnostic — it primarily closes the gap
+for **MySQL / MariaDB**, whose dumps are otherwise raw SQL text (PostgreSQL and
+MongoDB already compress natively). The stage runs `dump → compress → hash →
+encrypt → upload`, and restore auto-detects the algorithm from the manifest (no
+operator flag).
+
+```yaml
+defaults:
+  compression:
+    enabled: true
+    algorithm: zstd      # gzip | zstd | none  (default: zstd)
+    level: 6             # gzip 1–9, zstd 1–19  (0/omitted = per-algorithm default)
+```
+
+Enabling pipeline compression alongside engine-native compression
+(`pg_dump --compress` / `mongodump --gzip`) on the same job is rejected to
+prevent double-compression. Default is off (no behaviour change until enabled).
+See [docs/runbooks/backup-compression.md](docs/runbooks/backup-compression.md).
+
+---
+
 ## Contributing
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — setup, coding standards, PR process
