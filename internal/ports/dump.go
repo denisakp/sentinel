@@ -62,3 +62,32 @@ type BuildResult struct {
 type DumpBuilder interface {
 	Build(ctx BuildContext) (BuildResult, error)
 }
+
+// DumpJobSpec is the engine-agnostic, pure descriptor handed to a
+// DumpArgsFactory (spec 040 / PRD 27). It carries only already-resolved values
+// — no YAML tags, no config/adapter/storage dependency — so config no longer
+// needs to import the dump adapter packages. Storage destination params are
+// intentionally NOT here: the command layer sets the concrete *DumpArgs.Storage
+// field on the value returned by the factory.
+type DumpJobSpec struct {
+	Engine               string // job type: "postgres" | "mysql" | "mariadb" | "mongodb"
+	Host                 string
+	Port                 string // already formatted by config (empty when port is 0)
+	Username             string
+	Password             string
+	Database             string
+	URI                  string // mongo
+	AdditionalArgs       string
+	PgOutFormat          string // pg
+	Compress             bool   // pg + mongo
+	CompressionAlgorithm string // pg
+	CompressionLevel     int    // pg
+}
+
+// DumpArgsFactory translates a DumpJobSpec into the engine-specific dump-args
+// value (which already satisfies EngineOptions). Implementations live in
+// internal/adapters/dump/<engine>/ beside the engine's Builder, keeping the
+// engine's argument surface a single source of truth (spec 040 / PRD 27).
+type DumpArgsFactory interface {
+	BuildDumpArgs(spec DumpJobSpec) (EngineOptions, error)
+}
