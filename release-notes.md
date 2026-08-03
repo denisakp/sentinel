@@ -1,5 +1,37 @@
 # Sentinel Release Notes
 
+## [Unreleased]
+
+### Security
+
+- **`sentinel security reencrypt` (guided envelope migration + key rotation)**: a
+  new command that re-encrypts existing backups, closing the forward-reference
+  the v1.3.0 Envelope-v2 advisory opened ("a dedicated `sentinel security
+  reencrypt` helper is tracked under a separate PRD"). Two modes: **legacy → v2
+  migration** (`--mode legacy`, default) re-wraps a pre-v2 (legacy) artifact into
+  the current envelope so it restores/verifies under the default refuse-legacy
+  policy **without** `--allow-legacy-envelope` — for operators who cannot
+  re-backup from source (source DB gone, PITR window closed, artifact is the only
+  copy); and **key rotation** (`--mode rotate --new-key-env <VAR>`) re-encrypts a
+  current-format backup under a new master key (compromised/retired key), new key
+  read **env-only**, never from argv. Addressable by single `<backup-id>` or
+  `--all` (scoped by `--job` / `--since`); `--all` requires `--yes`; `--dry-run`
+  classifies (legacy / current / unencrypted / unmigratable) and mutates nothing;
+  `--output json` for automation. **Safety**: write-new → verify (decrypt-back +
+  SHA-256) → swap — the original artifact is never destroyed until a verified
+  replacement exists (`--keep-original` retains it), the operation is idempotent,
+  and a manifest-less backup is skipped with "cannot migrate — re-backup from
+  source" rather than corrupted. In `--all`, one backup's failure doesn't abort
+  the batch (exit `5` if any failed, `4` for invalid invocation, `0` otherwise).
+  Each success emits a `security.reencrypt` audit log event and updates the
+  monitor row. **Honest scope**: legacy migration fixes format/availability, it
+  does **NOT** remediate the legacy envelope's confidentiality weakness — a loud
+  caveat prints on every legacy run and re-backup-from-source remains the true
+  remediation. Pure composition of existing crypto/storage/manifest/monitor code
+  — no new port, no change to the backup/restore executors. Runbook:
+  [`docs/runbooks/recover-legacy-envelope.md`](docs/runbooks/recover-legacy-envelope.md).
+  (spec 054 / PRD 43)
+
 ## [v1.3.0] - August 3, 2026
 
 ### Performance
