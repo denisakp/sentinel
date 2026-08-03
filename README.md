@@ -179,6 +179,11 @@ sentinel backup verify --all --config sentinel.yaml          # repository-wide i
 sentinel backup verify --all --since 30d --output json --config sentinel.yaml
 sentinel backup diff <id1> <id2> --config sentinel.yaml      # compare two backups' metadata
 
+# State repair (reconcile monitor rows / manifests / artifacts / locks)
+sentinel repair --dry-run --config sentinel.yaml             # report drift, change nothing
+sentinel repair --fix --config sentinel.yaml                 # apply recoverable fixes
+sentinel repair --purge-orphans --yes --config sentinel.yaml # also delete orphan artifacts
+
 # Config & storage
 sentinel config validate --config sentinel.yaml
 sentinel storage status --config sentinel.yaml
@@ -378,6 +383,42 @@ change (`HASH ALGORITHM CHANGED`), or an encryption-parameter downgrade (`ENCRYP
 Size/duration swings get a `⚠` marker but stay informational (exit 0). A backup with no manifest
 (pre-v1.1) still diffs on its monitor-row fields with a warning. See
 [docs/runbooks/verify-backup-integrity.md](docs/runbooks/verify-backup-integrity.md).
+
+---
+
+## State repair
+
+A crash mid-backup, a hard-killed process, or a manual artifact deletion can leave Sentinel's
+three sources of truth — monitor rows, `*.manifest.json` sidecars, and the artifacts on storage —
+silently disagreeing. `sentinel repair` reconciles them repository-wide (this is **not**
+`monitor doctor --repair`, which is schema-only).
+
+```bash
+sentinel repair --dry-run --config sentinel.yaml    # always run this first
+```
+
+It detects six drift classes: `orphan_artifact` (object with no sidecar and no row),
+`orphan_manifest` (sidecar whose artifact is gone), `artifact_missing` (recorded backup absent
+from storage), `stale_running` (a `running` row whose job holds no live lock), `stale_lock`
+(dead-PID lock past the threshold), and `chain_broken` (incremental chain with a missing or
+non-contiguous link — via the same resolver as `restore validate-chain`).
+
+**Report-only by default; destructive actions are strictly opt-in:**
+
+```bash
+sentinel repair --config sentinel.yaml               # report-only (same as --dry-run)
+sentinel repair --fix --config sentinel.yaml         # finalize stale runs, remove stale locks, mark broken chains
+sentinel repair --purge-orphans --config sentinel.yaml  # also DELETE orphan artifacts (prompts; add --yes for automation)
+sentinel repair --dry-run --format json --config sentinel.yaml   # structured findings for tooling
+```
+
+Safety guards: `--purge-orphans` is the only path that deletes artifacts, it prompts unless
+`--yes`, and it **never** removes an active chain baseline. A `running` row is finalized only when
+no **live** lock is held for its job (the guard the scheduler's blind startup reconcile lacks);
+foreign-host locks and rows are skipped with a warning. Repair refuses to run against a
+`forward-incompatible`/`corrupt` monitor schema (defer to `monitor doctor`), and exits non-zero
+while manual-action inconsistencies (`artifact_missing`, `chain_broken`) remain, so it can gate
+CI/cron. See [docs/runbooks/state-repair.md](docs/runbooks/state-repair.md).
 
 ---
 
