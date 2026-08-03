@@ -447,6 +447,19 @@ CI/cron. See [docs/runbooks/state-repair.md](docs/runbooks/state-repair.md).
 
 ---
 
+## Performance
+
+How long does a full backup take, how big is the artifact, how much RAM does it burn, how long
+does a restore take? Published, reproducible numbers per engine (PostgreSQL, MySQL, MariaDB,
+MongoDB) live in [`docs/benchmarks/`](docs/benchmarks/README.md), starting with
+[`v1.3.0.md`](docs/benchmarks/v1.3.0.md). Numbers are produced by a committed, re-runnable
+harness (`scripts/benchmark.sh` / `make bench-small`) over real databases and real dump/restore
+tools — not the `tests/benchmarks/` Go micro-benchmarks, which measure unrelated in-process
+logic (config parsing, scheduler overhead). See the benchmarks README for methodology
+(hardware, DB versions, storage backend, how to reproduce).
+
+---
+
 ## Contributing
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — setup, coding standards, PR process
