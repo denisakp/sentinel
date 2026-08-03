@@ -9,7 +9,7 @@ import (
 )
 
 // Builder satisfies ports.DumpBuilder by wrapping Backup. It carries an
-// injected ports.DBProber for the pre-dump connectivity check (spec 043).
+// injected ports.DBProber for the pre-dump connectivity check.
 type Builder struct{ prober ports.DBProber }
 
 // NewBuilder returns a Builder wired with the given connectivity prober.
@@ -31,7 +31,7 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 // same helpers the adapter uses (Backup leaves Storage.OutName finalized but
 // stores the full path only in a local variable). Returns "" when the storage
 // handler cannot be resolved. Enables the domain to hash/encrypt/manifest the
-// artifact before a remote upload (spec 047).
+// artifact before a remote upload.
 func localArtifactPath(p *storage.Params) string {
 	sh, err := storage.NewStorage(p)
 	if err != nil {

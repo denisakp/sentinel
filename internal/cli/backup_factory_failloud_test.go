@@ -13,7 +13,7 @@ import (
 )
 
 // TestNewBackupExecutorFromConfigFailsLoudOnEncryptedRemoteSingle is the
-// security guard for spec 047 / FR-008. The auto-discovery "single" dump-all
+// security guard for encrypted-remote uploads. The auto-discovery "single" dump-all
 // path (a dumpBuilderFunc) uploads to remote storage itself and cannot be
 // staged in place, so its artifact cannot be encrypted before it leaves the
 // host. When encryption is configured AND storage is remote, the factory MUST

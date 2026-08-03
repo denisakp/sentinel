@@ -10,11 +10,11 @@
 // Dependency rule: this package MUST NOT import any implementation package
 // within this repository. Concrete types live in adapter packages and depend
 // on ports — never the other way around. The rule is enforced statically by
-// the dependency-rule lint introduced in spec 039.
+// a dependency-rule lint.
 //
 // Co-located types: option structs, sentinel errors, and any other type
 // referenced by a port method signature live here as the single source of
-// truth (see spec 028 FR-003a). Implementation packages import these types
+// truth. Implementation packages import these types
 // from ports rather than redeclaring them locally.
 //
 // Test-only file conformance_test.go declares one compile-time conformance

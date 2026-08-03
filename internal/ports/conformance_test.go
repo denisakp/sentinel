@@ -1,14 +1,14 @@
 // Package ports — compile-time conformance assertions.
 //
 // This file declares one `var _ <Port> = (*<concrete>)(nil)` per port
-// interface, per spec 028 FR-011. Any drift between a port and its current
+// interface. Any drift between a port and its current
 // concrete implementation fails the next `go test ./internal/ports/...`
-// with a "does not implement" message before any downstream adapter spec
+// with a "does not implement" message before any downstream adapter change
 // can lift the implementation into a new path.
 //
 // The file is in package ports_test (not ports) so it can import the
-// implementation packages without violating FR-003 (which forbids
-// production-code imports of impl from ports).
+// implementation packages without violating the rule that forbids
+// production-code imports of impl from ports.
 package ports_test
 
 import (
@@ -68,7 +68,7 @@ var (
 	_ ports.LockManager = (*lock.Manager)(nil)
 
 	// recorder.go — Recorder port (12 methods on *monitor.Monitor; the 2
-	// retention DELETE methods were added by spec 038 Sub-PR J).
+	// retention DELETE methods were added later).
 	_ ports.Recorder = (*monitor.Monitor)(nil)
 
 	// notifier.go — Dispatcher port (9 methods on *notifier.Dispatcher).
@@ -87,20 +87,20 @@ var (
 	_ ports.EngineOptions = (*mariadb.MariaDBDumpArgs)(nil)
 	_ ports.EngineOptions = (*mongo.DumpMongoArgs)(nil)
 
-	// dump.go — DumpBuilder unified port (spec 035 FR-013).
+	// dump.go — DumpBuilder unified port.
 	_ ports.DumpBuilder = (*pg.Builder)(nil)
 	_ ports.DumpBuilder = (*mysql.Builder)(nil)
 	_ ports.DumpBuilder = (*mariadb.Builder)(nil)
 	_ ports.DumpBuilder = (*mongo.Builder)(nil)
 
-	// restore.go — RestoreOptions marker (spec 036 FR-002).
+	// restore.go — RestoreOptions marker.
 	_ ports.RestoreOptions = (*pgrestore.RestoreArgs)(nil)
 	_ ports.RestoreOptions = (*mysqlrestore.RestoreArgs)(nil)
 	_ ports.RestoreOptions = (*mariadbrestore.RestoreArgs)(nil)
 	_ ports.RestoreOptions = (*mongorestore.RestoreArgs)(nil)
 	_ ports.RestoreOptions = (*mongorestore.OplogReplayArgs)(nil)
 
-	// restore.go — RestoreBuilder unified port (spec 036 FR-005).
+	// restore.go — RestoreBuilder unified port.
 	_ ports.RestoreBuilder = (*pgrestore.Builder)(nil)
 	_ ports.RestoreBuilder = (*mysqlrestore.Builder)(nil)
 	_ ports.RestoreBuilder = (*mariadbrestore.Builder)(nil)

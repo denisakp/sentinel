@@ -11,7 +11,7 @@ import (
 
 // TestRecordExecution_ErrorMessageIsIdentity proves the monitor sink does not
 // transform the error string: whatever the dump-adapter passes lands in the
-// SQLite row byte-for-byte. This closes the FR-008 monitor-sink assumption
+// SQLite row byte-for-byte. This closes the monitor-sink assumption
 // that redaction must happen upstream (in the adapter, via sanitize.RedactStderr).
 func TestRecordExecution_ErrorMessageIsIdentity(t *testing.T) {
 	cases := []struct {

@@ -20,15 +20,14 @@ import (
 
 // diffLargeSwingPct is the absolute percentage change at or above which a
 // size/duration delta is annotated with a ⚠ marker. It is informational only —
-// magnitude swings never change the exit code (only security regressions do,
-// per PRD 36 Q1).
+// magnitude swings never change the exit code (only security regressions do).
 const diffLargeSwingPct = 50.0
 
 // diffSide holds the two recorded metadata sources for one backup: the monitor
 // row (always present) and the manifest sidecar (nil when absent — a pre-v1.1
 // backup or a remote manifest that could not be fetched). No artifact bytes are
 // ever read to populate this — only the SQLite row and the .manifest.json
-// sidecar (PRD 36 exit criterion).
+// sidecar.
 type diffSide struct {
 	id       string
 	exec     *ports.Execution
@@ -176,7 +175,7 @@ func resolveDiffExecution(ctx context.Context, mon *monitor.Monitor, id string) 
 //   - (nil, "", err)        — a hard error (a present-but-corrupt manifest).
 //
 // It NEVER downloads or opens the backup artifact — for remote backups it
-// fetches only the small <key>.manifest.json sidecar (PRD 36 Q2).
+// fetches only the small <key>.manifest.json sidecar.
 func resolveDiffManifest(ctx context.Context, cfg *config.Configuration, exec *ports.Execution) (*ports.BackupManifest, string, error) {
 	missingWarn := fmt.Sprintf("no manifest for backup %s (pre-v1.1 backup); compared monitor-row fields only", exec.ID)
 
@@ -204,7 +203,7 @@ func resolveDiffManifest(ctx context.Context, cfg *config.Configuration, exec *p
 				return nil, missingWarn, nil
 			}
 			// Degrade gracefully on an operational fetch failure rather than
-			// blocking the whole diff (PRD 36 Q2): warn and compare the
+			// blocking the whole diff: warn and compare the
 			// monitor-row fields only.
 			return nil, fmt.Sprintf("could not fetch remote manifest for backup %s: %v; compared monitor-row fields only", exec.ID, fetchErr), nil
 		}
@@ -418,7 +417,7 @@ func diffSizeBytes(s diffSide) int64 {
 	return s.exec.FileSizeBytes
 }
 
-// diffBackupType prefers the monitor row's BackupType (PRD 36 Q3), deriving from
+// diffBackupType prefers the monitor row's BackupType, deriving from
 // the manifest incremental lineage only when the row is empty.
 func diffBackupType(s diffSide) string {
 	if s.exec.BackupType != "" {

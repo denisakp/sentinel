@@ -27,8 +27,7 @@ type LockManager interface {
 // JobLock represents the content of a file-based job lock.
 // It is serialised as JSON in the lock file.
 //
-// Relocated from internal/lock/types.go (single source of truth per spec
-// 028 FR-003a).
+// Relocated from internal/lock/types.go (single source of truth).
 type JobLock struct {
 	PID       int               `json:"pid"`
 	JobName   string            `json:"job_name"`
@@ -43,8 +42,7 @@ type JobLock struct {
 // Live, so that the staleness rule the package used at evaluation is the
 // same rule the caller acts on.
 //
-// Relocated from internal/lock/state.go (single source of truth per spec
-// 028 FR-003a).
+// Relocated from internal/lock/state.go (single source of truth).
 type LockState struct {
 	PID       int
 	Hostname  string

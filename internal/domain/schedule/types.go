@@ -1,6 +1,6 @@
 package schedule
 
-// Relocated from internal/scheduler/types.go by spec 037. Pure: stdlib only.
+// Relocated from internal/scheduler/types.go. Pure: stdlib only.
 
 import "time"
 

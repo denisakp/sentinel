@@ -1,7 +1,7 @@
 package cli
 
 // Storage-side retention DELETE, rewired from the deleted
-// internal/retention/cleaner.go (spec 038 Sub-PR J). All artifact deletion
+// internal/retention/cleaner.go. All artifact deletion
 // now goes through ports.StorageBackend.Delete; concrete backends are
 // obtained exclusively via the storage registry.
 

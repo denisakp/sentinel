@@ -26,8 +26,8 @@ type DecryptReader interface {
 
 // DecryptOptions controls how the decrypt path handles envelope versioning.
 //
-// Relocated to internal/ports (single source of truth per spec 028 FR-003a);
-// concrete adapter lives in internal/adapters/crypto/ (spec 030).
+// Relocated to internal/ports (single source of truth); concrete adapter
+// lives in internal/adapters/crypto/.
 type DecryptOptions struct {
 	// AllowLegacy permits decrypting pre-v2 (unversioned) artifacts. Off by default.
 	AllowLegacy bool
@@ -42,8 +42,8 @@ type DecryptOptions struct {
 	BackupID string
 }
 
-// Encryption envelope sentinels — single source of truth per spec 028
-// FR-003a. Callers MUST import these from this package; aliasing back into
+// Encryption envelope sentinels — single source of truth. Callers MUST
+// import these from this package; aliasing back into
 // internal/adapters/crypto/ is forbidden.
 
 // ErrShortNonce indicates the AEAD's nonce size is too small to host the 8-byte counter region.

@@ -1,7 +1,7 @@
 package restore
 
 // Pure source-resolution helpers. Relocated from internal/restore/source.go
-// by spec 038 Sub-PR L (the I/O staging half lives in the driving runtime,
+// (the I/O staging half lives in the driving runtime,
 // internal/adapters/restore/runtime).
 
 import (
@@ -64,7 +64,7 @@ func ResolveChainObject(backupID string, objects []ports.StorageObject) (ports.S
 // with backupID followed immediately by '.' (the extension boundary).
 // Byte-for-byte; case-sensitive. Underscore is NOT a boundary: backup IDs
 // themselves may contain underscores (e.g. b_01), so allowing '_' would let
-// b_01 match b_01_extra — the exact collision PRD 13 forbids.
+// b_01 match b_01_extra — an exact collision that must be forbidden.
 func matchesBackupIDBoundary(base, backupID string) bool {
 	if base == backupID {
 		return true

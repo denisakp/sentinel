@@ -47,8 +47,7 @@ type NotificationContext interface {
 
 // BackupStatus represents the status of a backup or restore execution.
 //
-// Relocated from internal/adapters/notifier/types.go (single source of truth per
-// spec 028 FR-003a).
+// Relocated from internal/adapters/notifier/types.go (single source of truth).
 type BackupStatus string
 
 const (

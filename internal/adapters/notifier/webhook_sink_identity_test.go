@@ -11,7 +11,7 @@ import (
 // TestWebhookPayload_ErrorFieldIsIdentity proves the webhook payload builder
 // serializes the ports.BackupContext.Error string verbatim. The notifier sink does
 // not redact; redaction MUST happen upstream (in the dump adapter via
-// sanitize.RedactStderr). Closes FR-008 notifier-sink coverage.
+// sanitize.RedactStderr).
 func TestWebhookPayload_ErrorFieldIsIdentity(t *testing.T) {
 	cases := []struct {
 		name       string

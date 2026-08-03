@@ -167,7 +167,7 @@ func hasRetention(policy RetentionPolicy) bool {
 // applyCompressionDefaults normalizes an enabled compression block in place:
 // an omitted algorithm becomes zstd (the recommended default), and an omitted
 // level (0) becomes the per-algorithm default. Disabled or nil blocks are left
-// untouched. Spec 049 / PRD 33.
+// untouched.
 func applyCompressionDefaults(c *CompressionConfig) {
 	if c == nil || !c.Enabled {
 		return

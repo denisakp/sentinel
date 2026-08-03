@@ -23,7 +23,7 @@ import (
 
 // TestStorageContract_Integration runs the same contract case table against
 // MinIO, fake-gcs-server, and Azurite. Wiring only — adding a backend never
-// requires modifying contract_test.go (FR-012 / SC-004).
+// requires modifying contract_test.go.
 func TestStorageContract_Integration(t *testing.T) {
 	runContractSuite(t, "s3_minio", setupMinIO(t))
 	runContractSuite(t, "gcs_fake", setupFakeGCS(t))

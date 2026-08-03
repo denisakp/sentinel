@@ -205,7 +205,7 @@ func TestGFS_NilPolicyMatchesLegacy(t *testing.T) {
 }
 
 // 13. Baseline protection still applies under GFS: an old chain baseline GFS would
-// prune is protected by ProtectActiveBaseline (FR-011).
+// prune is protected by ProtectActiveBaseline.
 func TestGFS_ActiveBaselineProtected(t *testing.T) {
 	now := date(2026, 8, 2, 12)
 	records := []retention.BackupRecord{

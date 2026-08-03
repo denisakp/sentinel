@@ -1,7 +1,7 @@
-// Package dump hosts the cross-engine dump-args factory registry (spec 040 /
-// PRD 27), mirroring internal/adapters/storage.NewBackend. It is the only place
-// that imports every dump engine sub-package; engine packages never import each
-// other (ADR 0001 axis isolation).
+// Package dump hosts the cross-engine dump-args factory registry, mirroring
+// internal/adapters/storage.NewBackend. It is the only place that imports every
+// dump engine sub-package; engine packages never import each other (ADR 0001
+// axis isolation).
 package dump
 
 import (
@@ -32,8 +32,7 @@ func NewArgsFactory(engine string) (ports.DumpArgsFactory, error) {
 }
 
 // NewBuilder returns the ports.DumpBuilder for the given engine, wired with the
-// injected connectivity prober (spec 043 / PRD 30), or an error for an
-// unsupported engine.
+// injected connectivity prober, or an error for an unsupported engine.
 func NewBuilder(engine string, prober ports.DBProber) (ports.DumpBuilder, error) {
 	switch engine {
 	case "postgres":

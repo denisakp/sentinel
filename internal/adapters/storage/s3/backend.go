@@ -17,7 +17,7 @@ import (
 
 // ErrObjectNotFound is returned by Download when the requested object does not
 // exist, so callers can treat a missing (optional) object as absence rather
-// than a hard failure — parity with the local/GCS backends (spec 047).
+// than a hard failure — parity with the local/GCS backends.
 var ErrObjectNotFound = errors.New("s3: object not found")
 
 // S3Backend implements StorageBackend for Amazon S3 and S3-compatible storage.

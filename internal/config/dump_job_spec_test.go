@@ -7,7 +7,7 @@ import (
 )
 
 // TestBuildDumpJobSpec covers the YAML BackupJob -> ports.DumpJobSpec
-// translation, including DatabaseOptions resolution (spec 040 / PRD 27).
+// translation, including DatabaseOptions resolution.
 func TestBuildDumpJobSpec(t *testing.T) {
 	tests := []struct {
 		name string

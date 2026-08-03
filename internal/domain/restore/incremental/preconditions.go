@@ -1,7 +1,7 @@
 package incremental
 
 // Pure assembly preconditions, carved from
-// internal/restore/incremental/assembler.go by spec 038 Sub-PR L (T050).
+// internal/restore/incremental/assembler.go.
 // The I/O half (AssemblePostgresChain) lives in
 // internal/adapters/restore/chain_assembler behind ports.ChainAssembler.
 

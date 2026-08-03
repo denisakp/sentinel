@@ -1,7 +1,7 @@
-// Package ports — dump axis port definitions (spec 028 T028-T031, spec 035).
+// Package ports — dump axis port definitions.
 //
 // EngineOptions is the marker interface every engine-specific *DumpArgs
-// implements. Post-spec-035 concrete types live at:
+// implements. Concrete types live at:
 //   - *internal/adapters/dump/pg.PgDumpArgs
 //   - *internal/adapters/dump/mysql.MySqlDumpArgs
 //   - *internal/adapters/dump/mariadb.MariaDBDumpArgs
@@ -57,7 +57,7 @@ type BuildResult struct {
 	// LocalPath is the on-disk path of the produced artifact, always populated
 	// (local storage: the final destination; remote storage: a staging file the
 	// caller must upload then clean up). Enables the domain to hash/encrypt/
-	// manifest the artifact uniformly before upload (spec 047).
+	// manifest the artifact uniformly before upload.
 	LocalPath string
 }
 
@@ -69,7 +69,7 @@ type DumpBuilder interface {
 }
 
 // DumpJobSpec is the engine-agnostic, pure descriptor handed to a
-// DumpArgsFactory (spec 040 / PRD 27). It carries only already-resolved values
+// DumpArgsFactory. It carries only already-resolved values
 // — no YAML tags, no config/adapter/storage dependency — so config no longer
 // needs to import the dump adapter packages. Storage destination params are
 // intentionally NOT here: the command layer sets the concrete *DumpArgs.Storage
@@ -92,7 +92,7 @@ type DumpJobSpec struct {
 // DumpArgsFactory translates a DumpJobSpec into the engine-specific dump-args
 // value (which already satisfies EngineOptions). Implementations live in
 // internal/adapters/dump/<engine>/ beside the engine's Builder, keeping the
-// engine's argument surface a single source of truth (spec 040 / PRD 27).
+// engine's argument surface a single source of truth.
 type DumpArgsFactory interface {
 	BuildDumpArgs(spec DumpJobSpec) (EngineOptions, error)
 }

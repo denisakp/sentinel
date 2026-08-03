@@ -9,9 +9,8 @@ import (
 // concrete implementation) and the four siblings (sentinel_s3.S3Backend,
 // gcs.GCSBackend, gdrive.GDriveBackend, azure.AzureBackend).
 //
-// The shape is intentionally mirrored verbatim from the current backend.go
-// in spec 028; splitting into reader/writer/lister sub-interfaces is
-// deferred to the storage adapter spec (029) per the spec's Assumptions.
+// The shape is intentionally mirrored verbatim from the current backend.go;
+// splitting into reader/writer/lister sub-interfaces is deferred.
 type StorageBackend interface {
 	Upload(ctx context.Context, src, dest string) error
 	Download(ctx context.Context, src, dest string) error
@@ -22,8 +21,7 @@ type StorageBackend interface {
 
 // StorageObject represents a single object returned by a StorageBackend List call.
 //
-// Relocated from internal/storage/types/types.go (single source of truth per
-// spec 028 FR-003a).
+// Relocated from internal/storage/types/types.go (single source of truth).
 type StorageObject struct {
 	Path         string
 	SizeBytes    int64
@@ -34,7 +32,7 @@ type StorageObject struct {
 // RepoStatus summarises the current state of a storage repository.
 //
 // Returned by the Status method on the StatusReporter sibling port (see
-// below). Relocated from internal/storage/types/types.go by spec 029;
+// below). Relocated from internal/storage/types/types.go;
 // internal/storage/types/ is fully removed once every importer points here.
 type RepoStatus struct {
 	Reachable      bool
@@ -47,9 +45,8 @@ type RepoStatus struct {
 // StatusReporter is a sibling port to StorageBackend exposing the
 // Status(ctx) (RepoStatus, error) method that all five concrete backends
 // already implement. Kept as a separate interface (rather than embedded in
-// StorageBackend) so test fakes can opt in and so spec 028's StorageBackend
-// shape stays verbatim; see specs/029-storage-adapters/research.md §3
-// (Decision B).
+// StorageBackend) so test fakes can opt in and so the StorageBackend
+// shape stays verbatim.
 //
 // Driving adapters that need status type-assert on the result of
 // internal/adapters/storage.NewBackend:

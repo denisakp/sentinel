@@ -1,6 +1,6 @@
 package cli
 
-// End-to-end coverage of the rewired retention flow (spec 038 Sub-PR J).
+// End-to-end coverage of the rewired retention flow.
 // Ports the Manager.Apply scenarios from the deleted
 // internal/retention/retention_integration_test.go and
 // tests/retention/retention_integration_test.go onto applyJobRetention:

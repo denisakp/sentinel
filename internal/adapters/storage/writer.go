@@ -14,9 +14,8 @@ import (
 // pipeline (pre-streaming codepath) and the dump engines.
 //
 // It is NOT a port: collapsing it into ports.StorageBackend is deferred to a
-// future spec (spec 029 Clarification Q1, 2026-05-27). The interface is
-// preserved verbatim from internal/storage/storage.go for FR-010/FR-011
-// zero-observable-diff during the migration.
+// future change. The interface is preserved verbatim from
+// internal/storage/storage.go for zero observable diff during the migration.
 type Storage interface {
 	// GetBackupPath returns the absolute path to store the backup under
 	// outName for filesystem-backed backends, or the equivalent object key
@@ -36,8 +35,7 @@ type Storage interface {
 // Coverage matches today's internal/storage.NewStorage exactly: local, s3,
 // google-drive, gcs. The azure case is intentionally NOT handled here — it
 // falls through to the unsupported-type error so the migration preserves
-// FR-010/FR-011 zero observable diff (azure was not in the legacy NewStorage
-// switch either).
+// zero observable diff (azure was not in the legacy NewStorage switch either).
 func NewStorage(p *BackendParams) (Storage, error) {
 	if p == nil {
 		return nil, fmt.Errorf("storage params are required")

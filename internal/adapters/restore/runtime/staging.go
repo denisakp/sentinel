@@ -1,8 +1,8 @@
-// Package runtime is the shared driving adapter for restore execution
-// (spec 038 Sub-PR L). It owns the config-coupled glue the pure domain
+// Package runtime is the shared driving adapter for restore execution.
+// It owns the config-coupled glue the pure domain
 // Executor cannot: source staging, preflight decryption, engine argument
-// construction, and the single domain restore.Executor construction site
-// (FR-011 / SC-006). Both internal/cli and internal/scheduler consume this
+// construction, and the single domain restore.Executor construction site.
+// Both internal/cli and internal/scheduler consume this
 // package — it replaces the deleted internal/restore/.
 package runtime
 

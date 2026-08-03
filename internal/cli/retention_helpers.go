@@ -1,6 +1,6 @@
 package cli
 
-// Retention orchestration, rewired by spec 038 Sub-PR J: the deleted
+// Retention orchestration, rewired from the deleted
 // internal/retention.Manager is replaced by direct domain calls
 // (CalculateCandidates + ProtectActiveBaseline), storage DELETE via
 // ports.StorageBackend, and history DELETE via ports.Recorder.
@@ -45,7 +45,7 @@ func buildRetentionPolicy(rp config.RetentionPolicy, dryRun bool) domainret.Poli
 
 // retentionEnabled reports whether a job's retention policy would act — flat
 // rules, dry-run, or a non-empty GFS block. A GFS-only policy MUST NOT be
-// skipped (spec 046 FR-008).
+// skipped.
 func retentionEnabled(rp config.RetentionPolicy) bool {
 	if rp.KeepLast > 0 || rp.KeepDays > 0 {
 		return true

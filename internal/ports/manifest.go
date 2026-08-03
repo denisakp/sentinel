@@ -6,8 +6,7 @@ import (
 )
 
 // ManifestStore abstracts *internal/adapters/manifest_store.Adapter
-// (current concrete implementation; relocated from internal/manifest/Adapter
-// by spec 037).
+// (current concrete implementation; relocated from internal/manifest/Adapter).
 //
 // It is the read/write seam for backup manifests — the .manifest.json
 // sidecar that records integrity, encryption, and advanced-restore
@@ -25,15 +24,13 @@ type ManifestStore interface {
 // Callers MUST treat this as a soft signal (pre-v1.1 backup) rather than a
 // hard failure: log a WARN and proceed with the raw file.
 //
-// Relocated from internal/manifest/manifest.go (single source of truth per
-// spec 028 FR-003a).
+// Relocated from internal/manifest/manifest.go (single source of truth).
 var ErrNoManifest = errors.New("manifest not found")
 
 // BackupManifest is the single source of truth for backup integrity and restore metadata.
 // Written as <backup-filename>.manifest.json alongside the backup file.
 //
-// Relocated from internal/manifest/types.go (single source of truth per
-// spec 028 FR-003a).
+// Relocated from internal/manifest/types.go (single source of truth).
 type BackupManifest struct {
 	BackupID        string                   `json:"backup_id"`
 	Database        string                   `json:"database"`
@@ -47,7 +44,7 @@ type BackupManifest struct {
 }
 
 // CompressionInfo records the pipeline compression applied to a backup
-// artifact (PRD 33 / spec 049). Present only when pipeline compression fired;
+// artifact. Present only when pipeline compression fired;
 // a manifest without this block ⇒ the artifact is uncompressed (or compressed
 // natively by the dump tool, e.g. pg_dump --compress / mongodump --gzip),
 // and restore performs no decompress stage. Restore reads Algorithm to select

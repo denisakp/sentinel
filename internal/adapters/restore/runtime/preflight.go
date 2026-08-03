@@ -1,9 +1,9 @@
 package runtime
 
 // Pre-restore integrity verification + decryption. Relocated verbatim from
-// internal/restore/pipeline.go by spec 038 Sub-PR L (crypto-adapter-coupled,
-// so it lives driving-side; the domain Executor reaches it through the
-// Job.Preflight hook).
+// internal/restore/pipeline.go (crypto-adapter-coupled, so it lives
+// driving-side; the domain Executor reaches it through the Job.Preflight
+// hook).
 
 import (
 	"context"

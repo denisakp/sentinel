@@ -90,7 +90,7 @@ func TestApplyArtifactSecurity_CompressBeforeEncrypt(t *testing.T) {
 
 // TestApplyArtifactSecurity_CompressionOnlyManifest asserts compression without
 // encryption records the compressed-bytes digest as the stored-artifact hash
-// (Q3) and stamps the manifest compression block.
+// and stamps the manifest compression block.
 func TestApplyArtifactSecurity_CompressionOnlyManifest(t *testing.T) {
 	job, artifact := localCompressionJob(t, []byte("-- plaintext dump payload\n"))
 

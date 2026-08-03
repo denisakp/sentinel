@@ -3,7 +3,7 @@
 // (<artifact>.manifest.json) and the streaming SHA-256 verification path.
 //
 // Pure validation (incremental lineage contract checks) lives in
-// internal/domain/manifest. Relocated from internal/manifest/ by spec 037.
+// internal/domain/manifest.
 package manifest_store
 
 import (

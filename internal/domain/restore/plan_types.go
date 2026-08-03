@@ -1,6 +1,6 @@
 package restore
 
-// Relocated from internal/restore/plan_types.go by spec 037. Pure: stdlib only.
+// Relocated from internal/restore/plan_types.go. Pure: stdlib only.
 
 import "time"
 

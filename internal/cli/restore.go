@@ -127,11 +127,11 @@ var (
 	restoreLogLevel            string
 	restoreAllowLegacyEnvelope bool
 
-	// Run-only integrity escape hatch (PRD 39). Per-invocation, flag-only,
+	// Run-only integrity escape hatch. Per-invocation, flag-only,
 	// off by default — never env-defaulted or config-driven.
 	restoreSkipHashVerify bool
 
-	// Run-all flags (spec 045 / PRD 31).
+	// Run-all flags.
 	restoreRunAll   bool
 	restoreParallel int
 
@@ -170,7 +170,7 @@ func init() {
 	// Registered on the run command only (not persistently) so it cannot leak
 	// onto list/status/dry-run. Flag-only, off by default — no env default (an
 	// env default would silently defeat integrity checking across every restore
-	// on a host). PRD 39.
+	// on a host).
 	restoreRunCmd.Flags().BoolVar(&restoreSkipHashVerify, "skip-hash-verify", false,
 		"UNSAFE: proceed even if the artifact's SHA-256 does not match the manifest. "+
 			"Downgrades the integrity abort to a logged WARNING. Use only for a manifest/artifact "+
@@ -322,8 +322,7 @@ func handleRestoreDryRun(cmd *cobra.Command, args []string) error {
 
 // jobOutcome is the result of running one restore job: OK plus the stdout to
 // print (Msg) and the error to surface (Err). Used by both the single-job and
-// the --all (run-all) paths so they share identical execution + result handling
-// (spec 045 / PRD 31).
+// the --all (run-all) paths so they share identical execution + result handling.
 type jobOutcome struct {
 	Name string
 	OK   bool
@@ -426,7 +425,7 @@ func effectiveRestoreConcurrency(cfg *config.Configuration, parallelFlag int) in
 
 // handleRestoreRunAll runs every enabled restore job concurrently, bounded by
 // the effective concurrency limit, isolating per-job failures and reporting a
-// per-job aggregate (spec 045 / PRD 31).
+// per-job aggregate.
 func handleRestoreRunAll(ctx context.Context, cfg *config.Configuration) error {
 	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 	if err != nil {
@@ -755,7 +754,7 @@ func loadRestoreConfig() (*config.Configuration, error) {
 	}
 
 	// Domain-level structural validation of schedulable restore jobs
-	// (mirrors validateScheduledJobs in schedule.go — FR-005).
+	// (mirrors validateScheduledJobs in schedule.go).
 	for name, job := range cfg.Restores {
 		if job.Enabled != nil && !*job.Enabled {
 			continue

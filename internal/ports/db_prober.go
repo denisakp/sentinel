@@ -7,7 +7,7 @@ import (
 
 // DBProber probes a live database for connectivity + capability + safety
 // information. It is the carve-out for real I/O previously embedded in
-// internal/backup/sql/* and internal/restore/postgres_conflicts.go (spec 037).
+// internal/backup/sql/* and internal/restore/postgres_conflicts.go.
 //
 // Implementations: internal/adapters/db_probe/Adapter.
 type DBProber interface {

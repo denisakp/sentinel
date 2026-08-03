@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_restore_executions_database_name ON restore_execu
 
 // IntegrityChecksSchema mirrors migration 005_add_integrity_checks.sql as a
 // defensive CREATE TABLE IF NOT EXISTS, matching the per-table const pattern of
-// BackupExecutionsSchema / RestoreExecutionsSchema (spec 052 / PRD 35). The
+// BackupExecutionsSchema / RestoreExecutionsSchema. The
 // result and trigger CHECK constraints enforce the outcome/trigger vocabularies
 // at the store boundary.
 const IntegrityChecksSchema = `

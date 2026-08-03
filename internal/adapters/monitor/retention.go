@@ -1,9 +1,9 @@
 package monitor
 
 // Retention-side history DELETEs, implementing the two ports.Recorder
-// retention methods added by spec 038 (Sub-PR J). SQL bodies ported verbatim
+// retention methods. SQL bodies ported verbatim
 // from internal/retention/retention.go::Manager.deleteRecords and
-// Manager.ApplyRestoreRetention (package deleted by spec 038 T028).
+// Manager.ApplyRestoreRetention.
 
 import (
 	"context"

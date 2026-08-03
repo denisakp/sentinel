@@ -15,7 +15,6 @@ var (
 	// --ignore-missing-manifest). It maps to a DISTINCT exit code so an
 	// alerting pipeline can tell "backups are broken" (integrity) apart from
 	// "the check itself could not run" (operational → ErrVerifyInternal).
-	// Spec 051 / PRD 34.
 	ErrVerifyIntegrityFailed = errors.New("integrity check failed")
 
 	// ErrDiffSecurityRegression is returned by `backup diff <id1> <id2>` when it
@@ -23,7 +22,6 @@ var (
 	// off, a hash-algorithm change, or an encryption-parameter downgrade). It
 	// maps to a non-zero exit (1) so CI/alerting can gate on it. Size/duration
 	// magnitude swings never set this — they stay informational (exit 0).
-	// PRD 36.
 	ErrDiffSecurityRegression = errors.New("backup diff: security regression detected")
 
 	// `sentinel monitor doctor` exit-code carriers. Stable across releases
@@ -33,7 +31,7 @@ var (
 	ErrDoctorMissing         = errors.New("monitor database is missing")
 	ErrDoctorCorrupt         = errors.New("monitor database is corrupt or unreadable")
 
-	// `sentinel repair` exit-code carriers (PRD 37). ErrRepairInternal marks an
+	// `sentinel repair` exit-code carriers. ErrRepairInternal marks an
 	// operational failure that prevented reconciliation (config/backend/db);
 	// ErrRepairInconsistent marks that manual-action inconsistencies remain
 	// (artifact_missing / chain_broken) so repair can gate CI/cron. Schema
@@ -58,7 +56,7 @@ func Code(err error) int {
 	case errors.Is(err, ErrVerifyIntegrityFailed):
 		return 5
 	case errors.Is(err, ErrDiffSecurityRegression):
-		// Non-zero, deliberately kept at 1 (matches the PRD 36 example) so a CI
+		// Non-zero, deliberately kept at 1 so a CI
 		// gate simply checks for a non-zero exit.
 		return 1
 	case errors.Is(err, ErrDoctorStalePending):

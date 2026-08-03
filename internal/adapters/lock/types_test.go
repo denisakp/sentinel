@@ -8,7 +8,7 @@ import (
 )
 
 // TestJobLock_JSONShape_v1Stable pins the on-disk ports.JobLock JSON shape so
-// any accidental struct edit trips CI (FR-010 / ADR 0007 contract).
+// any accidental struct edit trips CI (ADR 0007 contract).
 func TestJobLock_JSONShape_v1Stable(t *testing.T) {
 	jl := ports.JobLock{
 		PID:       42,

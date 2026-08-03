@@ -1,7 +1,7 @@
 package restore
 
-// Pure advanced-restore planner. Relocated from internal/restore/planner.go
-// by spec 038 Sub-PR L: config.RestoreJob collapses to the engine string
+// Pure advanced-restore planner. Relocated from internal/restore/planner.go:
+// config.RestoreJob collapses to the engine string
 // (its only consulted field) and config.AdvancedRestoreRequest to the pure
 // PlanRequest mirror. Manifest loading is injected (ports.ManifestStore or
 // a driving hook) by PlanFromManifestPath callers.

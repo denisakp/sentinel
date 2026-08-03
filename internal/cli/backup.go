@@ -320,8 +320,8 @@ func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job
 	return executeSingleBackupJob(cmd, cfg, job, mode, opts)
 }
 
-// executeSingleBackupJob is the carved driving-adapter body (spec 038
-// Sub-PR K): parse flags → translate to domain Job → factory → Executor.Run.
+// executeSingleBackupJob is the carved driving-adapter body: parse flags →
+// translate to domain Job → factory → Executor.Run.
 // Orchestration (dump, manifest, encryption, record, notify) lives in
 // internal/domain/backup.Executor.
 func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
@@ -626,8 +626,8 @@ func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job co
 }
 
 // listDatabases enumerates databases for auto-discovery. SQL engines go
-// through the domain source resolver over ports.DBProber (spec 038 Sub-PR K
-// T037); Mongo stays adapter-direct because the prober port's
+// through the domain source resolver over ports.DBProber; Mongo stays
+// adapter-direct because the prober port's
 // DatabaseConfig carries no URI.
 func listDatabases(job config.BackupJob) ([]string, error) {
 	switch job.Type {

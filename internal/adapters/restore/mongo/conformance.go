@@ -3,7 +3,7 @@ package mongo
 import "github.com/denisakp/sentinel/internal/ports"
 
 // Compile-time assertions wiring this adapter to the restore axis port
-// surface declared in internal/ports/restore.go (spec 036 + spec 041).
+// surface declared in internal/ports/restore.go.
 // OplogReplayArgs satisfies RestoreOptions alongside RestoreArgs because the
 // mongo Builder.Build (and ArgsFactory OplogReplay phase) dispatches on either.
 var (

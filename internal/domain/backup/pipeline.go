@@ -3,9 +3,8 @@ package backup
 // Post-dump artifact pipeline: incremental metadata, side-artifact archival,
 // optional in-place encryption, hash verification, manifest persistence.
 // Relocated from internal/cli/backup.go (applyBackupSecurity +
-// localBackupInfo + resolveBackupPath) by spec 038 Sub-PR K. Manifest I/O
-// goes through ports.ManifestStore; adapter-backed steps go through Job
-// hooks.
+// localBackupInfo + resolveBackupPath). Manifest I/O goes through
+// ports.ManifestStore; adapter-backed steps go through Job hooks.
 
 import (
 	"context"
@@ -46,8 +45,8 @@ func LocalArtifactInfo(storageType, localPath, outName string) (string, int64) {
 // ResolveArtifactRef returns the history-row artifact reference + size for
 // any storage type ("unknown" when unresolvable). For remote storage the
 // reference is the remote object key (or gs:// URL) and the size is read from
-// the staged artifact at stagedPath when present (spec 047; previously always
-// 0 for remote).
+// the staged artifact at stagedPath when present (previously always 0 for
+// remote).
 func ResolveArtifactRef(storageType, localPath, outName, gcsBucket, stagedPath string) (string, int64) {
 	if storageType == "" || storageType == "local" {
 		path, size := LocalArtifactInfo(storageType, localPath, outName)
@@ -89,9 +88,8 @@ func stagedArtifactSize(stagedPath string) int64 {
 // For LOCAL storage the artifact path is resolved from the job's on-disk
 // output (unchanged pre-carve behaviour: a missing/non-local artifact yields
 // (nil, nil)). For REMOTE storage the artifact is the staged file at
-// stagedPath (spec 047): security runs there so the Executor can upload the
-// encrypted artifact + manifest sidecar, closing the plaintext-remote-upload
-// bypass. stagedPath may be empty in unit tests / non-stageable dump-all
+// stagedPath: security runs there so the Executor can upload the encrypted
+// artifact + manifest sidecar, closing the plaintext-remote-upload bypass. stagedPath may be empty in unit tests / non-stageable dump-all
 // paths; the encryption hook is still invoked (hooks own the file I/O).
 //
 // Non-fatal manifest-write failures are reported through res.Warnings by
@@ -136,9 +134,8 @@ func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintext
 	// order: dump → compress → hash → encrypt). The artifact is compressed in
 	// place so every downstream step (incremental size math, encryption,
 	// manifest SizeBytes) operates on the compressed bytes. The compressed
-	// digest becomes the stored-artifact hash (Q3); encryption, when
-	// configured, overrides it with the ciphertext digest below. Spec 049 /
-	// PRD 33.
+	// digest becomes the stored-artifact hash; encryption, when configured,
+	// overrides it with the ciphertext digest below.
 	var compInfo *ports.CompressionInfo
 	if job.CompressArtifact != nil && filePath != "" {
 		compressed, cmeta, compHash, compErr := job.CompressArtifact(filePath)

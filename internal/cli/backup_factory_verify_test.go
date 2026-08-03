@@ -18,8 +18,7 @@ import (
 // TestResolveVerifyAfterUpload exercises the inheritance precedence: a
 // per-job override always wins; otherwise the top-level
 // integrity.verify_after_upload default applies; a nil Configuration (or an
-// unset job pointer with no config) is off (spec 053 / PRD 40, Q5: opt-in,
-// default off).
+// unset job pointer with no config) is off (opt-in, default off).
 func TestResolveVerifyAfterUpload(t *testing.T) {
 	trueVal, falseVal := true, false
 

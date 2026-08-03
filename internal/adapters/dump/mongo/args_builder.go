@@ -23,7 +23,7 @@ type DumpMongoArgs struct {
 	// directory the mongodump archive is staged into. In this "executor-owned"
 	// mode Backup does NOT upload and does NOT remove the directory — the
 	// backup Executor hashes/encrypts/manifests the archive, uploads it (+ the
-	// manifest sidecar), and cleans up (spec 047). Empty → legacy self-owned
+	// manifest sidecar), and cleans up. Empty → legacy self-owned
 	// remote path (stage under <backup_path>/.staging/<job-id>/, upload, clean).
 	RemoteStagingDir string
 }

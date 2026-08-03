@@ -19,7 +19,7 @@ type stagingDir struct {
 
 // newStagingDir creates a fresh staging directory under backupPath. If jobID is
 // empty, a unique mongo-<unix-nanos>-<6-hex> token is generated. Returns an
-// error if the directory already exists (collision is fatal — FR-009).
+// error if the directory already exists (collision is fatal).
 func newStagingDir(backupPath, jobID string) (*stagingDir, error) {
 	if strings.TrimSpace(backupPath) == "" {
 		return nil, fmt.Errorf("staging: backup path is required")
@@ -46,7 +46,7 @@ func newStagingDir(backupPath, jobID string) (*stagingDir, error) {
 
 // archiveFileName returns the canonical archive file name for a mongodump
 // archive. When gzip is true, ".gz" is appended. Shared by stagingDir and the
-// executor-owned staging path (spec 047) so both compute the same name.
+// executor-owned staging path so both compute the same name.
 func archiveFileName(gzip bool) string {
 	name := "dump.archive"
 	if gzip {

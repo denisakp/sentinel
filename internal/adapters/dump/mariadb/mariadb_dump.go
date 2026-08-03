@@ -16,8 +16,8 @@ import (
 )
 
 // Backup backs up a MariaDB database using mariadb-dump. The prober checks
-// connectivity to the target database before the dump runs (spec 043). The
-// probe uses the "mysql" scheme, as the prior checkConnectivity call did.
+// connectivity to the target database before the dump runs. The probe uses the
+// "mysql" scheme, as the prior checkConnectivity call did.
 func Backup(prober ports.DBProber, mda *MariaDBDumpArgs) (string, error) {
 	// Validate the required arguments
 	args, err := argsBuilder(mda)

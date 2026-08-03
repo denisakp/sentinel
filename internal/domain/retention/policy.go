@@ -9,7 +9,7 @@ import (
 // CalculateCandidates determines which backups should be deleted under the
 // given Policy at the given time. Pure: same inputs → same output.
 //
-// Relocated from internal/retention/calculator.go by spec 037.
+// Relocated from internal/retention/calculator.go.
 func CalculateCandidates(records []BackupRecord, policy Policy, now time.Time) []BackupCandidate {
 	filtered := filterSuccess(records)
 	if len(filtered) == 0 {
@@ -142,7 +142,7 @@ func mergeReason(reasons map[string]string, filePath, reason string) {
 // the chain currently in flight. Caller passes the same records slice used to
 // derive candidates. Pure.
 //
-// Relocated from internal/retention/retention.go by spec 037.
+// Relocated from internal/retention/retention.go.
 func ProtectActiveBaseline(candidates []BackupCandidate, records []BackupRecord) []BackupCandidate {
 	if len(candidates) == 0 || len(records) == 0 {
 		return candidates

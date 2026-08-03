@@ -268,7 +268,7 @@ func ValidateRestoreJob(job *RestoreJob) error {
 		return fmt.Errorf("restore schedule (cron) is required")
 	}
 
-	// FR-009(a): validate restore_options.additional_args parses at config load.
+	// Validate restore_options.additional_args parses at config load.
 	if raw, ok := job.RestoreOptions["additional_args"]; ok {
 		s, isString := raw.(string)
 		if !isString {

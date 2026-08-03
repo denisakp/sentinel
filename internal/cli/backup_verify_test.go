@@ -148,7 +148,7 @@ func TestBackupVerifyRemoteFetchDetectsTampering(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// backup verify --all sweep (spec 051 / PRD 34)
+// backup verify --all sweep
 // ---------------------------------------------------------------------------
 
 // sweepFlags configures a runVerifyAll invocation.
@@ -479,7 +479,7 @@ func TestVerifyAll_Empty(t *testing.T) {
 	}
 }
 
-// TestVerifyAll_MutualExclusion asserts FR-002: both id+--all, or neither, is a
+// TestVerifyAll_MutualExclusion asserts that both id+--all, or neither, is a
 // usage error.
 func TestVerifyAll_MutualExclusion(t *testing.T) {
 	cfgPath, ids := seedSweepRepo(t, []sweepSpec{
@@ -496,7 +496,7 @@ func TestVerifyAll_MutualExclusion(t *testing.T) {
 	}
 }
 
-// TestVerifyAll_Since asserts FR-008: --since restricts the sweep to recent
+// TestVerifyAll_Since asserts that --since restricts the sweep to recent
 // backups.
 func TestVerifyAll_Since(t *testing.T) {
 	cfgPath, _ := seedSweepRepo(t, []sweepSpec{
@@ -517,7 +517,7 @@ func TestVerifyAll_Since(t *testing.T) {
 	}
 }
 
-// TestVerifyAll_Job asserts FR-010: --job restricts the sweep to a single job.
+// TestVerifyAll_Job asserts that --job restricts the sweep to a single job.
 func TestVerifyAll_Job(t *testing.T) {
 	cfgPath, _ := seedSweepRepo(t, []sweepSpec{
 		{file: "a.sql", job: "sweep-job", seedArtifact: true, seedManifest: true},
@@ -540,7 +540,7 @@ func TestVerifyAll_Job(t *testing.T) {
 	}
 }
 
-// TestVerifyAll_ReadOnly asserts FR-012: the sweep writes NO new history rows.
+// TestVerifyAll_ReadOnly asserts that the sweep writes NO new history rows.
 func TestVerifyAll_ReadOnly(t *testing.T) {
 	cfgPath, _ := seedSweepRepo(t, []sweepSpec{
 		{file: "a.sql", seedArtifact: true, seedManifest: true},

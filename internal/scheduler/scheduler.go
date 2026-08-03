@@ -185,7 +185,7 @@ func (s *Scheduler) JobStatus(name string) (*schedule.JobStatus, error) {
 
 // JobSchedule returns the parsed cron schedule of a registered job.
 // Domain code consumes the returned schedule.Schedule via Next only;
-// the cron library dependency stays inside this runtime adapter (FR-004).
+// the cron library dependency stays inside this runtime adapter.
 func (s *Scheduler) JobSchedule(name string) (schedule.Schedule, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

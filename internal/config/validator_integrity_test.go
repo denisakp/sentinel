@@ -65,7 +65,7 @@ func TestValidateConfig_IntegrityAlgorithm(t *testing.T) {
 }
 
 // scheduledCheckConfig builds a minimal valid config with one postgres backup
-// job and the given integrity.scheduled_check block (spec 052 / PRD 35).
+// job and the given integrity.scheduled_check block.
 func scheduledCheckConfig(sc IntegrityScheduledCheck) *Configuration {
 	enabled := true
 	return &Configuration{
@@ -88,7 +88,7 @@ func scheduledCheckConfig(sc IntegrityScheduledCheck) *Configuration {
 }
 
 // TestValidateScheduledIntegrityCheck_Matrix asserts the config-validation
-// matrix for integrity.scheduled_check (FR-008 / SC-007).
+// matrix for integrity.scheduled_check.
 func TestValidateScheduledIntegrityCheck_Matrix(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -127,7 +127,7 @@ func TestValidateScheduledIntegrityCheck_Matrix(t *testing.T) {
 }
 
 // TestValidateScheduledIntegrityCheck_ReservedName asserts a user backup or
-// restore job may not take the reserved __integrity_check name (A6 / FR-008),
+// restore job may not take the reserved __integrity_check name,
 // independent of whether the scheduled check is enabled.
 func TestValidateScheduledIntegrityCheck_ReservedName(t *testing.T) {
 	enabled := true

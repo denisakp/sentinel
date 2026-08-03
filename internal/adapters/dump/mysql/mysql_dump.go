@@ -16,7 +16,7 @@ import (
 )
 
 // Backup backs up a MySQL database using mysqldump. The prober checks
-// connectivity to the target database before mysqldump runs (spec 043).
+// connectivity to the target database before mysqldump runs.
 func Backup(prober ports.DBProber, mda *MySqlDumpArgs) (string, error) {
 	args, err := argsBuilder(mda)
 	if err != nil {

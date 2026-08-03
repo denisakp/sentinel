@@ -2,9 +2,8 @@ package backup
 
 // Full-vs-incremental planning. Relocated from internal/cli/backup.go
 // (deriveIncrementalBackupContext + latestIncrementalExecution +
-// resolveBaselineBackupID + canonicalScheduledExtension) by spec 038
-// Sub-PR K; history reads go through ports.Recorder instead of opening the
-// monitor adapter directly.
+// resolveBaselineBackupID + canonicalScheduledExtension); history reads go
+// through ports.Recorder instead of opening the monitor adapter directly.
 
 import (
 	"context"

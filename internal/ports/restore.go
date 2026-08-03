@@ -1,4 +1,4 @@
-// Package ports — restore axis port definitions (spec 036).
+// Package ports — restore axis port definitions.
 //
 // RestoreOptions is the marker interface every engine-specific *RestoreArgs
 // (and Mongo's *OplogReplayArgs) implements. Post-spec-036 concrete types
@@ -46,8 +46,8 @@ type RestoreBuilder interface {
 	Build(ctx RestoreBuildContext) (RestoreBuildResult, error)
 }
 
-// RestorePhase selects which arg shape a RestoreArgsFactory produces
-// (spec 041 / PRD 28). Mongo is the only engine with a second phase.
+// RestorePhase selects which arg shape a RestoreArgsFactory produces.
+// Mongo is the only engine with a second phase.
 type RestorePhase int
 
 const (
@@ -58,7 +58,7 @@ const (
 )
 
 // RestoreJobSpec is the pure, engine-agnostic, carry-all descriptor handed to a
-// RestoreArgsFactory (spec 041 / PRD 28). No YAML tags, no config/adapter
+// RestoreArgsFactory. No YAML tags, no config/adapter
 // dependency — so config no longer needs to import the restore adapter packages.
 // Every factory input is already resolved here; factories are pure copiers.
 type RestoreJobSpec struct {
@@ -80,8 +80,7 @@ type RestoreJobSpec struct {
 
 // RestoreArgsFactory translates a RestoreJobSpec + phase into the engine-specific
 // restore-args value (which already satisfies RestoreOptions). Implementations
-// live in internal/adapters/restore/<engine>/ beside the engine's Builder
-// (spec 041 / PRD 28).
+// live in internal/adapters/restore/<engine>/ beside the engine's Builder.
 type RestoreArgsFactory interface {
 	BuildRestoreArgs(spec RestoreJobSpec, phase RestorePhase) (RestoreOptions, error)
 }

@@ -43,7 +43,7 @@ func NewExecutorWithLogger(maxConcurrent int, logger *slog.Logger) *Executor {
 // Execute runs a job with concurrency control. A panic inside job is recovered
 // by an outer safety-net defer that logs the panic + stack trace. The deferred
 // slot release runs before wg.Done so any caller blocked on Wait observes
-// restored capacity. (FR-001, FR-002, FR-005, FR-007)
+// restored capacity.
 func (e *Executor) Execute(job func()) {
 	e.wg.Add(1)
 	go func() {
@@ -83,9 +83,9 @@ type BackupExecutionResult struct {
 // This ensures partial artifacts are deleted if the backup fails or is interrupted.
 //
 // A panic inside backupFn is converted to result.Error via wrapPanic so the
-// existing cleanup defer records it as an ordinary failure (FR-002, FR-004).
+// existing cleanup defer records it as an ordinary failure.
 // If executionID is empty when the panic fires, a start record is synthesized
-// (Q4) so every failure has a matching start.
+// so every failure has a matching start.
 func ExecuteBackupWithCleanup(
 	ctx context.Context,
 	executionID string,
@@ -168,7 +168,7 @@ func ExecuteBackupWithCleanupContext(
 				"database", database,
 			)
 			// If start was never registered, synthesize one so the failure
-			// record has a matching start row (Q4).
+			// record has a matching start row.
 			if result.ExecutionID == "" && mon != nil {
 				if id, serr := synthesizeRunStart(ctx, mon, jobName, database); serr == nil {
 					result.ExecutionID = id
@@ -225,9 +225,8 @@ func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error
 
 // isNonRetriable returns true for errors that should not be retried:
 // configuration errors, certificate errors, and authentication errors.
-// An explicit domain RetriableErr classification (spec 038 FR-008 — e.g.
-// the backup Executor's connectivity gate) always wins over the
-// string-based heuristic.
+// An explicit domain RetriableErr classification (e.g. the backup
+// Executor's connectivity gate) always wins over the string-based heuristic.
 func isNonRetriable(err error) bool {
 	if err == nil {
 		return false

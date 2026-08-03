@@ -15,7 +15,7 @@ import (
 
 // TestHandleRestoreRunAll_FailureIsolationAndConcurrency verifies that --all
 // runs every enabled job, one failure does not abort siblings, concurrency is
-// bounded, and the overall result is non-nil when any job fails (spec 045).
+// bounded, and the overall result is non-nil when any job fails.
 func TestHandleRestoreRunAll_FailureIsolationAndConcurrency(t *testing.T) {
 	prevExecutor := runRestoreExecution
 	prevParallel := restoreParallel

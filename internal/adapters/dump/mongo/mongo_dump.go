@@ -40,7 +40,7 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 	remote := da.Storage.StorageType != "" && da.Storage.StorageType != "local"
 
 	// executorOwned: the backup Executor owns hash/encrypt/manifest/upload/
-	// cleanup for this remote archive (spec 047). Backup only stages the
+	// cleanup for this remote archive. Backup only stages the
 	// archive into the caller-provided dir and returns its plaintext digest.
 	executorOwned := remote && strings.TrimSpace(da.RemoteStagingDir) != ""
 

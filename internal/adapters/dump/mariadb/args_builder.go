@@ -21,8 +21,8 @@ type MariaDBDumpArgs struct {
 func (*MariaDBDumpArgs) IsEngineOptions() {}
 
 // argsBuilder builds the mariadb-dump arguments by delegating to the shared
-// MySQL-family core with the MariaDB flavor (spec 044 / PRD 15). MariaDB does
-// not emit --skip-password on an empty password.
+// MySQL-family core with the MariaDB flavor. MariaDB does not emit
+// --skip-password on an empty password.
 func argsBuilder(mda *MariaDBDumpArgs) ([]string, error) {
 	return mysqlargs.BuildArgs(mysqlargs.Input{
 		Host:           mda.Host,

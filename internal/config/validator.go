@@ -49,7 +49,7 @@ func ValidateConfig(cfg *Configuration) error {
 		return fmt.Errorf("max_concurrent_backups must be between 1 and 100")
 	}
 	// 0 means "unset" (LoadConfig defaults it to 1 before validation); reject
-	// only a genuinely out-of-range value (negative or > 100). Spec 045 / PRD 31.
+	// only a genuinely out-of-range value (negative or > 100).
 	if cfg.MaxConcurrentRestores != 0 && (cfg.MaxConcurrentRestores < 1 || cfg.MaxConcurrentRestores > 100) {
 		return fmt.Errorf("max_concurrent_restores must be between 1 and 100")
 	}
@@ -396,10 +396,10 @@ func validateOplogReplaySelectors(job RestoreJob) error {
 	return nil
 }
 
-// validateScheduledIntegrityCheck validates the integrity.scheduled_check block
-// (spec 052 / PRD 35). The reserved job name is rejected in the user job
+// validateScheduledIntegrityCheck validates the integrity.scheduled_check
+// block. The reserved job name is rejected in the user job
 // namespace unconditionally; the cron/since/notify_on fields are validated only
-// when the check is enabled (FR-008).
+// when the check is enabled.
 func validateScheduledIntegrityCheck(cfg *Configuration, parser cron.Parser) error {
 	// Reserved-name collision: a user backup/restore job may never take the
 	// internal scheduled-integrity job name (A6 / edge case), regardless of
@@ -439,8 +439,8 @@ func validateScheduledIntegrityCheck(cfg *Configuration, parser cron.Parser) err
 	return nil
 }
 
-// validateIntegrity validates the repository-wide integrity block (spec 051 /
-// PRD 34). Only SHA-256 is supported by the integrity layer today; empty means
+// validateIntegrity validates the repository-wide integrity block. Only
+// SHA-256 is supported by the integrity layer today; empty means
 // the default (sha256).
 func validateIntegrity(cfg IntegrityConfig) error {
 	switch cfg.Algorithm {
@@ -506,8 +506,8 @@ func gfsConfigured(gfs *GFSPolicy) bool {
 	return gfs.KeepDaily > 0 || gfs.KeepWeekly > 0 || gfs.KeepMonthly > 0 || gfs.KeepYearly > 0
 }
 
-// validateCompression validates a job's pipeline compression block (spec 049 /
-// PRD 33). Algorithm must be gzip/zstd/none; when enabled the level must fall
+// validateCompression validates a job's pipeline compression block.
+// Algorithm must be gzip/zstd/none; when enabled the level must fall
 // within the per-algorithm range; and — per the Option A resolution — pipeline
 // compression may NOT coexist with engine-native compression (double-compress
 // guard).

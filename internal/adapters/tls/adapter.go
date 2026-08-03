@@ -7,9 +7,8 @@ import (
 )
 
 // Adapter is a zero-state wrapper that exposes ProbeTLSConnection as a method
-// so it can satisfy ports.Prober. Introduced by spec 028 (FR-004 clause c)
-// because the port interface needs a method receiver to be a conformance
-// target.
+// so it can satisfy ports.Prober. The port interface needs a method receiver
+// to be a conformance target.
 type Adapter struct{}
 
 // Probe satisfies ports.Prober by delegating to the package-level

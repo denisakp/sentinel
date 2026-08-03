@@ -7,8 +7,8 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
-// ArgsFactory builds Mongo restore args from a pure ports.RestoreJobSpec
-// (spec 041 / PRD 28). PrimaryRestore -> *RestoreArgs (body from the former
+// ArgsFactory builds Mongo restore args from a pure ports.RestoreJobSpec.
+// PrimaryRestore -> *RestoreArgs (body from the former
 // config.BuildMongoRestoreArgs); OplogReplay -> *OplogReplayArgs (body from
 // the former config.BuildMongoOplogReplayArgs, incl. its validation).
 type ArgsFactory struct{}

@@ -8,7 +8,7 @@ import (
 )
 
 // Builder is the zero-field type satisfying ports.RestoreBuilder for
-// MongoDB restores (spec 036). Dispatches to Restore or ReplayOplog based
+// MongoDB restores. Dispatches to Restore or ReplayOplog based
 // on the concrete type of bc.Options.
 type Builder struct{}
 

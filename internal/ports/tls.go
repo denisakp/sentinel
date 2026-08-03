@@ -11,8 +11,8 @@ var ValidModes = []string{"require", "verify-ca", "verify-full", "prefer"}
 
 // Config holds TLS settings for a single database connection.
 //
-// Relocated from internal/adapters/tls/config.go (single source of truth per
-// spec 028 FR-003a; adapter relocation completed in spec 033). It mirrors the config.TLSConfig YAML struct but is an
+// Relocated from internal/adapters/tls/config.go (single source of truth).
+// It mirrors the config.TLSConfig YAML struct but is an
 // independent domain type to avoid coupling the tls package to config
 // parsing.
 type Config struct {
@@ -82,8 +82,8 @@ type DatabaseConfig struct {
 	Username string
 	Password string
 	TLS      *Config
-	Database string // spec 043: target database for a database-scoped ping (SQL dump path); "" = server-level
-	URI      string // spec 043: connection URI for the mongodb ping
+	Database string // target database for a database-scoped ping (SQL dump path); "" = server-level
+	URI      string // connection URI for the mongodb ping
 }
 
 // Prober abstracts the TLS connection probe (current concrete implementation:

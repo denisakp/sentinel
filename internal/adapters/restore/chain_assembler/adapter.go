@@ -1,5 +1,5 @@
 // Package chain_assembler implements ports.ChainAssembler over the
-// pg_combinebackup wrapper (spec 038 FR-013). Body ported from
+// pg_combinebackup wrapper. Body ported from
 // internal/restore/incremental/assembler.go::AssemblePostgresChain.
 package chain_assembler
 

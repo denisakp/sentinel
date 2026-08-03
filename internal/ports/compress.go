@@ -5,7 +5,7 @@ import "io"
 // CompressWriter abstracts *internal/adapters/compress streaming compressors
 // (gzip / zstd). It is the sibling of EncryptWriter: a streaming pipeline
 // stage the backup Executor reaches through a Job hook wired by the driving
-// factory (PRD 33 / spec 049).
+// factory.
 //
 // Implementations consume plaintext dump bytes via io.Writer and emit the
 // compressed stream to the wrapped writer. Close finalizes the stream

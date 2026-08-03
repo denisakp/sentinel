@@ -17,8 +17,8 @@ import (
 // returned duration is always non-negative; an empty string is an error.
 //
 // It is the single grammar shared by the `backup verify --all --since` flag
-// (spec 051 / PRD 34, via cli.parseSince) and the scheduled integrity check's
-// integrity.scheduled_check.since validation (spec 052 / PRD 35), so the two
+// (via cli.parseSince) and the scheduled integrity check's
+// integrity.scheduled_check.since validation, so the two
 // accept exactly the same input.
 func ParseSinceWindow(s string) (time.Duration, error) {
 	trimmed := strings.TrimSpace(s)

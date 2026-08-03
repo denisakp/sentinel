@@ -13,8 +13,7 @@ import (
 // TestMockBackendReachableFromScheduler demonstrates that the relocated
 // storage fake (internal/ports/storagetesting.MockBackend) is reachable from
 // the internal/scheduler driver package without importing any concrete
-// adapter under internal/adapters/storage/*. This is the unit-test reach
-// promised by spec 029 FR-014 / FR-009.
+// adapter under internal/adapters/storage/*.
 //
 // The scheduler today wires storage construction through internal/storage
 // (now aliased to internal/adapters/storage) and selects concrete backends

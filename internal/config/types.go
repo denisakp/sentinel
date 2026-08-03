@@ -46,14 +46,14 @@ type SchedulerConfig struct {
 }
 
 // IntegrityCheckJobName is the reserved scheduler job name used by the
-// cron-driven integrity sweep (spec 052 / PRD 35). It lives in the internal
+// cron-driven integrity sweep. It lives in the internal
 // `__`-prefixed namespace and MUST NOT collide with a user backup/restore job
 // (config validation rejects a user job with this exact name).
 const IntegrityCheckJobName = "__integrity_check"
 
 // IntegrityConfig holds repository-wide integrity settings. It is the shared
-// home for the `backup verify --all` sweep (spec 051 / PRD 34) and the sibling
-// scheduled-integrity feature (PRD 35) that will attach a `scheduled_check`
+// home for the `backup verify --all` sweep and the sibling
+// scheduled-integrity feature that will attach a `scheduled_check`
 // sub-block here.
 type IntegrityConfig struct {
 	// Algorithm is the hash algorithm used for integrity verification. Only
@@ -65,19 +65,19 @@ type IntegrityConfig struct {
 	// re-hash it against the manifest hash, failing the backup on mismatch.
 	// Opt-in; default false (zero behaviour/cost change when unset). A
 	// per-job `verify_after_upload` (BackupJob.VerifyAfterUpload) overrides
-	// this default. Recovered M3 roadmap item; spec 053 / PRD 40.
+	// this default.
 	VerifyAfterUpload bool `yaml:"verify_after_upload,omitempty"`
 
 	// ScheduledCheck declares an optional cron-driven repository integrity
-	// sweep (spec 052 / PRD 35). When enabled, the scheduler registers a
+	// sweep. When enabled, the scheduler registers a
 	// reserved `__integrity_check` job that runs the same sweep as
 	// `backup verify --all`, records each run in the integrity_checks table,
 	// and notifies on failure.
 	ScheduledCheck IntegrityScheduledCheck `yaml:"scheduled_check,omitempty"`
 }
 
-// IntegrityScheduledCheck configures the cron-driven integrity sweep (spec 052
-// / PRD 35). It attaches under integrity.scheduled_check.
+// IntegrityScheduledCheck configures the cron-driven integrity sweep.
+// It attaches under integrity.scheduled_check.
 type IntegrityScheduledCheck struct {
 	// Enabled turns the scheduled integrity sweep on. Default false (opt-in).
 	Enabled bool `yaml:"enabled"`
@@ -132,8 +132,8 @@ type MySQLConfig struct {
 	BinlogPath string `yaml:"binlog_path,omitempty"`
 }
 
-// CompressionConfig holds engine-agnostic pipeline compression settings
-// (PRD 33 / spec 049). Compression is an opt-in streaming stage inserted
+// CompressionConfig holds engine-agnostic pipeline compression settings.
+// Compression is an opt-in streaming stage inserted
 // between the dump and the hash/encrypt steps; it primarily targets the
 // uncompressed engines (MySQL/MariaDB). Its presence is a pointer on BackupJob
 // and GlobalDefaults so a job can be distinguished from "unset" (inherit
@@ -208,13 +208,13 @@ type Configuration struct {
 	MaxConcurrentBackups int `yaml:"max_concurrent_backups"`
 
 	// Global concurrency limit for `restore run --all` (default: 1 — serial;
-	// parallelism is opt-in). Spec 045 / PRD 31.
+	// parallelism is opt-in).
 	MaxConcurrentRestores int `yaml:"max_concurrent_restores"`
 
 	// Scheduler holds advanced concurrency and timeout settings
 	Scheduler SchedulerConfig `yaml:"scheduler,omitempty"`
 
-	// Integrity holds repository-wide integrity settings (spec 051 / PRD 34).
+	// Integrity holds repository-wide integrity settings.
 	Integrity IntegrityConfig `yaml:"integrity,omitempty"`
 
 	// Log format: "json" or "text" (default: "json")
@@ -244,7 +244,7 @@ type GlobalDefaults struct {
 	Retention RetentionPolicy `yaml:"retention"`
 
 	// Default pipeline compression settings (inherited by jobs without their
-	// own compression: block). Spec 049 / PRD 33.
+	// own compression: block).
 	Compression *CompressionConfig `yaml:"compression,omitempty"`
 
 	// Default notification channels
@@ -316,7 +316,7 @@ type BackupJob struct {
 	MySQL MySQLConfig `yaml:"mysql,omitempty"`
 
 	// Compression holds engine-agnostic pipeline compression settings. When
-	// nil the job inherits defaults.compression (spec 049 / PRD 33).
+	// nil the job inherits defaults.compression.
 	Compression *CompressionConfig `yaml:"compression,omitempty"`
 
 	// Cron expression for scheduling (5-field format)
@@ -333,7 +333,7 @@ type BackupJob struct {
 
 	// VerifyAfterUpload overrides the top-level integrity.verify_after_upload
 	// default for this job (nil = inherit; loader.go resolves it to a
-	// non-nil pointer after applying defaults). Spec 053 / PRD 40.
+	// non-nil pointer after applying defaults).
 	VerifyAfterUpload *bool `yaml:"verify_after_upload,omitempty"`
 }
 

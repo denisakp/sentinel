@@ -4,7 +4,7 @@ import "fmt"
 
 // ValidateDbType validates the database type provided by the user.
 //
-// Relocated from internal/backup/validator.go by spec 037.
+// Relocated from internal/backup/validator.go.
 func ValidateDbType(dbType string) error {
 	validTypes := map[string]bool{
 		"mysql":    true,

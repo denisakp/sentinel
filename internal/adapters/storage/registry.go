@@ -1,12 +1,12 @@
-// Package storage is the unified storage-adapter registry introduced by
-// spec 029. Post-migration it exposes exactly two top-level constructors:
+// Package storage is the unified storage-adapter registry. It exposes exactly
+// two top-level constructors:
 //
 //   - NewBackend(p BackendParams) (ports.StorageBackend, error)
 //     constructs a concrete backend implementing the StorageBackend port.
 //
 //   - NewStorage(p BackendParams) (Storage, error)  [see writer.go]
 //     constructs the driver-side write-path helper (legacy Storage interface,
-//     preserved verbatim for FR-010/FR-011 zero-diff).
+//     preserved verbatim for zero observable diff).
 //
 // This file is the stub used during commit A: every storage type returns
 // "unsupported storage type: <value>" so the package compiles before any
@@ -65,7 +65,7 @@ type BackendParams struct {
 	AzureContainer      string
 }
 
-// Params is a transitional alias for BackendParams, kept during the spec 029
+// Params is a transitional alias for BackendParams, kept during the storage
 // migration so existing call sites that imported internal/storage.Params can
 // switch to internal/adapters/storage with a path-only rewrite. Removed once
 // every importer uses BackendParams directly.

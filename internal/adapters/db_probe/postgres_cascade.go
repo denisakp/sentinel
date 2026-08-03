@@ -11,7 +11,7 @@ import (
 // AssessPostgresCascadeSafetyDSN inspects the target Postgres database (at
 // the given DSN) for objects that depend on user tables. Such dependents
 // would be implicitly dropped by a DROP TABLE ... CASCADE during a "replace"
-// restore. Relocated from internal/restore/postgres_conflicts.go by spec 037.
+// restore.
 //
 // allowCascade lets the caller pre-authorize CASCADE drops; when true and
 // dependents exist, the result's SafeToProceed remains true.

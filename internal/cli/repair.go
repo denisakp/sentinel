@@ -1,6 +1,6 @@
 package cli
 
-// `sentinel repair` — repository-wide internal-state reconciliation (PRD 37).
+// `sentinel repair` — repository-wide internal-state reconciliation.
 //
 // Repair is a DRIVING/COMPOSITION command over existing adapters and domain
 // functions (ADR 0001): it reconciles the three sources of truth — monitor

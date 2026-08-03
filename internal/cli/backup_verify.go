@@ -31,7 +31,7 @@ var newVerifyBackend = func(p *storage.BackendParams) (ports.StorageBackend, err
 }
 
 // verify status constants — the four states a backup can be classified into by
-// verifyExecution (spec 051 / PRD 34 FR-004).
+// verifyExecution.
 const (
 	verifyStatusOk              = "ok"
 	verifyStatusCorrupted       = "corrupted"
@@ -70,7 +70,7 @@ type verifyResult struct {
 	Timestamp     time.Time `json:"timestamp"`
 	Path          string    `json:"path,omitempty"`
 	// StorageBackend is the artifact's recorded storage backend. Carried for
-	// the scheduled integrity audit trail (spec 052); excluded from the
+	// the scheduled integrity audit trail; excluded from the
 	// `verify --all` JSON so its output stays byte-for-byte identical.
 	StorageBackend string `json:"-"`
 	Err            error  `json:"-"`
@@ -101,7 +101,7 @@ var backupVerifyCmd = &cobra.Command{
 		all, _ := cmd.Flags().GetBool("all")
 		hasID := len(args) == 1
 
-		// FR-002: exactly one of {<backup-id>, --all}. Both or neither is a
+		// Exactly one of {<backup-id>, --all}. Both or neither is a
 		// usage error.
 		if hasID == all {
 			return fmt.Errorf("provide exactly one of <backup-id> or --all")
@@ -173,7 +173,7 @@ func verifyOutputFormat(cmd *cobra.Command) string {
 // Local backups verify against exec.FilePath directly. Remote backups
 // (s3/gcs/azure/gdrive) hold a URI or object key there, unreachable via
 // os.Open, so the artifact + its <key>.manifest.json sidecar are downloaded to
-// a temp dir (deleted before this function returns — FR-009) and verified
+// a temp dir (deleted before this function returns) and verified
 // against those local copies.
 func verifyExecution(ctx context.Context, cfg *config.Configuration, exec *ports.Execution, _ verifyOpts) verifyResult {
 	res := verifyResult{
@@ -337,7 +337,7 @@ func renderSingleVerify(outputFmt, backupID string, res verifyResult) error {
 // sweepOptions carries the enumeration scope + per-verify options for
 // runVerifySweep. It is the shared input for both the manual `verify --all`
 // command (handleVerifyAll) and the scheduled integrity runner
-// (runScheduledIntegrityCheck, spec 052 / PRD 35), so the two entry points
+// (runScheduledIntegrityCheck), so the two entry points
 // drive one identical sweep implementation.
 type sweepOptions struct {
 	// job restricts the sweep to a single named backup job ("" = all jobs).
@@ -352,7 +352,7 @@ type sweepOptions struct {
 // runVerifySweep is the shared repository-wide integrity sweep core: enumerate
 // every recorded successful backup from the monitor (optionally scoped to one
 // job), verify each via verifyExecution (sequential; temp fetch deleted after
-// each — FR-009), skip anything older than the recency cutoff, and return the
+// each), skip anything older than the recency cutoff, and return the
 // per-artifact results + their aggregate summary. It performs NO rendering and
 // maps NO exit code — those stay with the caller (handleVerifyAll renders +
 // exit-codes; runScheduledIntegrityCheck records + notifies). A ListExecutions
@@ -383,7 +383,7 @@ func runVerifySweep(ctx context.Context, cfg *config.Configuration, mon *monitor
 // reads the --job/--since/--ignore-missing-manifest flags, delegates the
 // enumerate → verify → aggregate core to runVerifySweep, prints an aggregate
 // report + summary, and maps the results to a single exit code. The rendering
-// and exit-code behaviour is unchanged from spec 051.
+// and exit-code behaviour is unchanged.
 func handleVerifyAll(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, mon *monitor.Monitor, outputFmt string) error {
 	job, _ := cmd.Flags().GetString("job")
 	sinceStr, _ := cmd.Flags().GetString("since")
@@ -681,7 +681,7 @@ func init() {
 	backupVerifyCmd.Flags().Bool("allow-legacy-envelope", legacyEnvelopeEnvDefault(),
 		"Decrypt artifacts produced before the v2 envelope fix. UNSAFE: pre-v2 streams used a flawed nonce scheme. Use only to recover plaintext for re-encryption.")
 
-	// Repository-wide integrity sweep (spec 051 / PRD 34).
+	// Repository-wide integrity sweep.
 	backupVerifyCmd.Flags().Bool("all", false, "Verify every recorded backup (repository-wide integrity sweep); mutually exclusive with <backup-id>")
 	backupVerifyCmd.Flags().String("since", "", "With --all: only verify backups newer than this age (e.g. 30d, 4w, 720h)")
 	backupVerifyCmd.Flags().String("job", "", "With --all: restrict the sweep to a single named backup job")

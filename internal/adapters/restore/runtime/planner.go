@@ -1,7 +1,7 @@
 package runtime
 
 // Config-typed bridge over the pure planner relocated to
-// internal/domain/restore/planner.go (spec 038 Sub-PR L). External callers
+// internal/domain/restore/planner.go. External callers
 // (CLI validate-chain, integration tests, benchmarks) keep the pre-carve
 // signatures; reason-code constants are re-exported.
 

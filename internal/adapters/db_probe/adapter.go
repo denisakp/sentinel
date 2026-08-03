@@ -24,11 +24,11 @@ func NewAdapter() *Adapter { return &Adapter{} }
 func (a *Adapter) Ping(ctx context.Context, conn ports.DatabaseConfig) error {
 	_ = ctx // ping helpers use blocking sql.Open; ctx-aware variant is future work
 	if conn.Type == "mongodb" {
-		// spec 043: mongo connectivity is URI-based; CheckConnectivity/PingSqlDatabase
+		// Mongo connectivity is URI-based; CheckConnectivity/PingSqlDatabase
 		// cannot express it (defineScheme rejects mongodb).
 		return CheckMongoConnectivity(conn.URI)
 	}
-	// spec 043: pass conn.Database so the ping targets the specific database
+	// Pass conn.Database so the ping targets the specific database
 	// (matches the dump adapters' prior behaviour). Empty Database => server-level.
 	ok, err := CheckConnectivity(conn.Type, conn.Host, portStr(conn.Port), conn.Username, conn.Password, conn.Database)
 	if err != nil {

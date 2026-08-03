@@ -1,7 +1,7 @@
 package runtime
 
 // Restore execution entry point + the single domain restore.Executor
-// construction site (spec 038 Sub-PR L, FR-011 / SC-006). ExecuteRestore
+// construction site. ExecuteRestore
 // keeps the pre-carve internal/restore.ExecuteRestore signature; the
 // orchestration control flow now lives in
 // internal/domain/restore.Executor.Run, fed through Job hooks built here.
@@ -136,7 +136,7 @@ func ExecuteRestore(ctx context.Context, req *ExecutionRequest) (*ExecutionResul
 
 // NewRestoreExecutorFromConfig constructs the domain restore Executor + Job
 // for one validated request. ALL restore call sites (CLI run, scheduler
-// integration, scheduler executor) flow through here (FR-011).
+// integration, scheduler executor) flow through here.
 func NewRestoreExecutorFromConfig(req *ExecutionRequest, job config.RestoreJob) (*domainrestore.Executor, domainrestore.Job) {
 	var locks ports.LockManager
 	if req.LockDir != "" {
@@ -334,7 +334,7 @@ func applyPreflight(ctx context.Context, cfg *config.Configuration, artifact *St
 		return "", err
 	}
 
-	// Decompress stage (spec 049 / PRD 33): inserted AFTER decrypt, driven by
+	// Decompress stage: inserted AFTER decrypt, driven by
 	// the manifest (no operator flag). A manifest without a compression block
 	// (legacy backups, native-compressed PG/Mongo dumps) skips this entirely,
 	// so existing backups restore byte-for-byte unchanged.

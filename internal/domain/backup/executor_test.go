@@ -239,8 +239,8 @@ func TestExecutorRemoteBackupIsHashedAndEncrypted(t *testing.T) {
 	}
 }
 
-// TestExecutorRemoteBackupCleansStagingOnSuccess asserts the spec 047 staging
-// cleanup guarantee: after a successful remote backup Run, the staging dir
+// TestExecutorRemoteBackupCleansStagingOnSuccess asserts the staging cleanup
+// guarantee: after a successful remote backup Run, the staging dir
 // (holding the plaintext/ciphertext artifact) is removed — nothing is left on
 // disk once the artifact has been uploaded + recorded.
 func TestExecutorRemoteBackupCleansStagingOnSuccess(t *testing.T) {
@@ -435,9 +435,9 @@ func TestExecutorVerifyAfterUploadMismatchFails(t *testing.T) {
 	if len(rec.execs) != 1 || rec.execs[0].Status != "failure" {
 		t.Fatalf("recorded execs = %#v, want one failure row", rec.execs)
 	}
-	// The corrupt object is left in place for forensics (Q3) — not deleted.
+	// The corrupt object is left in place for forensics — not deleted.
 	if _, ok := backend.GetBytes(job.OutName); !ok {
-		t.Error("corrupt object was deleted; Q3 requires leaving it in place")
+		t.Error("corrupt object was deleted; it must be left in place")
 	}
 }
 

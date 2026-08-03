@@ -1,6 +1,6 @@
 // Package chainassemblertesting provides an in-memory recording fake for
 // ports.ChainAssembler, reachable from domain test code without importing
-// any adapter. Pattern mirror of dbprobertesting.MockProber (spec 038 R2).
+// any adapter. Pattern mirror of dbprobertesting.MockProber.
 package chainassemblertesting
 
 import (

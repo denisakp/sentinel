@@ -55,7 +55,7 @@ func BuildStorageParams(job BackupJob) *storage.Params {
 }
 
 // BuildDumpJobSpec translates a YAML BackupJob into the pure, engine-agnostic
-// ports.DumpJobSpec consumed by ports.DumpArgsFactory (spec 040 / PRD 27). It
+// ports.DumpJobSpec consumed by ports.DumpArgsFactory. It
 // owns all DatabaseOptions resolution; the per-engine adapters copy the resolved
 // fields into their *DumpArgs. Storage params are set on the concrete result by
 // the command layer, not carried here.
@@ -228,7 +228,7 @@ func BuildAdvancedRestoreRequest(job RestoreJob) (*AdvancedRestoreRequest, error
 }
 
 // BuildRestoreJobSpec translates a YAML RestoreJob into the pure, engine-agnostic
-// ports.RestoreJobSpec consumed by ports.RestoreArgsFactory (spec 041 / PRD 28).
+// ports.RestoreJobSpec consumed by ports.RestoreArgsFactory.
 // It owns conflict/gzip/archive/additional-args resolution; the per-engine restore
 // adapters copy the resolved fields into their *RestoreArgs / *OplogReplayArgs.
 // stagedPath feeds the primary restore; archivePath feeds the mongo oplog replay.

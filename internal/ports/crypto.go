@@ -8,7 +8,7 @@ package ports
 // would satisfy the same contract.
 //
 // The free helpers GenerateKey, DeriveKey, GenerateSalt live in
-// internal/adapters/crypto/ (moved by spec 030). They are stateless utility
+// internal/adapters/crypto/. They are stateless utility
 // functions that callers can import directly from the adapter without
 // violating the dependency rule, so they do not need a port surface.
 type KeyProvider interface {

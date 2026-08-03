@@ -15,7 +15,7 @@ import (
 )
 
 // Backup backs up a PostgresSQL database using pg_dump. The prober checks
-// connectivity to the target database before pg_dump runs (spec 043 / PRD 30).
+// connectivity to the target database before pg_dump runs.
 func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(pda.Storage)

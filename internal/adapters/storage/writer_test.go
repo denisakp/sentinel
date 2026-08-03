@@ -11,7 +11,7 @@ import (
 // the local backend (the only one constructable without external creds).
 // We avoid calling GetBackupPath here — its current implementation has a
 // pre-existing side effect of creating a directory relative to CWD, which
-// is out of scope for spec 029. Construction smoke is sufficient.
+// is out of scope here. Construction smoke is sufficient.
 func TestNewStorage_Local(t *testing.T) {
 	s, err := storage.NewStorage(&storage.BackendParams{
 		StorageType: "local",
@@ -36,8 +36,8 @@ func TestNewStorage_DefaultLocal(t *testing.T) {
 	}
 }
 
-// TestNewStorage_UnsupportedType matches the wording mandated by FR-005.
-// Note: per FR-010/FR-011 zero-diff, "azure" is INTENTIONALLY treated as
+// TestNewStorage_UnsupportedType matches the exact expected wording.
+// Note: for zero observable diff, "azure" is INTENTIONALLY treated as
 // unsupported by NewStorage (the legacy storage.NewStorage also did not
 // handle azure). Use NewBackend if you need azure.
 func TestNewStorage_UnsupportedType(t *testing.T) {

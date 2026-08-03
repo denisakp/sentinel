@@ -28,14 +28,14 @@ var newIntegrityDispatcher = func(notifications []config.NotificationChannel) (p
 	return notifier.NewDispatcherFromConfig(notifications)
 }
 
-// runScheduledIntegrityCheck is the scheduled-integrity job body (spec 052 /
-// PRD 35). It runs the shared repository integrity sweep (runVerifySweep — the
+// runScheduledIntegrityCheck is the scheduled-integrity job body. It runs the
+// shared repository integrity sweep (runVerifySweep — the
 // same core as `backup verify --all`), records the per-artifact results as one
 // grouped run in the integrity_checks table (Trigger="scheduled"), and — when
 // the sweep found any non-ok result and notify_on permits — dispatches a
 // failure notification through the configured channels. Notification delivery
 // is best-effort: a delivery failure is logged as a warning and never crashes
-// the scheduler nor discards the recorded run (FR-010).
+// the scheduler nor discards the recorded run.
 func runScheduledIntegrityCheck(ctx context.Context, cfg *config.Configuration, mon *monitor.Monitor, ic config.IntegrityScheduledCheck) error {
 	startedAt := time.Now().UTC()
 
@@ -75,7 +75,7 @@ func runScheduledIntegrityCheck(ctx context.Context, cfg *config.Configuration, 
 	)
 
 	// Notification is a post-record best-effort step: never let a delivery
-	// failure discard the already-recorded run (FR-010).
+	// failure discard the already-recorded run.
 	notifyIntegrityResult(cfg, ic, runID, summary, startedAt)
 	return nil
 }
@@ -91,7 +91,7 @@ func integritySweepHasFailure(s verifySummary) bool {
 // the notify_on mode. failure/"" → dispatch only on a non-ok result;
 // always → dispatch on every run (Success when clean, Failure when not);
 // never → silent. Best-effort: construction or delivery failures are logged as
-// warnings, never returned (FR-010).
+// warnings, never returned.
 func notifyIntegrityResult(cfg *config.Configuration, ic config.IntegrityScheduledCheck, runID string, summary verifySummary, startedAt time.Time) {
 	mode := ic.NotifyOn
 	if mode == "" {

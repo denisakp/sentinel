@@ -1,6 +1,6 @@
 package restore
 
-// Job + result types for the restore Executor (spec 038 Sub-PR L, FR-009).
+// Job + result types for the restore Executor.
 // Pure data: ports + sibling domain + stdlib only. Adapter-backed behavior
 // (staging, preflight decrypt, engine arg construction, replay) reaches the
 // Executor exclusively through function-valued hooks wired by the driving
@@ -14,7 +14,7 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
-// Sentinel errors (FR-009 contract + relocated execution sentinels).
+// Sentinel errors (execution contract + relocated execution sentinels).
 var (
 	ErrRestoreLockConflict      = errors.New("restore execution lock conflict")
 	ErrRestoreInterrupted       = errors.New("restore interrupted")
@@ -119,7 +119,7 @@ type Job struct {
 }
 
 // RunResult is the outcome of Executor.Run. Field set preserved verbatim
-// from internal/restore/executor.go::ExecutionResult (spec 038 Sub-PR L).
+// from internal/restore/executor.go::ExecutionResult.
 type RunResult struct {
 	ExecutionID          string
 	Status               string

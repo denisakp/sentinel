@@ -16,7 +16,7 @@ import (
 
 // TestRecordIntegrityCheck_RoundTrip inserts one grouped run of mixed-outcome
 // results and reads it back grouped by run_id, asserting every column plus the
-// shared trigger label survive the round trip (spec 052 / PRD 35, US2).
+// shared trigger label survive the round trip.
 func TestRecordIntegrityCheck_RoundTrip(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "history.db")
 	mon, err := NewMonitor(dbPath)
@@ -156,7 +156,7 @@ func TestRecordIntegrityCheck_RejectsBadTrigger(t *testing.T) {
 // 001–004 only, schema_version=4) and asserts that opening it with the current
 // binary applies migration 005: the integrity_checks table appears, a
 // schema_migrations row for version 5 is recorded, and schema_version advances
-// to BinarySchemaVersion (FR-006 / SC-005).
+// to BinarySchemaVersion.
 func TestMigration005_AppliesOnSeededV4DB(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "history.db")
 	seedSchemaVersion(t, dbPath, 4)

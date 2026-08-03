@@ -43,8 +43,7 @@ func TestNewBackend_DefaultLocal(t *testing.T) {
 	}
 }
 
-// TestNewBackend_UnsupportedType verifies the error wording mandated by
-// spec 029 FR-005.
+// TestNewBackend_UnsupportedType verifies the expected error wording.
 func TestNewBackend_UnsupportedType(t *testing.T) {
 	tests := []string{"unknown", "ftp", "bogus", "S3"}
 	for _, st := range tests {

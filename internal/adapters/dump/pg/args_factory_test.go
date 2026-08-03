@@ -8,8 +8,8 @@ import (
 )
 
 // TestArgsFactory_BuildDumpArgs asserts the factory produces exactly the
-// *PgDumpArgs the former config.BuildPgDumpArgs produced (spec 040 / PRD 27,
-// SC-003). Storage/TLS/PITR fields stay zero (set elsewhere).
+// *PgDumpArgs the former config.BuildPgDumpArgs produced. Storage/TLS/PITR
+// fields stay zero (set elsewhere).
 func TestArgsFactory_BuildDumpArgs(t *testing.T) {
 	tests := []struct {
 		name string

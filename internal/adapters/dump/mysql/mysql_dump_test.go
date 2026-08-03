@@ -14,7 +14,7 @@ import (
 )
 
 func TestBackup_ConnectivityFailureReturnsError(t *testing.T) {
-	// spec 043: connectivity is injected; a failing prober aborts before mysqldump.
+	// connectivity is injected; a failing prober aborts before mysqldump.
 	prober := &dbprobertesting.MockProber{}
 	prober.SetPingErr(errors.New("ping: connection refused"))
 	_, err := Backup(prober, &MySqlDumpArgs{

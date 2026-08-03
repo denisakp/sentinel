@@ -91,7 +91,7 @@ var allCases = []ContractCase{
 
 // runContractSuite executes every case in the contract table against the
 // supplied backend. It is the single entry point used by both the default
-// and the integration-tagged wiring (FR-012 / SC-004).
+// and the integration-tagged wiring.
 func runContractSuite(t *testing.T, name string, backend ports.StorageBackend) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {

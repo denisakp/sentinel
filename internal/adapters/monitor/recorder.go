@@ -124,10 +124,10 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *ports.Restor
 
 // RecordIntegrityCheck persists one integrity sweep as a grouped run: every
 // per-artifact result in run.Results is inserted under a single transaction,
-// sharing run.RunID and run.Trigger (spec 052 / PRD 35). An empty Results slice
+// sharing run.RunID and run.Trigger. An empty Results slice
 // is a no-op success (an empty / recency-bounded sweep is not a failure). The
 // integrity_checks.result and .trigger CHECK constraints reject any value
-// outside the allowed vocabularies (FR-005 / SC-004).
+// outside the allowed vocabularies.
 func (m *Monitor) RecordIntegrityCheck(ctx context.Context, run ports.IntegrityRun) error {
 	if m == nil || m.db == nil {
 		return fmt.Errorf("monitor database is not initialized")

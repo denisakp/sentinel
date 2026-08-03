@@ -1,8 +1,8 @@
 package backup
 
 // Source-list resolution for auto-discovery ("database: *") jobs.
-// Relocated from internal/cli/backup.go::listDatabases by spec 038 Sub-PR K;
-// SQL enumeration goes through ports.DBProber. Mongo enumeration stays in
+// Relocated from internal/cli/backup.go::listDatabases; SQL enumeration
+// goes through ports.DBProber. Mongo enumeration stays in
 // the driving adapter (the prober port's DatabaseConfig carries no URI).
 
 import (

@@ -94,8 +94,8 @@ func Restore(ctx context.Context, ra *RestoreArgs) error {
 	// Plain-text SQL dumps (pg_dump's default output) are not readable by
 	// pg_restore — route them to psql. Custom/tar archives are detected via
 	// their magic bytes; directory dumps are directories. (Pre-existing gap
-	// surfaced by the spec 038 T068 e2e run: default-format backups could
-	// never be restored.)
+	// surfaced by e2e testing: default-format backups could never be
+	// restored.)
 	if ra.PgRestoreFormat == "" || ra.PgRestoreFormat == "p" {
 		if plain := isPlainSQLDump(ra.BackupPath); plain {
 			return restorePlainSQL(ctx, ra)
@@ -222,7 +222,7 @@ func restorePlainSQL(ctx context.Context, ra *RestoreArgs) error {
 
 // checkConnectivity verifies database connectivity using psql.
 // (Historically used `pg_dump --list`, which is not a valid pg_dump option
-// — the probe failed unconditionally; fixed during spec 038 T068 e2e.)
+// — the probe failed unconditionally; fixed during e2e testing.)
 func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 	cmd := exec.CommandContext(ctx, "psql",
 		fmt.Sprintf("--host=%s", ra.Host),
@@ -249,5 +249,5 @@ func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 	return nil
 }
 
-// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions (spec 036).
+// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions.
 func (*RestoreArgs) IsRestoreOptions() {}

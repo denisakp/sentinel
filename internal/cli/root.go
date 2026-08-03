@@ -36,7 +36,7 @@ var (
 func rootPreRun(cmd *cobra.Command, _ []string) error {
 	preRunOnce.Do(func() {
 		// Backstop cleanup for prepared mongo TLS material left by hard-killed
-		// prior processes (FR-006a). Non-fatal: hygiene only.
+		// prior processes. Non-fatal: hygiene only.
 		if removed, err := mongotls.SweepOrphanMaterial(os.TempDir()); err != nil {
 			slog.Warn("mongo-tls: orphan sweep failed",
 				"event", "mongo_tls_orphan_sweep_failed",
@@ -48,7 +48,7 @@ func rootPreRun(cmd *cobra.Command, _ []string) error {
 		}
 
 		// Install signal handler so SIGINT/SIGTERM triggers material cleanup
-		// before the process exits (FR-006). Long-running commands like
+		// before the process exits. Long-running commands like
 		// `schedule` install their own handlers; this is the backstop for
 		// one-shot CLI invocations.
 		installMongoTLSSignalHandler()

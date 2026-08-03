@@ -1,7 +1,7 @@
 package chain_assembler
 
-// Ported from internal/restore/incremental/assembler_test.go (spec 038
-// Sub-PR L) — the AssemblePostgresChain halves; preconditions tests moved to
+// Ported from internal/restore/incremental/assembler_test.go — the
+// AssemblePostgresChain halves; preconditions tests moved to
 // internal/domain/restore/incremental/preconditions_test.go.
 
 import (

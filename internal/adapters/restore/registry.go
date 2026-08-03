@@ -1,5 +1,5 @@
-// Package restore hosts the cross-engine restore-args factory registry
-// (spec 041 / PRD 28), mirroring internal/adapters/dump.NewArgsFactory and
+// Package restore hosts the cross-engine restore-args factory registry,
+// mirroring internal/adapters/dump.NewArgsFactory and
 // internal/adapters/storage.NewBackend. It is the only place that imports every
 // restore engine sub-package; engine packages never import each other (ADR 0001
 // axis isolation).

@@ -8,7 +8,7 @@ import (
 )
 
 // Builder is the zero-field type satisfying ports.RestoreBuilder for
-// MariaDB restores (spec 036).
+// MariaDB restores.
 type Builder struct{}
 
 // Build wraps the existing Restore entry point. bc.Options must be

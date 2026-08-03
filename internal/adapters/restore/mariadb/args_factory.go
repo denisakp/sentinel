@@ -6,8 +6,8 @@ import (
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
-// ArgsFactory builds *RestoreArgs from a pure ports.RestoreJobSpec (spec 041 /
-// PRD 28). Body lifted from the former config.BuildMariaDBRestoreArgs.
+// ArgsFactory builds *RestoreArgs from a pure ports.RestoreJobSpec.
+// Body lifted from the former config.BuildMariaDBRestoreArgs.
 type ArgsFactory struct{}
 
 func (ArgsFactory) BuildRestoreArgs(spec ports.RestoreJobSpec, phase ports.RestorePhase) (ports.RestoreOptions, error) {

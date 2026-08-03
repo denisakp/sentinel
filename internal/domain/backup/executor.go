@@ -1,6 +1,6 @@
 package backup
 
-// Backup Executor (spec 038 Sub-PR K, FR-008). Owns the per-job backup
+// Backup Executor. Owns the per-job backup
 // critical path; every effect goes through the 9 injected ports (or a Job
 // hook for adapter-backed steps a single port instance cannot express).
 // Driving adapters (internal/cli/backup.go, internal/scheduler/) construct
@@ -29,8 +29,8 @@ type Executor struct {
 	manifests ports.ManifestStore
 }
 
-// NewExecutor constructs an Executor over the 9 architectural ports
-// (FR-008). Ports not exercised by a given configuration may be nil; the
+// NewExecutor constructs an Executor over the 9 architectural ports.
+// Ports not exercised by a given configuration may be nil; the
 // corresponding step degrades to a no-op (e.g. nil Dispatcher = no
 // notifications configured, nil LockManager = locking handled by the
 // runtime that invoked Run).
@@ -65,7 +65,7 @@ func NewExecutor(
 func (e *Executor) Run(ctx context.Context, job Job) (RunResult, error) {
 	res := RunResult{StartedAt: time.Now()}
 
-	// Remote staging cleanup (spec 047). When the factory redirected a remote
+	// Remote staging cleanup. When the factory redirected a remote
 	// dump to a local staging dir, remove it on EVERY exit path — success or
 	// failure — so no plaintext/ciphertext artifact is ever left behind.
 	// Registered first so it runs last (after record() has stat'd the artifact).
@@ -134,7 +134,7 @@ func (e *Executor) Run(ctx context.Context, job Job) (RunResult, error) {
 		}
 	}
 
-	// 7. Remote upload (spec 047). The Executor owns the upload of the staged,
+	// 7. Remote upload. The Executor owns the upload of the staged,
 	// now-encrypted artifact + manifest sidecar. Fail-loud: if an encryption
 	// key was configured but the artifact was NOT encrypted, refuse to upload
 	// plaintext.
@@ -142,7 +142,7 @@ func (e *Executor) Run(ctx context.Context, job Job) (RunResult, error) {
 		runErr = e.uploadStagedArtifact(ctx, job, build.LocalPath, sec, &res)
 	}
 
-	// 7.5. Post-upload verify (opt-in, spec 053 / PRD 40): re-download the
+	// 7.5. Post-upload verify (opt-in): re-download the
 	// artifact from the injected StorageBackend and re-hash it against the
 	// manifest hash, failing the backup on mismatch rather than letting a
 	// storage-side corruption surface at the next restore. A no-op unless

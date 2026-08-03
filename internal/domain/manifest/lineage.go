@@ -9,7 +9,7 @@ import (
 // ValidateIncrementalLineageContract verifies required lineage fields when
 // incremental metadata is present. Pure: no I/O.
 //
-// Relocated from internal/manifest/manifest.go by spec 037; the I/O-bound
+// Relocated from internal/manifest/manifest.go; the I/O-bound
 // Read/Write/VerifyHash helpers stay adapter-side under
 // internal/adapters/manifest_store/.
 func ValidateIncrementalLineageContract(m *ports.BackupManifest) error {

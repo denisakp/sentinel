@@ -1,12 +1,11 @@
 package restore
 
-// Restore Executor (spec 038 Sub-PR L, FR-009/FR-011). Owns the restore
-// critical path — control flow ported verbatim from the deleted
-// internal/restore/executor.go::ExecuteRestore. Effects go through the 9
-// injected ports or through Job hooks for adapter-backed steps the ports
-// cannot express (staging from configured sources, preflight decryption,
-// engine arg construction, binlog/oplog replay). The single construction
-// site is internal/adapters/restore/runtime (FR-011 / SC-006).
+// Restore Executor. Owns the restore critical path — control flow ported
+// verbatim from the deleted internal/restore/executor.go::ExecuteRestore.
+// Effects go through the 9 injected ports or through Job hooks for
+// adapter-backed steps the ports cannot express (staging from configured
+// sources, preflight decryption, engine arg construction, binlog/oplog
+// replay). The single construction site is internal/adapters/restore/runtime.
 
 import (
 	"context"
@@ -36,10 +35,10 @@ type Executor struct {
 	assembler ports.ChainAssembler
 }
 
-// NewExecutor constructs an Executor over the 9 architectural ports
-// (FR-009 + FR-013). Ports not exercised by a given configuration may be
-// nil; the corresponding step degrades to a no-op or is covered by a Job
-// hook (see progress.md Sub-PR L notes).
+// NewExecutor constructs an Executor over the 9 architectural ports.
+// Ports not exercised by a given configuration may be nil; the corresponding
+// step degrades to a no-op or is covered by a Job hook (see progress.md
+// notes).
 func NewExecutor(
 	restores ports.RestoreBuilder,
 	storage ports.StorageBackend,

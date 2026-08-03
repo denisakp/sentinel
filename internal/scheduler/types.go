@@ -1,6 +1,6 @@
 // Runtime time source for the scheduler. Schedule reporting types
-// (JobInfo, JobStatus, ExecutionRecord) live in internal/domain/schedule per
-// spec 037; this file no longer re-exports them.
+// (JobInfo, JobStatus, ExecutionRecord) live in internal/domain/schedule;
+// this file no longer re-exports them.
 package scheduler
 
 import "time"

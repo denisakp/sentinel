@@ -1,5 +1,5 @@
-// Package compress is the driving adapter for pipeline backup compression
-// (PRD 33 / spec 049). It implements ports.CompressWriter / DecompressReader
+// Package compress is the driving adapter for pipeline backup compression.
+// It implements ports.CompressWriter / DecompressReader
 // over two pure-Go codecs:
 //
 //   - gzip  — stdlib compress/gzip

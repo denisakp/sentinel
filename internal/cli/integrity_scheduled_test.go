@@ -17,7 +17,7 @@ import (
 
 // mockDispatcher is a ports.Dispatcher test fake that records Notify calls and
 // optionally returns a delivery error, for the scheduled-integrity notify
-// matrix (spec 052 / PRD 35, US3).
+// matrix.
 type mockDispatcher struct {
 	calls   []*ports.BackupContext
 	failErr error
@@ -165,10 +165,10 @@ func TestScheduledIntegrityCheck_EmptyRepo(t *testing.T) {
 	}
 }
 
-// TestScheduledIntegrityCheck_NotifyMatrix asserts the notify_on semantics
-// (US3): failure+corruption→dispatch; clean+failure→silent; always+clean→
+// TestScheduledIntegrityCheck_NotifyMatrix asserts the notify_on semantics:
+// failure+corruption→dispatch; clean+failure→silent; always+clean→
 // dispatch; never+corruption→silent; a dispatcher delivery error is swallowed
-// as a warning while the run is still recorded (FR-010).
+// as a warning while the run is still recorded.
 func TestScheduledIntegrityCheck_NotifyMatrix(t *testing.T) {
 	cleanSpecs := []sweepSpec{{file: "ok.sql", seedArtifact: true, seedManifest: true}}
 	corruptSpecs := []sweepSpec{

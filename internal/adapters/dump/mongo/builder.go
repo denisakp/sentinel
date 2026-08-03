@@ -9,7 +9,7 @@ import (
 )
 
 // Builder satisfies ports.DumpBuilder by wrapping Backup. It carries an
-// injected ports.DBProber for the pre-dump connectivity check (spec 043).
+// injected ports.DBProber for the pre-dump connectivity check.
 // Cleanup is nil: Mongo TLS material is cleaned internally via defer in Backup().
 type Builder struct{ prober ports.DBProber }
 
@@ -28,8 +28,8 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	return ports.BuildResult{Digest: digest, LocalPath: mongoLocalPath(args)}, nil
 }
 
-// mongoLocalPath returns the on-disk artifact path for the domain pipeline
-// (spec 047). For the executor-owned remote path it is the staged archive
+// mongoLocalPath returns the on-disk artifact path for the domain pipeline.
+// For the executor-owned remote path it is the staged archive
 // inside RemoteStagingDir; otherwise it is the (local) dump destination Backup
 // resolved into Storage.OutName.
 func mongoLocalPath(args *DumpMongoArgs) string {

@@ -1,6 +1,6 @@
 package cli
 
-// Backup Executor factory (spec 038 Sub-PR K, FR-010). Single construction
+// Backup Executor factory. Single construction
 // point translating config.BackupJob (+ resolved storage params and engine
 // args) into a domain backup.Executor + backup.Job. Used by every backup
 // call site: CLI single jobs, auto-discovery, and the scheduled path (which
@@ -128,7 +128,7 @@ func NewBackupExecutorFromConfig(
 		}
 	}
 
-	// Remote-artifact security (spec 047): redirect the dump to a local staging
+	// Remote-artifact security: redirect the dump to a local staging
 	// dir so the domain pipeline can hash/encrypt/manifest the artifact before
 	// the Executor uploads it (encrypted) + its manifest sidecar to the remote
 	// backend. Wired only for stageable single-artifact dumps (the engine
@@ -146,13 +146,13 @@ func NewBackupExecutorFromConfig(
 		stagingDir = sd
 		storageBackend = backend
 	} else if isRemoteStorage(storageParams) && encryptionConfigured(cfg) {
-		// Fail-loud (spec 047 / FR-008): the auto-discovery "single" dump-all
+		// Fail-loud: the auto-discovery "single" dump-all
 		// path (a dumpBuilderFunc) uploads to remote storage itself and cannot
 		// be staged in place, so the artifact cannot be encrypted before it
 		// leaves the host. Refuse rather than leak plaintext to the bucket.
 		return nil, fmt.Errorf("backup '%s': encrypted remote backup is not supported for the auto-discovery 'single' strategy; use strategy 'individual' or local storage", job.Name)
 	} else if verifyAfterUpload && storageParams != nil {
-		// verify_after_upload (spec 053 / PRD 40): no staging redirect is in
+		// verify_after_upload: no staging redirect is in
 		// play here — either local storage, or a remote auto-discovery
 		// "single" dump-all with no encryption. Construct a real backend
 		// purely so the Executor's post-upload verify step can re-download
@@ -207,7 +207,7 @@ func encryptionConfigured(cfg *config.Configuration) bool {
 // loader.go's applyDefaults already resolves job.VerifyAfterUpload to a
 // non-nil pointer for configs loaded from YAML; this fallback also covers
 // BackupJob values built directly (e.g. by tests) that bypass the loader.
-// Spec 053 / PRD 40 (Q5: opt-in, default off).
+// Opt-in, default off.
 func resolveVerifyAfterUpload(cfg *config.Configuration, job config.BackupJob) bool {
 	if job.VerifyAfterUpload != nil {
 		return *job.VerifyAfterUpload
@@ -321,7 +321,7 @@ func buildDomainBackupJob(
 		djob.GCSBucket = storageParams.GCSBucket
 	}
 
-	// Pipeline compression (spec 049 / PRD 33): wired only when the effective
+	// Pipeline compression: wired only when the effective
 	// (post-inheritance) job config enables it with a real codec. The validator
 	// has already rejected enabling this alongside engine-native compression.
 	if cc := job.Compression; cc != nil && cc.Enabled && cc.Algorithm != "" && cc.Algorithm != "none" {
@@ -420,7 +420,7 @@ func archiveMongoOplogArtifacts(ctx context.Context, job config.BackupJob, backu
 // compressed bytes). It mirrors encryptBackupFile: stream source → codec →
 // HashingWriter → temp file, then atomically replace the original. The
 // compressed digest is the stored-artifact hash when the backup is not
-// subsequently encrypted (spec 049 / PRD 33).
+// subsequently encrypted.
 func compressBackupFile(algorithm string, level int, filePath string) (bool, *ports.CompressionInfo, string, error) {
 	in, err := os.Open(filePath)
 	if err != nil {

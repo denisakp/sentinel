@@ -1,6 +1,6 @@
 package backup
 
-// Job + result types for the backup Executor (spec 038 Sub-PR K, FR-008).
+// Job + result types for the backup Executor.
 // Pure data: ports + sibling domain + stdlib only. Adapter-backed behavior
 // (encryption, binlog/oplog archival, hash verification seams) reaches the
 // Executor exclusively through function-valued hooks wired by the driving
@@ -38,8 +38,8 @@ type Job struct {
 	OutName     string
 	GCSBucket   string
 
-	// StagingDir is set by the driving factory for REMOTE backups (spec 047):
-	// the dump is redirected to write a real local artifact here so the domain
+	// StagingDir is set by the driving factory for REMOTE backups: the dump
+	// is redirected to write a real local artifact here so the domain
 	// pipeline can hash/encrypt/manifest it before the Executor uploads the
 	// (encrypted) artifact + manifest sidecar to the remote backend. The
 	// Executor removes this directory on both success and failure. Empty for
@@ -62,7 +62,7 @@ type Job struct {
 	// CompressArtifact compresses the artifact at path in place and returns
 	// (compressed, compression info, compressed-bytes hash). Runs BEFORE
 	// hash/encrypt in the pipeline (dump → compress → hash → encrypt). nil =
-	// compression disabled/unconfigured. Spec 049 / PRD 33.
+	// compression disabled/unconfigured.
 	CompressArtifact CompressArtifactFunc
 
 	// EncryptArtifact encrypts the artifact at path in place and returns
@@ -80,8 +80,8 @@ type Job struct {
 
 	// VerifyAfterUpload re-downloads the artifact from the injected
 	// StorageBackend after upload/write and re-hashes it against the
-	// manifest hash, failing the backup on mismatch. Opt-in (spec 053 /
-	// PRD 40); a no-op unless the Executor's storage port is also non-nil
+	// manifest hash, failing the backup on mismatch. Opt-in; a no-op unless
+	// the Executor's storage port is also non-nil
 	// (the driving factory only wires a real backend for verification when
 	// this is set — or, for staged remote uploads, unconditionally).
 	VerifyAfterUpload bool

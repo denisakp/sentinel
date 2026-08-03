@@ -1,5 +1,5 @@
 // Package mysqlargs holds the shared MySQL-family dump-argument core used by the
-// mysql and mariadb dump adapters (spec 044 / PRD 15). It lives outside
+// mysql and mariadb dump adapters. It lives outside
 // internal/adapters/dump/ because the adapter-dump-axis lint rule forbids the
 // engine sub-packages from importing the internal/adapters/dump prefix.
 package mysqlargs
@@ -29,7 +29,7 @@ type Input struct {
 	TLS                                                      *ports.Config
 }
 
-// ValidateRequired enforces the shared required-field checks (spec 044).
+// ValidateRequired enforces the shared required-field checks.
 func ValidateRequired(username, database string) error {
 	if database == "" {
 		return fmt.Errorf("database name is missing")

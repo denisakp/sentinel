@@ -166,5 +166,5 @@ func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 	return nil
 }
 
-// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions (spec 036).
+// IsRestoreOptions marks *RestoreArgs as a ports.RestoreOptions.
 func (*RestoreArgs) IsRestoreOptions() {}

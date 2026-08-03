@@ -21,8 +21,8 @@ type MySqlDumpArgs struct {
 func (*MySqlDumpArgs) IsEngineOptions() {}
 
 // argsBuilder builds the mysqldump arguments by delegating to the shared
-// MySQL-family core with the MySQL flavor (spec 044 / PRD 15). MySQL emits
-// --skip-password on an empty password.
+// MySQL-family core with the MySQL flavor. MySQL emits --skip-password on an
+// empty password.
 func argsBuilder(mda *MySqlDumpArgs) ([]string, error) {
 	return mysqlargs.BuildArgs(mysqlargs.Input{
 		Host:           mda.Host,

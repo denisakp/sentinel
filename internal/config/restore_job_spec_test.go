@@ -8,7 +8,7 @@ import (
 
 // TestBuildRestoreJobSpec covers the YAML RestoreJob -> ports.RestoreJobSpec
 // translation, incl. conflict default/explicit, cascade, gzip/archive
-// resolution (spec 041 / PRD 28). Uses zero/one-flag RestoreOptions to keep
+// resolution. Uses zero/one-flag RestoreOptions to keep
 // BuildRestoreAdditionalArgs (map iteration) deterministic.
 func TestBuildRestoreJobSpec(t *testing.T) {
 	tests := []struct {

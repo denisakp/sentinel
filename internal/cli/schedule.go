@@ -76,7 +76,7 @@ var scheduleStartCmd = &cobra.Command{
 				return scheduler.RunBackupWithRetry(ctx, jobCopy.Name, jobCopy.Database, func() (err error) {
 					// Per-attempt panic recovery so a panicking worker
 					// consumes a retry attempt rather than aborting the
-					// retry loop (FR-008).
+					// retry loop.
 					defer func() {
 						if pErr, _ := scheduler.HandlePanic(recover()); pErr != nil {
 							err = pErr
@@ -107,10 +107,10 @@ var scheduleStartCmd = &cobra.Command{
 			}
 		}
 
-		// Add the scheduled integrity sweep (spec 052 / PRD 35). Additive:
+		// Add the scheduled integrity sweep. Additive:
 		// registered only when enabled with a cron; the backup/restore loops
 		// above are untouched. Inherits AddJob's skip-if-running + panic
-		// recovery for free (FR-002/FR-009).
+		// recovery for free.
 		integrityScheduled := false
 		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
 			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error {
@@ -186,7 +186,7 @@ var scheduleListCmd = &cobra.Command{
 				return err
 			}
 		}
-		// Add the scheduled integrity sweep to the listing (spec 052 / PRD 35).
+		// Add the scheduled integrity sweep to the listing.
 		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
 			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error { return nil }); err != nil {
 				return err
@@ -320,7 +320,7 @@ func init() {
 // validateScheduledJobs runs the pure domain validation (schedule.Validate)
 // over every job the scheduler would register: enabled backup jobs with a
 // schedule and enabled restore jobs with a schedule. Cron-expression parsing
-// stays in the scheduler runtime adapter (FR-004/FR-005).
+// stays in the scheduler runtime adapter.
 func validateScheduledJobs(cfg *config.Configuration) error {
 	for _, job := range cfg.Databases {
 		if job.Enabled != nil && !*job.Enabled {

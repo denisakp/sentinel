@@ -7,7 +7,7 @@ import (
 )
 
 // Builder satisfies ports.DumpBuilder by wrapping Backup. It carries an
-// injected ports.DBProber for the pre-dump connectivity check (spec 043).
+// injected ports.DBProber for the pre-dump connectivity check.
 type Builder struct{ prober ports.DBProber }
 
 // NewBuilder returns a Builder wired with the given connectivity prober.
@@ -27,7 +27,6 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	}
 	// argsBuilder mutates Storage.OutName in place to the full on-disk path
 	// pg_dump wrote to (FullPath(backupPath, outName)); surface it so the
-	// domain can hash/encrypt/manifest the artifact before a remote upload
-	// (spec 047).
+	// domain can hash/encrypt/manifest the artifact before a remote upload.
 	return ports.BuildResult{Digest: digest, LocalPath: args.Storage.OutName}, nil
 }

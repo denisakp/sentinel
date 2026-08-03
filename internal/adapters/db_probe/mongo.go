@@ -18,8 +18,6 @@ var mongoConnect = mongo.Connect
 // the primary read preference, and disconnects. Failure-mode matrix is
 // defined in specs/016-remove-ping-fatal/contracts/connectivity-helpers.md.
 //
-// Relocated from internal/backup/mongo/connectivity.go by spec 037.
-//
 // CheckMongoConnectivity MUST NOT call log.Fatal*, log.Panic*, or os.Exit.
 func CheckMongoConnectivity(uri string) (err error) {
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
@@ -48,8 +46,6 @@ func CheckMongoConnectivity(uri string) (err error) {
 }
 
 // ListMongoDatabases returns MongoDB database names for the given URI.
-//
-// Relocated from internal/backup/mongo/list_databases.go by spec 037.
 func ListMongoDatabases(uri string) ([]string, error) {
 	if uri == "" {
 		return nil, fmt.Errorf("mongo uri is required")

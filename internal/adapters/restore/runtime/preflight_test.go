@@ -168,7 +168,7 @@ func TestPreRestoreVerifyAndDecrypt_EncryptedWithoutKeyProviderFails(t *testing.
 
 // runPreflightCapturing runs PreRestoreVerifyAndDecryptWithOptions while
 // capturing the default slog output and os.Stderr, so tests can assert the
-// --skip-hash-verify WARNING is loud and unmissable (PRD 39).
+// --skip-hash-verify WARNING is loud and unmissable.
 func runPreflightCapturing(t *testing.T, m *ports.BackupManifest, filePath string, kp ports.KeyProvider, opts ports.DecryptOptions) (io.Reader, error, string, string) {
 	t.Helper()
 
@@ -206,7 +206,7 @@ func mismatchManifest(backupID string) *ports.BackupManifest {
 }
 
 // (a) Default (flag off): a hash mismatch still aborts hard with ErrHashMismatch
-// and returns no reader — the pre-PRD-39 behaviour is unchanged.
+// and returns no reader — the previous behaviour is unchanged.
 func TestPreRestoreVerifyAndDecrypt_HashMismatchAbortsByDefault(t *testing.T) {
 	filePath := writePlainBackup(t, []byte("payload the manifest disagrees with"))
 	m := mismatchManifest("mismatch-off")

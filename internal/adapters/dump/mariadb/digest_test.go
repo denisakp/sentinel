@@ -23,7 +23,7 @@ func installFakeEngine(t *testing.T, payload string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// stubConnectivity returns a passing prober (spec 043: connectivity is injected).
+// stubConnectivity returns a passing prober; connectivity is injected.
 func stubConnectivity(t *testing.T) *dbprobertesting.MockProber {
 	t.Helper()
 	return &dbprobertesting.MockProber{}

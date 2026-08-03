@@ -9,7 +9,7 @@ import (
 const maxPanicMsgBytes = 512
 
 // HandlePanic is the exported alias of handlePanic for use by CLI-level
-// per-attempt recover blocks (FR-008). See handlePanic for usage rules.
+// per-attempt recover blocks. See handlePanic for usage rules.
 func HandlePanic(r any) (panicErr error, stack []byte) { return handlePanic(r) }
 
 // handlePanic converts the result of a `recover()` call into an error suitable

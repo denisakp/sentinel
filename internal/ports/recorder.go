@@ -30,9 +30,9 @@ type Recorder interface {
 	// is a no-op success. Wraps SQL errors with "retention delete: %w".
 	//
 	// The retention.BackupCandidate / retention.Policy parameter types come
-	// from internal/domain/retention — the deliberate ports → domain import
-	// exception from spec 038 Q2 (domain owns the shapes; the port re-uses
-	// them as the single source of truth).
+	// from internal/domain/retention — a deliberate ports → domain import
+	// exception (domain owns the shapes; the port re-uses them as the single
+	// source of truth).
 	RetentionDeleteRecords(ctx context.Context, jobName string, candidates []retention.BackupCandidate) error
 
 	// DeleteRestoreExecutions deletes restore_executions rows for the given
@@ -43,7 +43,7 @@ type Recorder interface {
 
 	// RecordIntegrityCheck persists one integrity sweep as a grouped run: all
 	// per-artifact results in run.Results are written under a single
-	// transaction, sharing run.RunID and run.Trigger (spec 052 / PRD 35). An
+	// transaction, sharing run.RunID and run.Trigger. An
 	// empty run.Results is a no-op success (an empty/recency-bounded repo is
 	// not a failure). Implementations enforce the result and trigger
 	// vocabularies at the store boundary (a value outside the allowed set is
@@ -52,7 +52,7 @@ type Recorder interface {
 }
 
 // IntegrityRun is one integrity sweep's durable audit unit: an identifier
-// grouping its per-artifact results plus what triggered it. Spec 052 / PRD 35.
+// grouping its per-artifact results plus what triggered it.
 type IntegrityRun struct {
 	// RunID groups every IntegrityResult produced by a single sweep.
 	RunID string
@@ -63,7 +63,7 @@ type IntegrityRun struct {
 }
 
 // IntegrityResult is the forensic record of a single artifact's health at a
-// point in time within an IntegrityRun. Spec 052 / PRD 35.
+// point in time within an IntegrityRun.
 type IntegrityResult struct {
 	// BackupID is the recorded backup execution id this result verifies.
 	BackupID string
@@ -84,8 +84,8 @@ type IntegrityResult struct {
 	CheckedAt time.Time
 }
 
-// Integrity result vocabulary — the four states an integrity check can record
-// (spec 052 / PRD 35). Mirrors the CHECK constraint on integrity_checks.result
+// Integrity result vocabulary — the four states an integrity check can
+// record. Mirrors the CHECK constraint on integrity_checks.result
 // and the verifyStatus* constants in the CLI sweep.
 const (
 	IntegrityResultOK              = "ok"
@@ -94,7 +94,7 @@ const (
 	IntegrityResultMissingManifest = "missing_manifest"
 )
 
-// Integrity trigger vocabulary — what invoked a sweep (spec 052 / PRD 35).
+// Integrity trigger vocabulary — what invoked a sweep.
 // Mirrors the CHECK constraint on integrity_checks.trigger.
 const (
 	IntegrityTriggerManual    = "manual"
@@ -118,8 +118,7 @@ const (
 
 // Execution represents a single backup execution record.
 //
-// Relocated from internal/monitor/types.go (single source of truth per spec
-// 028 FR-003a).
+// Relocated from internal/monitor/types.go (single source of truth).
 type Execution struct {
 	ID             string
 	BackupName     string
