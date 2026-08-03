@@ -60,6 +60,14 @@ type IntegrityConfig struct {
 	// "sha256" is supported today; empty means the default (sha256).
 	Algorithm string `yaml:"algorithm,omitempty"`
 
+	// VerifyAfterUpload is the default for backup jobs: re-download the
+	// artifact from its storage backend immediately after upload/write and
+	// re-hash it against the manifest hash, failing the backup on mismatch.
+	// Opt-in; default false (zero behaviour/cost change when unset). A
+	// per-job `verify_after_upload` (BackupJob.VerifyAfterUpload) overrides
+	// this default. Recovered M3 roadmap item; spec 053 / PRD 40.
+	VerifyAfterUpload bool `yaml:"verify_after_upload,omitempty"`
+
 	// ScheduledCheck declares an optional cron-driven repository integrity
 	// sweep (spec 052 / PRD 35). When enabled, the scheduler registers a
 	// reserved `__integrity_check` job that runs the same sweep as
@@ -322,6 +330,11 @@ type BackupJob struct {
 
 	// TLS holds TLS/SSL settings for the database connection
 	TLS *TLSConfig `yaml:"tls,omitempty"`
+
+	// VerifyAfterUpload overrides the top-level integrity.verify_after_upload
+	// default for this job (nil = inherit; loader.go resolves it to a
+	// non-nil pointer after applying defaults). Spec 053 / PRD 40.
+	VerifyAfterUpload *bool `yaml:"verify_after_upload,omitempty"`
 }
 
 // StorageConfig defines a storage backend for backups

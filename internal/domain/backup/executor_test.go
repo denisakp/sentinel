@@ -2,13 +2,17 @@ package backup
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/ports/dbprobertesting"
+	"github.com/denisakp/sentinel/internal/ports/storagetesting"
 )
 
 // fakeOptions satisfies the ports.EngineOptions marker.
@@ -66,6 +70,11 @@ func (s *stubRecorder) ListExecutions(_ context.Context, _ *ports.Filter, _, _ i
 type stubManifestStore struct {
 	written  map[string]*ports.BackupManifest
 	writeErr error
+
+	// verifyHashFn, when set, backs VerifyHash with a real check (used by the
+	// verify_after_upload tests). Nil preserves the historical always-nil
+	// stub behaviour relied on by the other tests in this file.
+	verifyHashFn func(path, algorithm, expected string) error
 }
 
 func (s *stubManifestStore) Write(path string, m *ports.BackupManifest) error {
@@ -85,7 +94,55 @@ func (s *stubManifestStore) Read(string) (*ports.BackupManifest, error) {
 func (s *stubManifestStore) LoadForRestore(string) (*ports.BackupManifest, error) {
 	return nil, ports.ErrNoManifest
 }
-func (s *stubManifestStore) VerifyHash(string, string, string) error { return nil }
+func (s *stubManifestStore) VerifyHash(path, algorithm, expected string) error {
+	if s.verifyHashFn != nil {
+		return s.verifyHashFn(path, algorithm, expected)
+	}
+	return nil
+}
+
+// realVerifyHash computes the real SHA-256 of the file at path and compares
+// it against expected — a faithful-enough stand-in for
+// manifest_store.VerifyBackupHash without importing the concrete adapter
+// from domain test code.
+func realVerifyHash(path, _, expected string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(data)
+	got := hex.EncodeToString(sum[:])
+	if got != expected {
+		return errors.New("hash mismatch: expected=" + expected + " computed=" + got)
+	}
+	return nil
+}
+
+// tamperingBackend wraps a MockBackend but returns corrupted bytes on
+// Download, simulating storage-side corruption that occurred after a
+// successful upload (e.g. a truncated multipart PUT).
+type tamperingBackend struct {
+	*storagetesting.MockBackend
+}
+
+func (t *tamperingBackend) Download(ctx context.Context, src, dest string) error {
+	if err := t.MockBackend.Download(ctx, src, dest); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, []byte("corrupted-bytes-do-not-match-hash"), 0o644)
+}
+
+// countingBackend wraps a MockBackend and counts Download calls, used to
+// assert that a disabled verify_after_upload performs no re-download.
+type countingBackend struct {
+	*storagetesting.MockBackend
+	downloads int
+}
+
+func (c *countingBackend) Download(ctx context.Context, src, dest string) error {
+	c.downloads++
+	return c.MockBackend.Download(ctx, src, dest)
+}
 func (s *stubManifestStore) ValidateIncrementalLineage(*ports.BackupManifest) error {
 	return nil
 }
@@ -303,5 +360,115 @@ func TestExecutorRunRejectsNilOptions(t *testing.T) {
 	e := NewExecutor(&fakeDumpBuilder{}, nil, nil, nil, nil, nil, nil, nil, nil)
 	if _, err := e.Run(context.Background(), job); err == nil {
 		t.Fatal("Run() error = nil, want options-required error")
+	}
+}
+
+// verifyAfterUploadJob builds a staged-remote job (mirrors
+// TestExecutorRemoteBackupCleansStagingOnSuccess) with VerifyAfterUpload
+// enabled, plus a fakeDumpBuilder whose digest is the REAL SHA-256 of the
+// fixture payload it writes — matching what a real dump adapter records
+// (e.g. mongo_dump.go's sha256.Sum256(stdOut.Bytes())) so realVerifyHash has
+// something genuine to compare against.
+func verifyAfterUploadJob(t *testing.T) (Job, *fakeDumpBuilder, *stubRecorder) {
+	t.Helper()
+	stagingDir := t.TempDir()
+	stagedArtifact := filepath.Join(stagingDir, "out.sql")
+	payload := []byte("-- dump payload\n")
+	sum := sha256.Sum256(payload)
+	digest := hex.EncodeToString(sum[:])
+
+	job := Job{
+		Name:              "verify-job",
+		Engine:            "postgres",
+		Database:          "app",
+		Options:           fakeOptions{},
+		StorageType:       "s3", // remote — staged upload path
+		OutName:           "backup.sql",
+		StagingDir:        stagingDir,
+		VerifyAfterUpload: true,
+	}
+	dumps := &fakeDumpBuilder{digest: digest, writePath: stagedArtifact, localPath: stagedArtifact}
+	rec := &stubRecorder{}
+	return job, dumps, rec
+}
+
+// TestExecutorVerifyAfterUploadSuccess: a healthy remote backup re-downloads
+// the uploaded artifact, re-hashes it, matches the manifest hash, and the
+// job succeeds (exit criteria #1).
+func TestExecutorVerifyAfterUploadSuccess(t *testing.T) {
+	job, dumps, rec := verifyAfterUploadJob(t)
+	backend := storagetesting.NewMockBackend()
+	manifests := &stubManifestStore{verifyHashFn: realVerifyHash}
+
+	e := NewExecutor(dumps, backend, nil, nil, rec, nil, nil, nil, manifests)
+	if _, err := e.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run() error = %v, want success", err)
+	}
+	if len(rec.execs) != 1 || rec.execs[0].Status != "success" {
+		t.Fatalf("recorded execs = %#v, want one success row", rec.execs)
+	}
+	if _, ok := backend.GetBytes(job.OutName); !ok {
+		t.Fatal("artifact was not uploaded to the backend")
+	}
+}
+
+// TestExecutorVerifyAfterUploadMismatchFails: an artifact corrupted in
+// storage after upload (fault-injected via tamperingBackend) makes the job
+// FAIL at backup time with reason verify_after_upload_failed — not silently
+// succeed (exit criteria #2).
+func TestExecutorVerifyAfterUploadMismatchFails(t *testing.T) {
+	job, dumps, rec := verifyAfterUploadJob(t)
+	backend := &tamperingBackend{MockBackend: storagetesting.NewMockBackend()}
+	manifests := &stubManifestStore{verifyHashFn: realVerifyHash}
+
+	e := NewExecutor(dumps, backend, nil, nil, rec, nil, nil, nil, manifests)
+	_, err := e.Run(context.Background(), job)
+	if err == nil {
+		t.Fatal("Run() error = nil, want verify_after_upload_failed")
+	}
+	if !strings.Contains(err.Error(), "verify_after_upload_failed") {
+		t.Fatalf("Run() error = %v, want it to contain verify_after_upload_failed", err)
+	}
+	if !strings.Contains(err.Error(), job.OutName) {
+		t.Errorf("Run() error = %v, want it to surface the stored object path %q", err, job.OutName)
+	}
+	if len(rec.execs) != 1 || rec.execs[0].Status != "failure" {
+		t.Fatalf("recorded execs = %#v, want one failure row", rec.execs)
+	}
+	// The corrupt object is left in place for forensics (Q3) — not deleted.
+	if _, ok := backend.GetBytes(job.OutName); !ok {
+		t.Error("corrupt object was deleted; Q3 requires leaving it in place")
+	}
+}
+
+// TestExecutorVerifyAfterUploadDisabledNoDownload: when the job does not
+// enable verify_after_upload, the Executor performs no re-download even if a
+// storage backend happens to be wired — zero added cost (exit criteria #4).
+func TestExecutorVerifyAfterUploadDisabledNoDownload(t *testing.T) {
+	job, dumps, rec := verifyAfterUploadJob(t)
+	job.VerifyAfterUpload = false
+	backend := &countingBackend{MockBackend: storagetesting.NewMockBackend()}
+	manifests := &stubManifestStore{verifyHashFn: realVerifyHash}
+
+	e := NewExecutor(dumps, backend, nil, nil, rec, nil, nil, nil, manifests)
+	if _, err := e.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run() error = %v, want success", err)
+	}
+	if backend.downloads != 0 {
+		t.Fatalf("Download call count = %d, want 0 (verify_after_upload disabled)", backend.downloads)
+	}
+}
+
+// TestExecutorVerifyAfterUploadNilStorageNoDownload asserts the unset ⇒ nil
+// storage port ⇒ no re-download contract even when the job itself requests
+// verification (mirrors the factory's "keep storage nil unless enabled"
+// wiring — this is the Executor-side half of that contract).
+func TestExecutorVerifyAfterUploadNilStorageNoDownload(t *testing.T) {
+	job, dumps, rec := verifyAfterUploadJob(t)
+	manifests := &stubManifestStore{verifyHashFn: realVerifyHash}
+
+	e := NewExecutor(dumps, nil, nil, nil, rec, nil, nil, nil, manifests)
+	if _, err := e.Run(context.Background(), job); err != nil {
+		t.Fatalf("Run() error = %v, want success (nil storage = no-op verify)", err)
 	}
 }

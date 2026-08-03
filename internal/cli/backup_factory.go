@@ -134,6 +134,8 @@ func NewBackupExecutorFromConfig(
 	// backend. Wired only for stageable single-artifact dumps (the engine
 	// Builders); the pg/mysql/mariadb dump-all closure writes remotely itself
 	// and is left untouched. Local storage is never staged.
+	verifyAfterUpload := resolveVerifyAfterUpload(cfg, job)
+
 	var storageBackend ports.StorageBackend
 	stagingDir := ""
 	if shouldStageRemote(storageParams, engineOpts, dumps) {
@@ -149,6 +151,21 @@ func NewBackupExecutorFromConfig(
 		// be staged in place, so the artifact cannot be encrypted before it
 		// leaves the host. Refuse rather than leak plaintext to the bucket.
 		return nil, fmt.Errorf("backup '%s': encrypted remote backup is not supported for the auto-discovery 'single' strategy; use strategy 'individual' or local storage", job.Name)
+	} else if verifyAfterUpload && storageParams != nil {
+		// verify_after_upload (spec 053 / PRD 40): no staging redirect is in
+		// play here — either local storage, or a remote auto-discovery
+		// "single" dump-all with no encryption. Construct a real backend
+		// purely so the Executor's post-upload verify step can re-download
+		// the artifact. For local storage this simply re-reads the on-disk
+		// file (Q4: allowed but off by default; its real value is remote).
+		// For the remote dump-all case there is no staged artifact and thus
+		// no manifest hash, so the verify step degrades to a no-op — see
+		// Executor.verifyAfterUpload.
+		backend, err := storage.NewBackend(storageParams)
+		if err != nil {
+			return nil, fmt.Errorf("backup '%s': verify_after_upload: %w", job.Name, err)
+		}
+		storageBackend = backend
 	}
 
 	exec := backup.NewExecutor(
@@ -165,6 +182,7 @@ func NewBackupExecutorFromConfig(
 
 	djob := buildDomainBackupJob(cfg, job, storageParams, scheduled, forceFull, engineOpts)
 	djob.StagingDir = stagingDir
+	djob.VerifyAfterUpload = verifyAfterUpload
 
 	return &backupExecution{
 		exec:      exec,
@@ -181,6 +199,23 @@ func isRemoteStorage(p *storage.Params) bool {
 // encryptionConfigured reports whether the config enables at-rest encryption.
 func encryptionConfigured(cfg *config.Configuration) bool {
 	return cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "")
+}
+
+// resolveVerifyAfterUpload resolves the effective verify_after_upload flag
+// for job: a per-job override (job.VerifyAfterUpload) wins when set,
+// otherwise the top-level integrity.verify_after_upload default applies.
+// loader.go's applyDefaults already resolves job.VerifyAfterUpload to a
+// non-nil pointer for configs loaded from YAML; this fallback also covers
+// BackupJob values built directly (e.g. by tests) that bypass the loader.
+// Spec 053 / PRD 40 (Q5: opt-in, default off).
+func resolveVerifyAfterUpload(cfg *config.Configuration, job config.BackupJob) bool {
+	if job.VerifyAfterUpload != nil {
+		return *job.VerifyAfterUpload
+	}
+	if cfg != nil {
+		return cfg.Integrity.VerifyAfterUpload
+	}
+	return false
 }
 
 // shouldStageRemote decides whether to redirect a remote dump through a local

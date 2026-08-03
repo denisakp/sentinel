@@ -105,6 +105,9 @@ func applyDefaults(cfg *Configuration) {
 			job.Compression = &inherited
 		}
 		applyCompressionDefaults(job.Compression)
+		if job.VerifyAfterUpload == nil {
+			job.VerifyAfterUpload = boolPtr(cfg.Integrity.VerifyAfterUpload)
+		}
 		if job.Notifications == nil && len(cfg.Defaults.Notifications) > 0 {
 			job.Notifications = cfg.Defaults.Notifications
 		}

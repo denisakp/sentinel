@@ -77,6 +77,14 @@ type Job struct {
 	// VerifyArtifactHash overrides the incremental artifact hash check
 	// (test seam). nil → ports.ManifestStore.VerifyHash.
 	VerifyArtifactHash func(path, algorithm, expected string) error
+
+	// VerifyAfterUpload re-downloads the artifact from the injected
+	// StorageBackend after upload/write and re-hashes it against the
+	// manifest hash, failing the backup on mismatch. Opt-in (spec 053 /
+	// PRD 40); a no-op unless the Executor's storage port is also non-nil
+	// (the driving factory only wires a real backend for verification when
+	// this is set — or, for staged remote uploads, unconditionally).
+	VerifyAfterUpload bool
 }
 
 // EncryptArtifactFunc is the in-place artifact encryption hook.

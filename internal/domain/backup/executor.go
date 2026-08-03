@@ -142,6 +142,19 @@ func (e *Executor) Run(ctx context.Context, job Job) (RunResult, error) {
 		runErr = e.uploadStagedArtifact(ctx, job, build.LocalPath, sec, &res)
 	}
 
+	// 7.5. Post-upload verify (opt-in, spec 053 / PRD 40): re-download the
+	// artifact from the injected StorageBackend and re-hash it against the
+	// manifest hash, failing the backup on mismatch rather than letting a
+	// storage-side corruption surface at the next restore. A no-op unless
+	// both the job enables it AND a storage port was wired (the factory only
+	// wires one for local storage when this is explicitly on; for staged
+	// remote uploads the same backend used to upload is reused).
+	if runErr == nil && job.VerifyAfterUpload && e.storage != nil {
+		if verifyErr := e.verifyAfterUpload(ctx, job, sec); verifyErr != nil {
+			runErr = verifyErr
+		}
+	}
+
 	res.FinishedAt = time.Now()
 	res.ArtifactPath, res.ArtifactSize = ResolveArtifactRef(job.StorageType, job.LocalPath, job.OutName, job.GCSBucket, build.LocalPath)
 	if sec != nil {
@@ -184,6 +197,48 @@ func (e *Executor) uploadStagedArtifact(ctx context.Context, job Job, stagedPath
 		if err := e.storage.Upload(ctx, sec.ManifestPath, job.OutName+".manifest.json"); err != nil {
 			res.Warnings = append(res.Warnings, fmt.Sprintf("Warning: failed to upload manifest sidecar for '%s': %v", job.Name, err))
 		}
+	}
+
+	return nil
+}
+
+// verifyAfterUpload re-downloads job.OutName from e.storage into a temp file
+// and re-hashes it against sec.HashValue via ports.ManifestStore.VerifyHash,
+// returning an error tagged "verify_after_upload_failed" on mismatch (Q3:
+// the job fails and the stored object is left in place — never deleted —
+// for forensics; its path is included in the error). The temp file is always
+// removed, on both the match and mismatch paths.
+//
+// When no baseline hash exists for this artifact (sec == nil ||
+// sec.HashValue == "", e.g. a remote auto-discovery "single" dump-all job
+// that uploads without staging and therefore has no manifest — see
+// ApplyArtifactSecurity's remote/no-staging early return) there is nothing
+// to compare against, so this degrades to a no-op rather than a false
+// failure. Likewise a nil ManifestStore (never wired by the production
+// factory) degrades to a no-op.
+func (e *Executor) verifyAfterUpload(ctx context.Context, job Job, sec *SecurityOutcome) error {
+	if sec == nil || sec.HashValue == "" || job.OutName == "" || e.manifests == nil {
+		return nil
+	}
+
+	tmp, err := os.CreateTemp("", "sentinel-verify-*")
+	if err != nil {
+		return fmt.Errorf("backup '%s': verify_after_upload: failed to create temp file: %w", job.Name, err)
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if err := e.storage.Download(ctx, job.OutName, tmpPath); err != nil {
+		return fmt.Errorf("backup '%s': verify_after_upload: re-download of %q failed: %w", job.Name, job.OutName, err)
+	}
+
+	algo := sec.HashAlgorithm
+	if algo == "" {
+		algo = "sha256"
+	}
+	if verifyErr := e.manifests.VerifyHash(tmpPath, algo, sec.HashValue); verifyErr != nil {
+		return fmt.Errorf("backup '%s': verify_after_upload_failed: %w (stored object left in place: %s)", job.Name, verifyErr, job.OutName)
 	}
 
 	return nil
