@@ -56,6 +56,43 @@ each with a SHA-256 `checksums.txt`.
 Prebuilt binaries still expect the relevant DB client tools (`pg_dump`,
 `mysqldump`, `mongodump`, …) on your `PATH`.
 
+### Verify the release signature (recommended)
+
+Each recent release's `checksums.txt` is signed with
+[cosign](https://github.com/sigstore/cosign) keyless signing (GitHub OIDC +
+the sigstore public-good Fulcio/Rekor). A signature bundle
+`checksums.txt.sigstore.json` is published alongside it. Verifying the
+signature proves the checksums file was produced by Sentinel's release
+workflow — not just that your archive matches an (otherwise unsigned) list.
+This is an added assurance on top of the `sha256sum -c` check above, not a
+replacement; the checksum-only path still works if you don't have cosign.
+
+Needs `cosign` v3+ (`brew install cosign`, or download from sigstore). No Go
+toolchain and no Sentinel install required.
+
+```bash
+BASE=https://github.com/denisakp/sentinel/releases/latest/download
+curl -LO "$BASE/checksums.txt"
+curl -LO "$BASE/checksums.txt.sigstore.json"
+
+# Verify checksums.txt was signed by Sentinel's release workflow on a tag:
+cosign verify-blob \
+  --certificate-identity-regexp 'https://github.com/denisakp/sentinel/.github/workflows/release.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  --bundle checksums.txt.sigstore.json \
+  checksums.txt        # → "Verified OK"
+```
+
+Once `checksums.txt` is verified, check your archive against it with
+`sha256sum -c checksums.txt --ignore-missing` as above. Verification fails
+closed: a tampered `checksums.txt`, or a signature from any other
+identity/issuer, is rejected.
+
+> **Note:** releases published before signing was introduced ship no
+> signature bundle and are verifiable by `checksums.txt` (SHA-256) only.
+> If a release has no `checksums.txt.sigstore.json` asset, use the
+> checksum-only path.
+
 ### Install with `go install`
 
 If you already have Go 1.24+:
