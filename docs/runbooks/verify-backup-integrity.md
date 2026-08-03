@@ -57,6 +57,33 @@ grep -m 1 "MySQL dump"   /workspace/backups/mysql-dev.sql
 grep -m 1 "MariaDB dump" /workspace/backups/mariadb-dev.sql
 ```
 
+### Compare two backups (`backup diff`)
+
+When a backup looks anomalous (much larger/slower than the last, or you suspect the safety
+posture changed), compare the two **recorded metadata** sources — no restore, no re-download of
+the artifact:
+
+```bash
+sentinel backup diff <old-id> <new-id> --config /workspace/infra/dataset/local.yaml
+sentinel backup diff <old-id> <new-id> --output json   # for CI/alerting
+```
+
+`backup diff` reads only the monitor row + each `.manifest.json` sidecar (remote backups fetch
+just the sidecar) and prints a `FIELD | BEFORE | AFTER | DELTA` table of the fields that differ:
+`size_bytes`, `duration_ms`, `hash.algorithm`, `hash.value`, `encryption`, `backup_type`,
+`chain_depth`. It **never opens the artifact** — use `backup verify` for byte-level integrity.
+
+Security regressions between the two backups are flagged and set a **non-zero exit** (CI-gateable):
+
+| Signal                 | Meaning                                                        |
+|------------------------|---------------------------------------------------------------|
+| `ENCRYPTION DISABLED`  | the newer backup is plaintext where the older was encrypted   |
+| `HASH ALGORITHM CHANGED` | the integrity hash algorithm changed (e.g. a downgrade)     |
+| `ENCRYPTION WEAKENED`  | KDF/algorithm changed, iterations decreased, or envelope dropped |
+
+Size/duration swings get a `⚠` marker but keep exit 0. A pre-v1.1 backup with no manifest still
+diffs on its monitor-row fields with a warning.
+
 ## Manifest contract (per ADR 0005)
 
 - Sidecar file: `<backup-filename>.manifest.json`, JSON, mode `0600`.
@@ -82,3 +109,4 @@ If verify fails, treat the artifact as untrusted:
 - ADR 0005 — Manifest v1 format (`docs/adr/0005-manifest-format-v1.md`)
 - `internal/manifest/manifest.go`, `internal/manifest/types.go`
 - `internal/cli/backup_verify.go`
+- `internal/cli/backup_diff.go` — `backup diff <id1> <id2>` metadata comparison

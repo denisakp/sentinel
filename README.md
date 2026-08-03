@@ -177,6 +177,7 @@ sentinel retention apply --config sentinel.yaml
 sentinel backup verify <backup-id> --config sentinel.yaml   # verify one backup
 sentinel backup verify --all --config sentinel.yaml          # repository-wide integrity sweep
 sentinel backup verify --all --since 30d --output json --config sentinel.yaml
+sentinel backup diff <id1> <id2> --config sentinel.yaml      # compare two backups' metadata
 
 # Config & storage
 sentinel config validate --config sentinel.yaml
@@ -357,6 +358,26 @@ what was found (added by monitor schema migration `005`; existing history DBs up
 A non-`ok` result pages the configured channels (`defaults.notifications`) when `notify_on` is
 `failure`/`always`; `never` stays silent; delivery is best-effort. See
 [docs/runbooks/integrity-sweep.md](docs/runbooks/integrity-sweep.md).
+
+### Comparing two backups
+
+`sentinel backup diff <id1> <id2>` compares the **recorded metadata** of two backups — size,
+duration, hash algorithm, encryption posture, backup type and chain depth — to diagnose a
+sudden anomaly (a backup 3× larger, twice as slow, or silently plaintext) **without a restore**:
+
+```bash
+sentinel backup diff abc123 def456 --config sentinel.yaml
+sentinel backup diff abc123 def456 --output json --config sentinel.yaml   # for CI/alerting
+```
+
+It reads only the monitor row and each artifact's `.manifest.json` sidecar — **no artifact
+bytes are read** (remote backups fetch just the tiny sidecar, never the artifact). Only the
+fields that differ are printed. **Security regressions** are flagged explicitly and yield a
+**non-zero exit** so CI can gate: encryption turned off (`ENCRYPTION DISABLED`), a hash-algorithm
+change (`HASH ALGORITHM CHANGED`), or an encryption-parameter downgrade (`ENCRYPTION WEAKENED`).
+Size/duration swings get a `⚠` marker but stay informational (exit 0). A backup with no manifest
+(pre-v1.1) still diffs on its monitor-row fields with a warning. See
+[docs/runbooks/verify-backup-integrity.md](docs/runbooks/verify-backup-integrity.md).
 
 ---
 

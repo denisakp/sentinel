@@ -18,6 +18,14 @@ var (
 	// Spec 051 / PRD 34.
 	ErrVerifyIntegrityFailed = errors.New("integrity check failed")
 
+	// ErrDiffSecurityRegression is returned by `backup diff <id1> <id2>` when it
+	// detects a security regression between the two backups (encryption turned
+	// off, a hash-algorithm change, or an encryption-parameter downgrade). It
+	// maps to a non-zero exit (1) so CI/alerting can gate on it. Size/duration
+	// magnitude swings never set this — they stay informational (exit 0).
+	// PRD 36.
+	ErrDiffSecurityRegression = errors.New("backup diff: security regression detected")
+
 	// `sentinel monitor doctor` exit-code carriers. Stable across releases
 	// per specs/017-monitor-schema-migration/contracts/monitor-doctor-cli.md.
 	ErrDoctorStalePending    = errors.New("monitor schema is stale; pending migrations exist")
@@ -41,6 +49,10 @@ func Code(err error) int {
 		return 4
 	case errors.Is(err, ErrVerifyIntegrityFailed):
 		return 5
+	case errors.Is(err, ErrDiffSecurityRegression):
+		// Non-zero, deliberately kept at 1 (matches the PRD 36 example) so a CI
+		// gate simply checks for a non-zero exit.
+		return 1
 	case errors.Is(err, ErrDoctorStalePending):
 		return 1
 	case errors.Is(err, ErrDoctorForwardIncompat):
