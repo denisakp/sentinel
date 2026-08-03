@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"syscall"
 )
 
 var materialPIDRegex = regexp.MustCompile(`sentinel-mongo-tls-(\d+)-`)
@@ -59,18 +58,4 @@ func SweepOrphanMaterial(dir string) (int, error) {
 		return removed, errors.Join(errs...)
 	}
 	return removed, nil
-}
-
-// processAlive returns true iff pid is a currently-running process.
-// Uses syscall.Kill(pid, 0): a successful return or EPERM means alive;
-// ESRCH means dead.
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	err := syscall.Kill(pid, 0)
-	if err == nil {
-		return true
-	}
-	return errors.Is(err, syscall.EPERM)
 }
