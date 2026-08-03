@@ -1,6 +1,6 @@
 # Sentinel Release Notes
 
-## [Unreleased]
+## [v1.3.0] - August 3, 2026
 
 ### Performance
 
