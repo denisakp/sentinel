@@ -23,7 +23,8 @@ Thumbs.db
 *.tmp
 *.swp
 *.log
-docs/roadmap/
+docs/roadmap/*
+!docs/roadmap/ROADMAP.md
 .claude/
 prds/
 # infra/dataset used to hold an untracked, ad-hoc Python venv; PRD 41 replaced

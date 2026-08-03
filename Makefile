@@ -15,7 +15,7 @@ help:
 	@echo "  infra-down  Stop and remove all infra containers"
 	@echo "  build-image Build sentinel-dev:local Docker image"
 	@echo "  clean       infra-down + remove .e2e workspace"
-	@echo "  bench-small Run the small-tier (~1GB) performance benchmark, all engines (PRD 41)"
+	@echo "  bench-small Run the small-tier (~1GB) performance benchmark, all engines"
 	@echo "  bench-matrix Alias for bench-small (see docs/benchmarks/README.md for --tier large)"
 
 ## Full run — one command, everything handled
@@ -47,7 +47,7 @@ build-image:
 clean: infra-down
 	@rm -rf .e2e .bench
 
-## Performance benchmark, small tier (~1GB per engine, PRD 41). Report-only —
+## Performance benchmark, small tier (~1GB per engine). Report-only —
 ## see docs/benchmarks/README.md for methodology and docs/benchmarks/v1.3.0.md
 ## for the published matrix. Use scripts/benchmark.sh directly for --tier
 ## large (operator-run only) or a single --engine.
@@ -74,7 +74,7 @@ lint-redact-stderr:
 	echo "[lint-redact-stderr] OK"
 
 ## Run golangci-lint (ADR 0001 hexagonal depguard rules + forbidigo + govet) — same config CI uses.
-## Spec 039 / PRD 25. In the Claude Code dev shell a bare `golangci-lint` is rewritten by the rtk
+## In the Claude Code dev shell a bare `golangci-lint` is rewritten by the rtk
 ## hook (injects --out-format, rejected by v2); make runs it as a subprocess so it is unaffected.
 lint:
 	golangci-lint run --timeout 5m
