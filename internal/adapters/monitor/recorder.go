@@ -122,6 +122,66 @@ func (m *Monitor) RecordRestoreExecution(ctx context.Context, exec *ports.Restor
 	return nil
 }
 
+// RecordIntegrityCheck persists one integrity sweep as a grouped run: every
+// per-artifact result in run.Results is inserted under a single transaction,
+// sharing run.RunID and run.Trigger (spec 052 / PRD 35). An empty Results slice
+// is a no-op success (an empty / recency-bounded sweep is not a failure). The
+// integrity_checks.result and .trigger CHECK constraints reject any value
+// outside the allowed vocabularies (FR-005 / SC-004).
+func (m *Monitor) RecordIntegrityCheck(ctx context.Context, run ports.IntegrityRun) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("monitor database is not initialized")
+	}
+	if run.RunID == "" {
+		run.RunID = newUUID()
+	}
+	trigger := run.Trigger
+	if trigger == "" {
+		trigger = ports.IntegrityTriggerManual
+	}
+	if len(run.Results) == 0 {
+		return nil // empty/recency-bounded sweep records nothing; not a failure
+	}
+
+	tx, err := m.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("record integrity check: %w", err)
+	}
+
+	stmt := `INSERT INTO integrity_checks
+		(id, run_id, backup_id, job_name, result, stored_hash, computed_hash, storage_backend, artifact_path, checked_at, trigger)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	for i := range run.Results {
+		r := run.Results[i]
+		checkedAt := r.CheckedAt
+		if checkedAt.IsZero() {
+			checkedAt = time.Now().UTC()
+		}
+		if _, err := tx.ExecContext(ctx, stmt,
+			newUUID(),
+			run.RunID,
+			r.BackupID,
+			r.Job,
+			r.Result,
+			r.StoredHash,
+			r.ComputedHash,
+			r.StorageBackend,
+			r.ArtifactPath,
+			checkedAt,
+			trigger,
+		); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("record integrity check: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("record integrity check: %w", err)
+	}
+	return nil
+}
+
 func newUUID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

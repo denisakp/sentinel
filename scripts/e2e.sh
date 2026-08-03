@@ -440,6 +440,124 @@ EOF
   fi
 }
 
+# test_scheduled_integrity exercises the scheduled-integrity wiring (spec 052 /
+# PRD 35): a config with integrity.scheduled_check passes validation, an enabled
+# check without a cron is rejected, `schedule list` registers the reserved
+# __integrity_check job (type integrity), and the integrity_checks audit table
+# round-trips a scheduled run with the result vocabulary CHECK-enforced. A real
+# weekly cron tick is out of scope for the harness (the automatic firing is
+# proven by a controllable-clock unit test); this asserts config-validation +
+# scheduler registration + the results-store round-trip end-to-end (A8).
+test_scheduled_integrity() {
+  log ""
+  log "=== Suite: scheduled integrity check [spec 052] ==="
+
+  cat > "$CONFIGS_DIR/integrity-scheduled.yaml" <<EOF
+version: "1.0"
+log_format: text
+history_db_path: /workspace/.sentinel/history.db
+
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+
+integrity:
+  algorithm: sha256
+  scheduled_check:
+    enabled: true
+    cron: "0 3 * * 0"
+    since: 30d
+    notify_on: failure
+
+databases:
+  pg-integrity-e2e:
+    type: postgres
+    host: pgsql
+    port: 5432
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+    schedule: "0 2 * * *"
+EOF
+
+  # 1. A valid scheduled_check block passes config validation.
+  assert_exit_ok "scheduled integrity: config validate" \
+    config validate --config /configs/integrity-scheduled.yaml
+
+  # 2. An enabled check WITHOUT a cron is rejected at validation.
+  cat > "$CONFIGS_DIR/integrity-bad.yaml" <<EOF
+version: "1.0"
+history_db_path: /workspace/.sentinel/history.db
+defaults:
+  storage:
+    type: local
+    local_path: /workspace/backups
+integrity:
+  scheduled_check:
+    enabled: true
+databases:
+  pg-integrity-e2e:
+    type: postgres
+    host: pgsql
+    username: sentinel
+    password_env: DEV_POSTGRES_PASSWORD
+    database: sentinel
+EOF
+  local bad_out bad_code
+  bad_out=$(sentinel config validate --config /configs/integrity-bad.yaml 2>&1) && bad_code=0 || bad_code=$?
+  if [[ $bad_code -ne 0 ]] && echo "$bad_out" | grep -qi "cron is required"; then
+    ok "scheduled integrity: enabled-without-cron rejected"
+  else
+    fail "scheduled integrity: enabled-without-cron should be rejected (code=$bad_code)"
+    echo "$bad_out" | tail -5 | sed 's/^/  [cmd] /'
+  fi
+
+  # 3. `schedule list` registers the reserved __integrity_check job (type integrity).
+  assert_output_contains "scheduled integrity: schedule list registers __integrity_check" "__integrity_check" \
+    schedule list --config /configs/integrity-scheduled.yaml --format json
+  assert_output_contains "scheduled integrity: job labelled integrity" "\"type\": \"integrity\"" \
+    schedule list --config /configs/integrity-scheduled.yaml --format json
+
+  # 4. Opening the monitor applies migration 005 (the integrity_checks table).
+  assert_exit_ok "scheduled integrity: monitor open migrates to v5" \
+    monitor list --config /configs/integrity-scheduled.yaml
+
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    skip "scheduled integrity: sqlite3 not available for integrity_checks round-trip"
+    return
+  fi
+
+  if ! sqlite3 "$HISTORY_DB" "SELECT name FROM sqlite_master WHERE type='table' AND name='integrity_checks';" 2>/dev/null | grep -q integrity_checks; then
+    fail "scheduled integrity: integrity_checks table missing after migration 005"
+    return
+  fi
+  ok "scheduled integrity: integrity_checks table present (migration 005)"
+
+  # Seed one grouped scheduled run (2 rows) and read it back — the durable
+  # audit round-trip A8 calls for.
+  sqlite3 "$HISTORY_DB" <<SQL
+INSERT INTO integrity_checks (id, run_id, backup_id, job_name, result, storage_backend, artifact_path, checked_at, trigger) VALUES
+ ('ic-e2e-1','run-e2e','b1','pg-integrity-e2e','ok','local','/workspace/backups/b1.sql','2026-08-03 03:00:00+00:00','scheduled'),
+ ('ic-e2e-2','run-e2e','b2','pg-integrity-e2e','corrupted','local','/workspace/backups/b2.sql','2026-08-03 03:00:00+00:00','scheduled');
+SQL
+
+  local rowcount
+  rowcount=$(sqlite3 "$HISTORY_DB" "SELECT COUNT(*) FROM integrity_checks WHERE run_id='run-e2e' AND trigger='scheduled';" 2>/dev/null || echo "ERR")
+  if [[ "$rowcount" == "2" ]]; then
+    ok "scheduled integrity: integrity_checks persisted 2 grouped rows"
+  else
+    fail "scheduled integrity: expected 2 rows for run-e2e, got '$rowcount'"
+  fi
+
+  # The result vocabulary is CHECK-enforced: an out-of-vocabulary value fails.
+  if sqlite3 "$HISTORY_DB" "INSERT INTO integrity_checks (id, run_id, result, checked_at, trigger) VALUES ('ic-bad','run-e2e','rotten','2026-08-03 03:00:00+00:00','scheduled');" >/dev/null 2>&1; then
+    fail "scheduled integrity: integrity_checks accepted an out-of-vocabulary result"
+  else
+    ok "scheduled integrity: integrity_checks CHECK rejects a bad result value"
+  fi
+}
+
 test_monitor() {
   log ""
   log "=== Suite: monitor ==="
@@ -1150,6 +1268,7 @@ main() {
   test_config_validate
   test_local_backup
   test_verify_all
+  test_scheduled_integrity
   test_compression
   test_monitor
   test_retention

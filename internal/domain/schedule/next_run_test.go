@@ -34,7 +34,7 @@ func TestNextRun_ForwardsToScheduleNext(t *testing.T) {
 }
 
 func TestValidate_AcceptsValidJob(t *testing.T) {
-	cases := []schedule.JobKind{schedule.KindBackup, schedule.KindRestore, schedule.KindRetention}
+	cases := []schedule.JobKind{schedule.KindBackup, schedule.KindRestore, schedule.KindRetention, schedule.KindIntegrityCheck}
 	for _, k := range cases {
 		if err := schedule.Validate(schedule.ScheduledJob{Name: "j", CronExpr: "* * * * *", Kind: k, Enabled: true}); err != nil {
 			t.Errorf("Validate(kind=%q) unexpected error: %v", k, err)

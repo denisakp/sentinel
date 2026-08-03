@@ -9,7 +9,7 @@ import (
 // BinarySchemaVersion is the monitor schema version required by this binary.
 // It MUST equal the highest version present under migrations/. The
 // version-invariant test in version_test.go enforces this at build time.
-const BinarySchemaVersion = 4
+const BinarySchemaVersion = 5
 
 // ErrForwardIncompatible is returned by NewMonitor when the on-disk
 // schema_version is ahead of BinarySchemaVersion. Callers map this to a

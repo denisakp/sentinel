@@ -107,12 +107,29 @@ var scheduleStartCmd = &cobra.Command{
 			}
 		}
 
+		// Add the scheduled integrity sweep (spec 052 / PRD 35). Additive:
+		// registered only when enabled with a cron; the backup/restore loops
+		// above are untouched. Inherits AddJob's skip-if-running + panic
+		// recovery for free (FR-002/FR-009).
+		integrityScheduled := false
+		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error {
+				return runScheduledIntegrityCheck(ctx, cfg, mon, ic)
+			}); err != nil {
+				return err
+			}
+			integrityScheduled = true
+		}
+
 		if err := s.Start(); err != nil {
 			return err
 		}
 
 		cmd.Printf("Scheduler started with %d backup job(s) and %d restore job(s)\n",
 			len(cfg.Databases), len(cfg.Restores))
+		if integrityScheduled {
+			cmd.Printf("Scheduled integrity sweep registered (%s)\n", cfg.Integrity.ScheduledCheck.Cron)
+		}
 		stopCh := make(chan os.Signal, 1)
 		signal.Notify(stopCh, syscall.SIGTERM, syscall.SIGINT)
 		<-stopCh
@@ -169,6 +186,12 @@ var scheduleListCmd = &cobra.Command{
 				return err
 			}
 		}
+		// Add the scheduled integrity sweep to the listing (spec 052 / PRD 35).
+		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error { return nil }); err != nil {
+				return err
+			}
+		}
 		if err := s.Start(); err != nil {
 			return err
 		}
@@ -207,6 +230,9 @@ func buildScheduleListRows(infos []schedule.JobInfo, restoreJobs map[string]conf
 		jobType := "backup"
 		if _, ok := restoreJobs[info.Name]; ok {
 			jobType = "restore"
+		}
+		if info.Name == config.IntegrityCheckJobName {
+			jobType = string(schedule.KindIntegrityCheck)
 		}
 		rows = append(rows, scheduleListRow{
 			Type:          jobType,
@@ -326,6 +352,16 @@ func validateScheduledJobs(cfg *config.Configuration) error {
 			Enabled:  true,
 		}); err != nil {
 			return fmt.Errorf("restore job %q: %w", name, err)
+		}
+	}
+	if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     config.IntegrityCheckJobName,
+			CronExpr: ic.Cron,
+			Kind:     schedule.KindIntegrityCheck,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("scheduled integrity check: %w", err)
 		}
 	}
 	return nil

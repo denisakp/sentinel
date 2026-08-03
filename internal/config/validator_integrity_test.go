@@ -63,3 +63,92 @@ func TestValidateConfig_IntegrityAlgorithm(t *testing.T) {
 		t.Fatalf("expected integrity.algorithm error, got %v", err)
 	}
 }
+
+// scheduledCheckConfig builds a minimal valid config with one postgres backup
+// job and the given integrity.scheduled_check block (spec 052 / PRD 35).
+func scheduledCheckConfig(sc IntegrityScheduledCheck) *Configuration {
+	enabled := true
+	return &Configuration{
+		Version:              "1.0",
+		MaxConcurrentBackups: 1,
+		Integrity:            IntegrityConfig{ScheduledCheck: sc},
+		Databases: map[string]BackupJob{
+			"pg": {
+				Name:        "pg",
+				Type:        "postgres",
+				Enabled:     &enabled,
+				Host:        "localhost",
+				Username:    "sentinel",
+				PasswordEnv: "TEST_PG_PASSWORD",
+				Database:    "app",
+				Storage:     StorageConfig{Type: "local", LocalPath: "/tmp/backups"},
+			},
+		},
+	}
+}
+
+// TestValidateScheduledIntegrityCheck_Matrix asserts the config-validation
+// matrix for integrity.scheduled_check (FR-008 / SC-007).
+func TestValidateScheduledIntegrityCheck_Matrix(t *testing.T) {
+	cases := []struct {
+		name    string
+		sc      IntegrityScheduledCheck
+		wantErr string // "" = expect success
+	}{
+		{"disabled ignores empty cron", IntegrityScheduledCheck{Enabled: false}, ""},
+		{"valid failure mode", IntegrityScheduledCheck{Enabled: true, Cron: "0 3 * * 0", NotifyOn: "failure"}, ""},
+		{"valid always + since + job", IntegrityScheduledCheck{Enabled: true, Cron: "*/30 * * * *", Since: "30d", NotifyOn: "always", Job: "pg"}, ""},
+		{"valid empty notify_on defaults", IntegrityScheduledCheck{Enabled: true, Cron: "0 3 * * 0"}, ""},
+		{"valid never", IntegrityScheduledCheck{Enabled: true, Cron: "0 3 * * 0", NotifyOn: "never"}, ""},
+		{"enabled without cron", IntegrityScheduledCheck{Enabled: true}, "cron is required"},
+		{"enabled with blank cron", IntegrityScheduledCheck{Enabled: true, Cron: "   "}, "cron is required"},
+		{"invalid cron", IntegrityScheduledCheck{Enabled: true, Cron: "not a cron"}, "invalid cron expression"},
+		{"invalid since", IntegrityScheduledCheck{Enabled: true, Cron: "0 3 * * 0", Since: "5x"}, "since"},
+		{"invalid notify_on", IntegrityScheduledCheck{Enabled: true, Cron: "0 3 * * 0", NotifyOn: "page"}, "notify_on"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateConfig(scheduledCheckConfig(tc.sc))
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateConfig() unexpected error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateConfig() error = nil, want substring %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("ValidateConfig() error = %v, want substring %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidateScheduledIntegrityCheck_ReservedName asserts a user backup or
+// restore job may not take the reserved __integrity_check name (A6 / FR-008),
+// independent of whether the scheduled check is enabled.
+func TestValidateScheduledIntegrityCheck_ReservedName(t *testing.T) {
+	enabled := true
+
+	dbCfg := scheduledCheckConfig(IntegrityScheduledCheck{})
+	dbCfg.Databases[IntegrityCheckJobName] = BackupJob{
+		Name: IntegrityCheckJobName, Type: "postgres", Enabled: &enabled,
+		Host: "localhost", Username: "sentinel", PasswordEnv: "TEST_PG_PASSWORD",
+		Database: "app", Storage: StorageConfig{Type: "local", LocalPath: "/tmp/backups"},
+	}
+	err := ValidateConfig(dbCfg)
+	if err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("backup job named %q must be rejected as reserved; got %v", IntegrityCheckJobName, err)
+	}
+
+	restoreCfg := scheduledCheckConfig(IntegrityScheduledCheck{})
+	restoreCfg.Restores = map[string]RestoreJob{
+		IntegrityCheckJobName: {Type: "postgres", Database: "app"},
+	}
+	err = ValidateConfig(restoreCfg)
+	if err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("restore job named %q must be rejected as reserved; got %v", IntegrityCheckJobName, err)
+	}
+}

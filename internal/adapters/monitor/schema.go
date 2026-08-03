@@ -83,6 +83,32 @@ CREATE INDEX IF NOT EXISTS idx_restore_executions_database_type ON restore_execu
 CREATE INDEX IF NOT EXISTS idx_restore_executions_database_name ON restore_executions(database_name);
 `
 
+// IntegrityChecksSchema mirrors migration 005_add_integrity_checks.sql as a
+// defensive CREATE TABLE IF NOT EXISTS, matching the per-table const pattern of
+// BackupExecutionsSchema / RestoreExecutionsSchema (spec 052 / PRD 35). The
+// result and trigger CHECK constraints enforce the outcome/trigger vocabularies
+// at the store boundary.
+const IntegrityChecksSchema = `
+CREATE TABLE IF NOT EXISTS integrity_checks (
+	id TEXT PRIMARY KEY,
+	run_id TEXT NOT NULL,
+	backup_id TEXT,
+	job_name TEXT,
+	result TEXT NOT NULL CHECK (result IN ('ok', 'corrupted', 'missing_artifact', 'missing_manifest')),
+	stored_hash TEXT,
+	computed_hash TEXT,
+	storage_backend TEXT,
+	artifact_path TEXT,
+	checked_at DATETIME NOT NULL,
+	trigger TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual', 'scheduled')),
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_integrity_checks_run_id ON integrity_checks(run_id);
+CREATE INDEX IF NOT EXISTS idx_integrity_checks_result ON integrity_checks(result);
+CREATE INDEX IF NOT EXISTS idx_integrity_checks_checked_at ON integrity_checks(checked_at DESC);
+`
+
 // SchemaMigrationsTable tracks applied schema migrations for version control.
 const SchemaMigrationsTable = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
