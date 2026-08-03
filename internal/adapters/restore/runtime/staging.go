@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
@@ -329,11 +328,15 @@ func ensureStagingCapacity(dir string, required int64) error {
 	if required <= 0 {
 		return nil
 	}
-	var stats syscall.Statfs_t
-	if err := syscall.Statfs(dir, &stats); err != nil {
+	available, ok, err := availableStagingBytes(dir)
+	if err != nil {
 		return fmt.Errorf("failed to inspect staging dir capacity: %w", err)
 	}
-	available := int64(stats.Bavail) * int64(stats.Bsize)
+	if !ok {
+		// No capacity-check support on this platform (e.g. Windows) — skip
+		// rather than block the restore on an advisory preflight check.
+		return nil
+	}
 	if available < required {
 		return fmt.Errorf("%w: need=%d available=%d", ErrInsufficientStagingSpace, required, available)
 	}
