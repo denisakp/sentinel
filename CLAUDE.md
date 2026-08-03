@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/051-backup-verify-all/plan.md`
+`specs/052-scheduled-integrity-check/plan.md`
 <!-- SPECKIT END -->

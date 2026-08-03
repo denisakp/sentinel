@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -130,7 +131,7 @@ func TestMonitorForwardIncompat_FailsClean(t *testing.T) {
 		t.Errorf("expected the ahead-of-binary phrase exactly once; got %d in %q",
 			strings.Count(msg, "monitor schema is ahead of this binary"), msg)
 	}
-	if !strings.Contains(msg, "99") || !strings.Contains(msg, "4") {
+	if !strings.Contains(msg, "99") || !strings.Contains(msg, strconv.Itoa(monitor.BinarySchemaVersion)) {
 		t.Errorf("error message must name both versions; got %q", msg)
 	}
 

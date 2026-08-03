@@ -334,6 +334,30 @@ missing), `4` operational error (the check itself couldn't run). `--ignore-missi
 downgrades legacy pre-v1.1 backups to a warning. See
 [docs/runbooks/integrity-sweep.md](docs/runbooks/integrity-sweep.md).
 
+### Scheduling the sweep
+
+Run the **same** sweep automatically on a cron — recording every run and paging on corruption —
+by adding an `integrity.scheduled_check` block. `sentinel schedule start` then registers a
+reserved `__integrity_check` job alongside your backups/restores (additive; existing scheduling
+unchanged):
+
+```yaml
+integrity:
+  scheduled_check:
+    enabled: true
+    cron: "0 3 * * 0"     # every Sunday 03:00
+    since: 30d            # optional recency window; omit to sweep everything
+    job: ""              # optional single-job scope; empty = all jobs
+    notify_on: failure    # failure (default) | always | never
+```
+
+Each run records **one row per artifact** (grouped by `run_id`, labelled `scheduled`/`manual`)
+in the `integrity_checks` audit table — a durable trail of when each artifact was checked and
+what was found (added by monitor schema migration `005`; existing history DBs upgrade in place).
+A non-`ok` result pages the configured channels (`defaults.notifications`) when `notify_on` is
+`failure`/`always`; `never` stays silent; delivery is best-effort. See
+[docs/runbooks/integrity-sweep.md](docs/runbooks/integrity-sweep.md).
+
 ---
 
 ## Contributing

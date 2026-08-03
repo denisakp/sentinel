@@ -79,6 +79,10 @@ func NewMonitor(dbPath string) (*Monitor, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ensure restore history schema: %w", err)
 	}
+	if _, err := db.Exec(IntegrityChecksSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to ensure integrity checks schema: %w", err)
+	}
 
 	// Reconcile column additions and CHECK-constraint rebuilds for installs
 	// that pre-date the migration framework owning these columns. Idempotent

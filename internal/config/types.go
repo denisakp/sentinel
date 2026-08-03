@@ -45,6 +45,12 @@ type SchedulerConfig struct {
 	LockDir string `yaml:"lock_dir"`
 }
 
+// IntegrityCheckJobName is the reserved scheduler job name used by the
+// cron-driven integrity sweep (spec 052 / PRD 35). It lives in the internal
+// `__`-prefixed namespace and MUST NOT collide with a user backup/restore job
+// (config validation rejects a user job with this exact name).
+const IntegrityCheckJobName = "__integrity_check"
+
 // IntegrityConfig holds repository-wide integrity settings. It is the shared
 // home for the `backup verify --all` sweep (spec 051 / PRD 34) and the sibling
 // scheduled-integrity feature (PRD 35) that will attach a `scheduled_check`
@@ -53,6 +59,36 @@ type IntegrityConfig struct {
 	// Algorithm is the hash algorithm used for integrity verification. Only
 	// "sha256" is supported today; empty means the default (sha256).
 	Algorithm string `yaml:"algorithm,omitempty"`
+
+	// ScheduledCheck declares an optional cron-driven repository integrity
+	// sweep (spec 052 / PRD 35). When enabled, the scheduler registers a
+	// reserved `__integrity_check` job that runs the same sweep as
+	// `backup verify --all`, records each run in the integrity_checks table,
+	// and notifies on failure.
+	ScheduledCheck IntegrityScheduledCheck `yaml:"scheduled_check,omitempty"`
+}
+
+// IntegrityScheduledCheck configures the cron-driven integrity sweep (spec 052
+// / PRD 35). It attaches under integrity.scheduled_check.
+type IntegrityScheduledCheck struct {
+	// Enabled turns the scheduled integrity sweep on. Default false (opt-in).
+	Enabled bool `yaml:"enabled"`
+
+	// Cron is the 5-field cron schedule the sweep fires on. Required when
+	// Enabled is true.
+	Cron string `yaml:"cron,omitempty"`
+
+	// Since is an optional recency window (e.g. "30d", "4w", "720h") that
+	// restricts the sweep to backups newer than the window. Empty = all.
+	Since string `yaml:"since,omitempty"`
+
+	// NotifyOn selects when a failure notification is dispatched: "failure"
+	// (default; page on any non-ok result), "always" (also confirm clean
+	// runs), or "never" (silent). Empty means the default ("failure").
+	NotifyOn string `yaml:"notify_on,omitempty"`
+
+	// Job optionally restricts the sweep to a single named backup job.
+	Job string `yaml:"job,omitempty"`
 }
 
 // RestoreRuntimeConfig holds shared runtime settings for restore execution.

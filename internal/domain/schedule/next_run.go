@@ -21,9 +21,10 @@ import (
 type JobKind string
 
 const (
-	KindBackup    JobKind = "backup"
-	KindRestore   JobKind = "restore"
-	KindRetention JobKind = "retention"
+	KindBackup         JobKind = "backup"
+	KindRestore        JobKind = "restore"
+	KindRetention      JobKind = "retention"
+	KindIntegrityCheck JobKind = "integrity"
 )
 
 // ScheduledJob is the pure-data descriptor of a scheduled job, suitable for
@@ -68,11 +69,11 @@ func Validate(j ScheduledJob) error {
 		return errors.Join(ErrInvalidJob, errors.New("cron_expr is required"))
 	}
 	switch j.Kind {
-	case KindBackup, KindRestore, KindRetention:
+	case KindBackup, KindRestore, KindRetention, KindIntegrityCheck:
 	case "":
 		return errors.Join(ErrInvalidJob, errors.New("kind is required"))
 	default:
-		return errors.Join(ErrInvalidJob, errors.New("kind must be backup, restore, or retention"))
+		return errors.Join(ErrInvalidJob, errors.New("kind must be backup, restore, retention, or integrity"))
 	}
 	return nil
 }

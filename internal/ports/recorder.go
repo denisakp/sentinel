@@ -40,7 +40,66 @@ type Recorder interface {
 	// true the implementation MUST count without deleting and return nil.
 	// Wraps SQL errors with "delete restore executions: %w".
 	DeleteRestoreExecutions(ctx context.Context, jobName string, policy retention.Policy) error
+
+	// RecordIntegrityCheck persists one integrity sweep as a grouped run: all
+	// per-artifact results in run.Results are written under a single
+	// transaction, sharing run.RunID and run.Trigger (spec 052 / PRD 35). An
+	// empty run.Results is a no-op success (an empty/recency-bounded repo is
+	// not a failure). Implementations enforce the result and trigger
+	// vocabularies at the store boundary (a value outside the allowed set is
+	// rejected). Wraps SQL errors with "record integrity check: %w".
+	RecordIntegrityCheck(ctx context.Context, run IntegrityRun) error
 }
+
+// IntegrityRun is one integrity sweep's durable audit unit: an identifier
+// grouping its per-artifact results plus what triggered it. Spec 052 / PRD 35.
+type IntegrityRun struct {
+	// RunID groups every IntegrityResult produced by a single sweep.
+	RunID string
+	// Trigger is what invoked the sweep: "manual" or "scheduled".
+	Trigger string
+	// Results is the per-artifact outcome collection (one row per backup).
+	Results []IntegrityResult
+}
+
+// IntegrityResult is the forensic record of a single artifact's health at a
+// point in time within an IntegrityRun. Spec 052 / PRD 35.
+type IntegrityResult struct {
+	// BackupID is the recorded backup execution id this result verifies.
+	BackupID string
+	// Job is the backup job name the artifact belongs to.
+	Job string
+	// Result is the outcome: one of "ok", "corrupted", "missing_artifact",
+	// "missing_manifest".
+	Result string
+	// StoredHash is the manifest-recorded fingerprint (may be empty).
+	StoredHash string
+	// ComputedHash is the freshly re-computed fingerprint (may be empty).
+	ComputedHash string
+	// StorageBackend is the backend the artifact lives on (local/s3/…).
+	StorageBackend string
+	// ArtifactPath is the recorded artifact reference (path or object key).
+	ArtifactPath string
+	// CheckedAt is when this artifact was verified.
+	CheckedAt time.Time
+}
+
+// Integrity result vocabulary — the four states an integrity check can record
+// (spec 052 / PRD 35). Mirrors the CHECK constraint on integrity_checks.result
+// and the verifyStatus* constants in the CLI sweep.
+const (
+	IntegrityResultOK              = "ok"
+	IntegrityResultCorrupted       = "corrupted"
+	IntegrityResultMissingArtifact = "missing_artifact"
+	IntegrityResultMissingManifest = "missing_manifest"
+)
+
+// Integrity trigger vocabulary — what invoked a sweep (spec 052 / PRD 35).
+// Mirrors the CHECK constraint on integrity_checks.trigger.
+const (
+	IntegrityTriggerManual    = "manual"
+	IntegrityTriggerScheduled = "scheduled"
+)
 
 // Execution status constants — relocated from internal/monitor/types.go.
 // Bare string constants (not a typed enum) to minimise churn in this slice;

@@ -59,6 +59,10 @@ func ValidateConfig(cfg *Configuration) error {
 
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
+	if err := validateScheduledIntegrityCheck(cfg, parser); err != nil {
+		return err
+	}
+
 	for name, job := range cfg.Databases {
 		if err := backup.ValidateDbType(job.Type); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
@@ -389,6 +393,49 @@ func validateOplogReplaySelectors(job RestoreJob) error {
 	if _, err := time.Parse(time.RFC3339, ts); err != nil {
 		return fmt.Errorf("mongodb.oplog_target_timestamp must be RFC3339 with timezone: %w", err)
 	}
+	return nil
+}
+
+// validateScheduledIntegrityCheck validates the integrity.scheduled_check block
+// (spec 052 / PRD 35). The reserved job name is rejected in the user job
+// namespace unconditionally; the cron/since/notify_on fields are validated only
+// when the check is enabled (FR-008).
+func validateScheduledIntegrityCheck(cfg *Configuration, parser cron.Parser) error {
+	// Reserved-name collision: a user backup/restore job may never take the
+	// internal scheduled-integrity job name (A6 / edge case), regardless of
+	// whether the scheduled check is enabled.
+	if _, ok := cfg.Databases[IntegrityCheckJobName]; ok {
+		return fmt.Errorf("backup job name %q is reserved for the scheduled integrity check", IntegrityCheckJobName)
+	}
+	if _, ok := cfg.Restores[IntegrityCheckJobName]; ok {
+		return fmt.Errorf("restore job name %q is reserved for the scheduled integrity check", IntegrityCheckJobName)
+	}
+
+	ic := cfg.Integrity.ScheduledCheck
+	if !ic.Enabled {
+		return nil
+	}
+
+	if strings.TrimSpace(ic.Cron) == "" {
+		return fmt.Errorf("integrity.scheduled_check.cron is required when the scheduled check is enabled")
+	}
+	if _, err := parser.Parse(ic.Cron); err != nil {
+		return fmt.Errorf("integrity.scheduled_check.cron: invalid cron expression '%s': %w", ic.Cron, err)
+	}
+
+	if ic.Since != "" {
+		if _, err := ParseSinceWindow(ic.Since); err != nil {
+			return fmt.Errorf("integrity.scheduled_check.since: %w", err)
+		}
+	}
+
+	switch ic.NotifyOn {
+	case "", "failure", "always", "never":
+		// ok
+	default:
+		return fmt.Errorf("integrity.scheduled_check.notify_on must be one of: failure, always, never")
+	}
+
 	return nil
 }
 
