@@ -1,0 +1,103 @@
+name: Benchmark (small tier, report-only)
+# PRD 41 — reproducible performance harness. Manual-dispatch only: unlike
+# lint.yml/integration.yml this job stands up a multi-container DB stack
+# (pg/mysql/mariadb/mongo) and moves ~4GB of generated seed data through
+# real dump/restore tools, which is a meaningfully heavier and slower job
+# than the rest of CI. Keeping it workflow_dispatch-only means it can never
+# regress the push/PR signal on develop/1.x while still being one click away
+# whenever someone wants a fresh small-tier reading (e.g. before cutting a
+# release, to refresh docs/benchmarks/vX.Y.Z.md).
+#
+# Report-only by design (see docs/benchmarks/README.md "Tiers"): this job
+# never fails on a slow number, only on a hard operational error, so it
+# can't become a flaky gate.
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "Engine to benchmark (postgres|mysql|mariadb|mongo|all)"
+        required: false
+        default: "all"
+      size_mb:
+        description: "Dataset size override in MB (default: small tier, ~1024)"
+        required: false
+        default: ""
+jobs:
+  bench-small:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create sentinel docker network
+        run: docker network create sentinel
+
+      - name: Start DB infra (pg/mysql/mariadb)
+        run: docker compose -f infra/docker/docker-compose.yml up -d pgsql mysql mariadb
+
+      - name: Start mongo
+        run: docker run -d --name sentinel-mongo --network sentinel --network-alias mongo -p 27017:27017 docker.io/mongo:noble
+
+      - name: Wait for DB services
+        run: bash scripts/wait-healthy.sh pgsql mysql mariadb
+
+      # infra/docker/Dockerfile.dev is a locally-maintained dev image
+      # definition (gitignored on purpose, same as the pre-existing
+      # scripts/e2e.sh precedent) so each developer/CI environment can adapt
+      # its client-tool set independently of product code. CI reconstructs
+      # the same shape scripts/e2e.sh already documents needing, so the
+      # harness runs identically to a local `make build-image`.
+      - name: Write dev Dockerfile (gitignored, environment precondition)
+        run: |
+          cat > infra/docker/Dockerfile.dev <<'DOCKERFILE'
+          FROM golang:1.24-alpine AS builder
+          WORKDIR /src
+          COPY go.mod go.sum ./
+          RUN go mod download
+          COPY . .
+          ENV GOCACHE=/root/.cache/go-build
+          RUN --mount=type=cache,target=/root/.cache/go-build \
+              CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/sentinel .
+
+          FROM alpine:3.23
+          LABEL org.opencontainers.image.title="sentinel-dev" \
+                org.opencontainers.image.description="Sentinel dev image with DB client tools for backup testing"
+          RUN apk add --no-cache \
+              bash ca-certificates curl dumb-init \
+              mariadb-client mariadb-connector-c mongodb-tools mysql-client \
+              postgresql-client tzdata time
+          WORKDIR /workspace
+          COPY --from=builder /out/sentinel /usr/local/bin/sentinel
+          RUN chmod +x /usr/local/bin/sentinel
+          ENTRYPOINT ["dumb-init", "--"]
+          CMD ["sentinel", "help"]
+          DOCKERFILE
+
+      - name: Build sentinel-dev:local
+        run: docker build -f infra/docker/Dockerfile.dev -t sentinel-dev:local .
+
+      - name: Run small-tier benchmark
+        run: |
+          ARGS="--tier small --skip-build --skip-infra --keep"
+          if [ -n "${{ inputs.engine }}" ]; then ARGS="$ARGS --engine ${{ inputs.engine }}"; fi
+          if [ -n "${{ inputs.size_mb }}" ]; then ARGS="$ARGS --size-mb ${{ inputs.size_mb }}"; fi
+          bash scripts/benchmark.sh $ARGS --out-dir .bench
+
+      - name: Show results
+        if: always()
+        run: |
+          echo "### Benchmark results (report-only, see docs/benchmarks/README.md)" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f .bench/results.md ]; then cat .bench/results.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: benchmark-small-results
+          path: .bench/results.*
+
+      - name: Teardown infra
+        if: always()
+        run: |
+          docker compose -f infra/docker/docker-compose.yml down || true
+          docker rm -f sentinel-mongo || true

@@ -5,7 +5,7 @@ NETWORK     := sentinel
 IMAGE       := sentinel-dev:local
 MONGO_NAME  := sentinel-mongo
 
-.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr lint
+.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr lint bench-small bench-matrix
 
 help:
 	@echo "Targets:"
@@ -15,6 +15,8 @@ help:
 	@echo "  infra-down  Stop and remove all infra containers"
 	@echo "  build-image Build sentinel-dev:local Docker image"
 	@echo "  clean       infra-down + remove .e2e workspace"
+	@echo "  bench-small Run the small-tier (~1GB) performance benchmark, all engines (PRD 41)"
+	@echo "  bench-matrix Alias for bench-small (see docs/benchmarks/README.md for --tier large)"
 
 ## Full run — one command, everything handled
 e2e: _network infra-up build-image
@@ -43,7 +45,16 @@ build-image:
 	@docker build -f $(INFRA_DIR)/Dockerfile.dev -t $(IMAGE) .
 
 clean: infra-down
-	@rm -rf .e2e
+	@rm -rf .e2e .bench
+
+## Performance benchmark, small tier (~1GB per engine, PRD 41). Report-only —
+## see docs/benchmarks/README.md for methodology and docs/benchmarks/v1.3.0.md
+## for the published matrix. Use scripts/benchmark.sh directly for --tier
+## large (operator-run only) or a single --engine.
+bench-small: _network infra-up build-image
+	@bash scripts/benchmark.sh --tier small --skip-build
+
+bench-matrix: bench-small
 
 ## Forbid raw dump-tool stderr inside error formatters in dump-adapter packages.
 ## Banned: fmt.Errorf / errors.New / fmt.Sprintf taking stdErr.String() (or stderr.String()).
