@@ -90,6 +90,7 @@ func init() {
 	RootCmd.AddCommand(dbCmd)
 	RootCmd.AddCommand(SecurityCmd)
 	RootCmd.AddCommand(StorageCmd)
+	RootCmd.AddCommand(repairCmd)
 	RootCmd.AddCommand(versionCmd)
 }
 

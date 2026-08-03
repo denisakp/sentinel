@@ -29,6 +29,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 - [Repository-wide integrity sweep (`backup verify --all`)](./integrity-sweep.md)
 
 ## Incidents
+- [Repository state repair (`sentinel repair`)](./state-repair.md)
 - [Stale lock recovery](./stale-lock-recovery.md)
 - [Scheduler crash recovery](./scheduler-crash-recovery.md)
 - [Failed backup triage](./failed-backup-triage.md)

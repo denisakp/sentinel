@@ -32,6 +32,14 @@ var (
 	ErrDoctorForwardIncompat = errors.New("monitor schema is ahead of this binary")
 	ErrDoctorMissing         = errors.New("monitor database is missing")
 	ErrDoctorCorrupt         = errors.New("monitor database is corrupt or unreadable")
+
+	// `sentinel repair` exit-code carriers (PRD 37). ErrRepairInternal marks an
+	// operational failure that prevented reconciliation (config/backend/db);
+	// ErrRepairInconsistent marks that manual-action inconsistencies remain
+	// (artifact_missing / chain_broken) so repair can gate CI/cron. Schema
+	// refusal reuses the doctor sentinels above.
+	ErrRepairInternal     = errors.New("repair internal error")
+	ErrRepairInconsistent = errors.New("repair: unresolved inconsistencies require manual action")
 )
 
 // Code translates an error returned from RootCmd.Execute() into a process exit code.
@@ -61,6 +69,10 @@ func Code(err error) int {
 		return 3
 	case errors.Is(err, ErrDoctorCorrupt):
 		return 4
+	case errors.Is(err, ErrRepairInternal):
+		return 4
+	case errors.Is(err, ErrRepairInconsistent):
+		return 5
 	default:
 		return 1
 	}
