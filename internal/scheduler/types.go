@@ -1,38 +1,12 @@
+// Runtime time source for the scheduler. Schedule reporting types
+// (JobInfo, JobStatus, ExecutionRecord) live in internal/domain/schedule;
+// this file no longer re-exports them.
 package scheduler
 
 import "time"
 
-// JobInfo provides summary information for a scheduled job.
-type JobInfo struct {
-	Name           string
-	ScheduleExpr   string
-	NextExecution  time.Time
-	LastExecution  time.Time
-	LastStatus     string
-	ExecutionCount int
-}
-
-// JobStatus provides detailed status information for a scheduled job.
-type JobStatus struct {
-	Name             string
-	Schedule         string
-	Enabled          bool
-	NextExecution    time.Time
-	LastExecution    time.Time
-	LastStatus       string
-	LastError        string
-	ExecutionHistory []ExecutionRecord
-}
-
-// ExecutionRecord captures a single execution event.
-type ExecutionRecord struct {
-	Timestamp time.Time
-	Duration  time.Duration
-	Status    string
-	Error     string
-}
-
-// Clock provides time control for scheduling and tests.
+// Clock abstracts the time source used by the scheduler runtime so tests can
+// inject a deterministic clock.
 type Clock interface {
 	Now() time.Time
 }

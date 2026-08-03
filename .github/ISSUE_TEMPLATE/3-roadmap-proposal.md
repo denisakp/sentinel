@@ -32,24 +32,26 @@ List what should explicitly not be included.
 
 ## Roadmap Placement
 
-Reference `docs/roadmap/ROADMAP.md` and select one:
+Check [`docs/roadmap/ROADMAP.md`](../../docs/roadmap/ROADMAP.md) and select one:
 
-- [ ] Fits current `v1.1.0` scope
-- [ ] Fits current `v1.2.0` scope
-- [ ] Fits current `v1.3.0` scope
-- [ ] Fits current `v2.0.0` scope
+- [ ] Fits an existing "Next" milestone
 - [ ] Proposes a new milestone or scope change
 
 ## Affected Areas
 
+- [ ] `internal/domain`
+- [ ] `internal/ports`
+- [ ] `internal/adapters/dump`
+- [ ] `internal/adapters/restore`
+- [ ] `internal/adapters/storage`
+- [ ] `internal/adapters/notifier`
+- [ ] `internal/adapters/crypto`
+- [ ] `internal/adapters/lock`
+- [ ] `internal/adapters/monitor`
+- [ ] `internal/adapters/tls`
 - [ ] `internal/cli`
 - [ ] `internal/config`
 - [ ] `internal/scheduler`
-- [ ] `internal/monitor`
-- [ ] `internal/retention`
-- [ ] `internal/storage`
-- [ ] `pkg/backup`
-- [ ] `pkg/restore`
 - [ ] docs/tests only
 
 ## Acceptance Criteria

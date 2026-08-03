@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/spf13/cobra"
 )
@@ -17,8 +18,10 @@ import (
 var monitorCmd = &cobra.Command{
 	Use:   "monitor",
 	Short: "Monitor backup history and statistics",
-	Long:  "Query backup execution history, statistics, and export records for compliance.\n\nExamples:\n  sentinel monitor list --config sentinel.yaml --last 7d\n  sentinel monitor stats --config sentinel.yaml --job prod-postgres",
+	Long:  "Query backup execution history, statistics, and export records for compliance.\n\nExamples:\n  sentinel monitor list --config sentinel.yaml --last 7d\n  sentinel monitor stats --config sentinel.yaml\n  sentinel monitor stats --config sentinel.yaml --job prod-postgres",
 }
+
+const noMatchingRecordsMessage = "no matching records"
 
 var monitorListCmd = &cobra.Command{
 	Use:   "list",
@@ -87,9 +90,13 @@ var monitorStatsCmd = &cobra.Command{
 		}
 		defer mon.Close()
 
-		stats, err := mon.GetStatistics(context.Background(), job, days)
+		stats, err := loadStatistics(context.Background(), mon, job, days)
 		if err != nil {
 			return err
+		}
+		if stats.TotalExecutions == 0 {
+			printNoMatchingRecords(cmd)
+			return nil
 		}
 
 		printStats(cmd, stats)
@@ -179,8 +186,12 @@ func init() {
 	monitorCmd.AddCommand(monitorStatsCmd)
 	monitorCmd.AddCommand(monitorShowCmd)
 	monitorCmd.AddCommand(monitorExportCmd)
+	monitorCmd.AddCommand(monitorDoctorCmd)
 
 	monitorCmd.PersistentFlags().StringP("config", "c", "", "Path to YAML configuration file")
+
+	monitorDoctorCmd.Flags().Bool("repair", false, "Apply any pending monitor schema migrations")
+	monitorDoctorCmd.Flags().Bool("json", false, "Emit the doctor report as JSON")
 
 	monitorListCmd.Flags().StringP("last", "l", "7d", "Time range (e.g., '7d', '30d', '12h')")
 	monitorListCmd.Flags().String("job", "", "Filter by backup job name")
@@ -191,7 +202,7 @@ func init() {
 	monitorListCmd.Flags().Int("limit", 50, "Max results to return")
 	monitorListCmd.Flags().Int("offset", 0, "Pagination offset")
 
-	monitorStatsCmd.Flags().String("job", "", "Backup job name")
+	monitorStatsCmd.Flags().String("job", "", "Backup job name (optional; omit for all jobs)")
 	monitorStatsCmd.Flags().StringP("last", "l", "30d", "Time range (e.g., '7d', '30d', '12h')")
 
 	monitorShowCmd.Flags().String("id", "", "Backup execution ID")
@@ -207,29 +218,17 @@ func init() {
 
 func loadConfigFromFlags(cmd *cobra.Command) (*config.Configuration, error) {
 	path, _ := cmd.Flags().GetString("config")
-	if path == "" {
-		return nil, fmt.Errorf("--config is required")
-	}
-
-	cfg, err := config.LoadConfig(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := config.ValidateConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
+	return LoadAndValidateConfig(path)
 }
 
-func buildFilterFromFlags(cmd *cobra.Command) (*monitor.Filter, error) {
+func buildFilterFromFlags(cmd *cobra.Command) (*ports.Filter, error) {
 	job, _ := cmd.Flags().GetString("job")
 	status, _ := cmd.Flags().GetString("status")
 	storage, _ := cmd.Flags().GetString("storage")
 	dbType, _ := cmd.Flags().GetString("type")
 	last, _ := cmd.Flags().GetString("last")
 
-	filter := &monitor.Filter{
+	filter := &ports.Filter{
 		BackupName:     job,
 		Status:         status,
 		DatabaseType:   dbType,
@@ -303,7 +302,7 @@ func parseInt(value string) (int, error) {
 	return out, nil
 }
 
-func printJSON(cmd *cobra.Command, executions []monitor.Execution) error {
+func printJSON(cmd *cobra.Command, executions []ports.Execution) error {
 	data, err := json.MarshalIndent(executions, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal json output: %w", err)
@@ -312,7 +311,7 @@ func printJSON(cmd *cobra.Command, executions []monitor.Execution) error {
 	return nil
 }
 
-func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *monitor.Filter) error {
+func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *ports.Filter) error {
 	data, err := mon.ExportHistory(context.Background(), "csv", filter)
 	if err != nil {
 		return err
@@ -321,20 +320,55 @@ func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *monitor.Filter) 
 	return nil
 }
 
-func printTable(cmd *cobra.Command, executions []monitor.Execution) error {
-	cmd.Printf("TIMESTAMP\tJOB\tSTATUS\tDURATION\tSIZE\tSTORAGE\n")
+func printTable(cmd *cobra.Command, executions []ports.Execution) error {
+	if len(executions) == 0 {
+		printNoMatchingRecords(cmd)
+		return nil
+	}
+
+	headers := []string{"ID", "JOB", "STATUS", "TIMESTAMP", "DURATION", "ERROR"}
+	headers = []string{"ID", "JOB", "TYPE", "CHAIN", "STATUS", "TIMESTAMP", "DURATION", "DELTA", "ERROR"}
+	rows := make([][]string, 0, len(executions))
 	for _, exec := range executions {
 		duration := utils.FmtDuration(time.Duration(exec.DurationMs) * time.Millisecond)
-		cmd.Printf("%s\t%s\t%s\t%s\t%d\t%s\n",
-			utils.FmtTimestamp(exec.Timestamp),
+		chain := "-"
+		if exec.ChainID != "" {
+			chain = fmt.Sprintf("%s#%d", exec.ChainID, exec.ChainIndex)
+		}
+		delta := "-"
+		if exec.DeltaSizeBytes > 0 {
+			delta = fmt.Sprintf("%d", exec.DeltaSizeBytes)
+		}
+		backupType := exec.BackupType
+		if backupType == "" {
+			backupType = "full"
+		}
+		rows = append(rows, []string{
+			exec.ID,
 			exec.BackupName,
+			backupType,
+			chain,
 			exec.Status,
+			utils.FmtTimestamp(exec.Timestamp),
 			duration,
-			exec.FileSizeBytes,
-			exec.StorageBackend,
-		)
+			delta,
+			truncatePreview(exec.ErrorMessage, defaultErrorPreviewLen),
+		})
 	}
+
+	cmd.Print(formatAlignedTable(headers, rows))
 	return nil
+}
+
+func loadStatistics(ctx context.Context, mon *monitor.Monitor, job string, days int) (*monitor.Statistics, error) {
+	if strings.TrimSpace(job) == "" {
+		return mon.GetAggregateStatistics(ctx, days)
+	}
+	return mon.GetStatistics(ctx, job, days)
+}
+
+func printNoMatchingRecords(cmd *cobra.Command) {
+	cmd.Println(noMatchingRecordsMessage)
 }
 
 func printStats(cmd *cobra.Command, stats *monitor.Statistics) {
@@ -361,7 +395,7 @@ func printStats(cmd *cobra.Command, stats *monitor.Statistics) {
 	}
 }
 
-func printExecution(cmd *cobra.Command, exec *monitor.Execution) {
+func printExecution(cmd *cobra.Command, exec *ports.Execution) {
 	cmd.Printf("Execution Details\n")
 	cmd.Printf("=================\n\n")
 	cmd.Printf("ID: %s\n", exec.ID)
@@ -370,8 +404,21 @@ func printExecution(cmd *cobra.Command, exec *monitor.Execution) {
 	cmd.Printf("Started: %s\n", utils.FmtTimestamp(exec.Timestamp))
 	cmd.Printf("Duration: %s\n\n", utils.FmtDuration(time.Duration(exec.DurationMs)*time.Millisecond))
 	cmd.Printf("Status: %s\n", exec.Status)
+	if exec.BackupType != "" {
+		cmd.Printf("Backup Type: %s\n", exec.BackupType)
+	}
+	if exec.ChainID != "" {
+		cmd.Printf("Chain ID: %s\n", exec.ChainID)
+		cmd.Printf("Chain Index: %d\n", exec.ChainIndex)
+	}
 	cmd.Printf("File: %s\n", exec.FilePath)
 	cmd.Printf("Size: %d\n", exec.FileSizeBytes)
+	if exec.DeltaSizeBytes > 0 {
+		cmd.Printf("Delta Size: %d\n", exec.DeltaSizeBytes)
+	}
+	if exec.FullBackupSizeBytes > 0 {
+		cmd.Printf("Full Backup Size: %d\n", exec.FullBackupSizeBytes)
+	}
 	if exec.Checksum != "" {
 		cmd.Printf("Checksum: %s\n", exec.Checksum)
 	}

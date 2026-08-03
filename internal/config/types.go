@@ -20,6 +20,11 @@ type TLSConfig struct {
 
 	// ClientKey is the path to the client private key file (mutual TLS)
 	ClientKey string `yaml:"client_key,omitempty"`
+
+	// ClientKeyPasswordEnv names an environment variable that holds the passphrase
+	// for an encrypted ClientKey. The passphrase value itself is never stored in
+	// the config file or passed on the command line.
+	ClientKeyPasswordEnv string `yaml:"client_key_password_env,omitempty"`
 }
 
 // SchedulerConfig holds global scheduler and concurrency settings.
@@ -38,6 +43,112 @@ type SchedulerConfig struct {
 
 	// LockDir is the directory for job lock files (default: /var/run/sentinel)
 	LockDir string `yaml:"lock_dir"`
+}
+
+// IntegrityCheckJobName is the reserved scheduler job name used by the
+// cron-driven integrity sweep. It lives in the internal
+// `__`-prefixed namespace and MUST NOT collide with a user backup/restore job
+// (config validation rejects a user job with this exact name).
+const IntegrityCheckJobName = "__integrity_check"
+
+// IntegrityConfig holds repository-wide integrity settings. It is the shared
+// home for the `backup verify --all` sweep and the sibling
+// scheduled-integrity feature that will attach a `scheduled_check`
+// sub-block here.
+type IntegrityConfig struct {
+	// Algorithm is the hash algorithm used for integrity verification. Only
+	// "sha256" is supported today; empty means the default (sha256).
+	Algorithm string `yaml:"algorithm,omitempty"`
+
+	// VerifyAfterUpload is the default for backup jobs: re-download the
+	// artifact from its storage backend immediately after upload/write and
+	// re-hash it against the manifest hash, failing the backup on mismatch.
+	// Opt-in; default false (zero behaviour/cost change when unset). A
+	// per-job `verify_after_upload` (BackupJob.VerifyAfterUpload) overrides
+	// this default.
+	VerifyAfterUpload bool `yaml:"verify_after_upload,omitempty"`
+
+	// ScheduledCheck declares an optional cron-driven repository integrity
+	// sweep. When enabled, the scheduler registers a
+	// reserved `__integrity_check` job that runs the same sweep as
+	// `backup verify --all`, records each run in the integrity_checks table,
+	// and notifies on failure.
+	ScheduledCheck IntegrityScheduledCheck `yaml:"scheduled_check,omitempty"`
+}
+
+// IntegrityScheduledCheck configures the cron-driven integrity sweep.
+// It attaches under integrity.scheduled_check.
+type IntegrityScheduledCheck struct {
+	// Enabled turns the scheduled integrity sweep on. Default false (opt-in).
+	Enabled bool `yaml:"enabled"`
+
+	// Cron is the 5-field cron schedule the sweep fires on. Required when
+	// Enabled is true.
+	Cron string `yaml:"cron,omitempty"`
+
+	// Since is an optional recency window (e.g. "30d", "4w", "720h") that
+	// restricts the sweep to backups newer than the window. Empty = all.
+	Since string `yaml:"since,omitempty"`
+
+	// NotifyOn selects when a failure notification is dispatched: "failure"
+	// (default; page on any non-ok result), "always" (also confirm clean
+	// runs), or "never" (silent). Empty means the default ("failure").
+	NotifyOn string `yaml:"notify_on,omitempty"`
+
+	// Job optionally restricts the sweep to a single named backup job.
+	Job string `yaml:"job,omitempty"`
+}
+
+// RestoreRuntimeConfig holds shared runtime settings for restore execution.
+type RestoreRuntimeConfig struct {
+	// StagingDir is the base directory used for staged restore artifacts.
+	StagingDir string `yaml:"staging_dir,omitempty"`
+
+	// KeepFile retains staged artifacts after execution for debugging.
+	KeepFile bool `yaml:"keep_file,omitempty"`
+}
+
+// IncrementalBackupConfig holds chain policy and engine pre-check settings.
+type IncrementalBackupConfig struct {
+	Enabled bool `yaml:"enabled"`
+
+	// MaxChainDepth controls when a chain is reset by producing a new full backup.
+	// Default is 6 when omitted.
+	MaxChainDepth int `yaml:"max_chain_depth,omitempty"`
+
+	// WalSummaryCheck verifies PostgreSQL wal_summary=on before incremental backup.
+	WalSummaryCheck bool `yaml:"wal_summary_check,omitempty"`
+
+	// BinlogCheck verifies MySQL/MariaDB log_bin=ON before incremental backup.
+	BinlogCheck bool `yaml:"binlog_check,omitempty"`
+
+	// OplogWindowWarnHours emits a warning when MongoDB oplog window is below threshold.
+	OplogWindowWarnHours int `yaml:"oplog_window_warn_hours,omitempty"`
+}
+
+// MySQLConfig holds MySQL/MariaDB-specific options.
+type MySQLConfig struct {
+	// BinlogPath is a local or mounted path readable by Sentinel.
+	BinlogPath string `yaml:"binlog_path,omitempty"`
+}
+
+// CompressionConfig holds engine-agnostic pipeline compression settings.
+// Compression is an opt-in streaming stage inserted
+// between the dump and the hash/encrypt steps; it primarily targets the
+// uncompressed engines (MySQL/MariaDB). Its presence is a pointer on BackupJob
+// and GlobalDefaults so a job can be distinguished from "unset" (inherit
+// defaults) — mirroring the RetentionPolicy inheritance pattern.
+type CompressionConfig struct {
+	// Enabled turns pipeline compression on. Default false (opt-in): no
+	// behaviour change unless explicitly enabled.
+	Enabled bool `yaml:"enabled"`
+
+	// Algorithm is one of: gzip, zstd, none (default: zstd when enabled and
+	// omitted). "none" means no pipeline compression even when enabled.
+	Algorithm string `yaml:"algorithm,omitempty"`
+
+	// Level is the codec level: gzip 1–9, zstd 1–19 (0 = per-algorithm default).
+	Level int `yaml:"level,omitempty"`
 }
 
 // AzureAuthConfig specifies authentication method for Azure Blob Storage.
@@ -87,14 +198,24 @@ type Configuration struct {
 	// Restore job definitions keyed by job name
 	Restores map[string]RestoreJob `yaml:"restores,omitempty"`
 
+	// Restore holds shared runtime settings for restore execution.
+	Restore RestoreRuntimeConfig `yaml:"restore,omitempty"`
+
 	// Named storage configurations (reusable references)
 	Storages map[string]StorageConfig `yaml:"storages,omitempty"`
 
 	// Global concurrency limit (default: 3) — kept for backward compatibility
 	MaxConcurrentBackups int `yaml:"max_concurrent_backups"`
 
+	// Global concurrency limit for `restore run --all` (default: 1 — serial;
+	// parallelism is opt-in).
+	MaxConcurrentRestores int `yaml:"max_concurrent_restores"`
+
 	// Scheduler holds advanced concurrency and timeout settings
 	Scheduler SchedulerConfig `yaml:"scheduler,omitempty"`
+
+	// Integrity holds repository-wide integrity settings.
+	Integrity IntegrityConfig `yaml:"integrity,omitempty"`
 
 	// Log format: "json" or "text" (default: "json")
 	LogFormat string `yaml:"log_format"`
@@ -102,20 +223,29 @@ type Configuration struct {
 	// Path to SQLite backup history database (default: ~/.sentinel/history.db)
 	HistoryDBPath string `yaml:"history_db_path"`
 
-	// EncryptionKeyEnv is the env var name for the master encryption key (SENTINEL_MASTER_KEY)
+	// EncryptionKeyEnv is an optional env var name for the master encryption key.
+	// Encryption is enabled only when this or EncryptionKeyFile is explicitly configured.
 	EncryptionKeyEnv string `yaml:"encryption_key_env,omitempty"`
 
-	// EncryptionKeyFile is the path to a file containing the base64-encoded master key
+	// EncryptionKeyFile is an optional path to a file containing the base64-encoded master key.
+	// Encryption is enabled only when this or EncryptionKeyEnv is explicitly configured.
 	EncryptionKeyFile string `yaml:"encryption_key_file,omitempty"`
 }
 
 // GlobalDefaults contains default values applied to all backup jobs
 type GlobalDefaults struct {
+	// Default cron schedule for backup jobs without an explicit schedule
+	Schedule string `yaml:"schedule,omitempty"`
+
 	// Default storage configuration
 	Storage StorageConfig `yaml:"storage"`
 
 	// Default retention policy
 	Retention RetentionPolicy `yaml:"retention"`
+
+	// Default pipeline compression settings (inherited by jobs without their
+	// own compression: block).
+	Compression *CompressionConfig `yaml:"compression,omitempty"`
 
 	// Default notification channels
 	Notifications []NotificationChannel `yaml:"notifications"`
@@ -170,6 +300,25 @@ type BackupJob struct {
 	// MongoDB: gzip, oplog, archive
 	DatabaseOptions map[string]interface{} `yaml:"database_options,omitempty"`
 
+	// PITREnabled enables capture of PITR-related metadata for this backup job.
+	PITREnabled bool `yaml:"pitr_enabled,omitempty"`
+
+	// WALArchivePrefix describes where archived WAL segments can be retrieved.
+	WALArchivePrefix string `yaml:"wal_archive_prefix,omitempty"`
+
+	// IncrementalMetadataEnabled enables lineage metadata capture for future incremental restores.
+	IncrementalMetadataEnabled bool `yaml:"incremental_metadata_enabled,omitempty"`
+
+	// IncrementalBackup enables chain-based incremental backup behavior.
+	IncrementalBackup *IncrementalBackupConfig `yaml:"incremental_backup,omitempty"`
+
+	// MySQL holds MySQL/MariaDB engine-specific options.
+	MySQL MySQLConfig `yaml:"mysql,omitempty"`
+
+	// Compression holds engine-agnostic pipeline compression settings. When
+	// nil the job inherits defaults.compression.
+	Compression *CompressionConfig `yaml:"compression,omitempty"`
+
 	// Cron expression for scheduling (5-field format)
 	Schedule string `yaml:"schedule,omitempty"`
 
@@ -181,6 +330,11 @@ type BackupJob struct {
 
 	// TLS holds TLS/SSL settings for the database connection
 	TLS *TLSConfig `yaml:"tls,omitempty"`
+
+	// VerifyAfterUpload overrides the top-level integrity.verify_after_upload
+	// default for this job (nil = inherit; loader.go resolves it to a
+	// non-nil pointer after applying defaults).
+	VerifyAfterUpload *bool `yaml:"verify_after_upload,omitempty"`
 }
 
 // StorageConfig defines a storage backend for backups
@@ -231,6 +385,28 @@ type RetentionPolicy struct {
 
 	// Dry-run mode: preview deletions without executing
 	DryRun bool `yaml:"dry_run,omitempty"`
+
+	// GFS enables Grandfather-Father-Son calendar-tier retention alongside the
+	// flat keep_last/keep_days rules. When set, a backup is kept if any rule
+	// (flat or GFS) keeps it. Omit for unchanged behaviour.
+	GFS *GFSPolicy `yaml:"gfs,omitempty"`
+}
+
+// GFSPolicy defines Grandfather-Father-Son calendar-tier retention. Each field
+// is a count of the most-recent occupied calendar buckets whose newest backup is
+// retained. All values MUST be >= 0; bucketing is computed in UTC.
+type GFSPolicy struct {
+	// Keep the newest backup of each of the last N calendar days
+	KeepDaily int `yaml:"keep_daily,omitempty"`
+
+	// Keep the newest backup of each of the last N ISO weeks (Mon–Sun)
+	KeepWeekly int `yaml:"keep_weekly,omitempty"`
+
+	// Keep the newest backup of each of the last N calendar months
+	KeepMonthly int `yaml:"keep_monthly,omitempty"`
+
+	// Keep the newest backup of each of the last N calendar years
+	KeepYearly int `yaml:"keep_yearly,omitempty"`
 }
 
 // NotificationChannel defines how to send backup alerts (discriminated union)

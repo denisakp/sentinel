@@ -1,16 +1,22 @@
 name: sentinel-databases
-
 volumes:
   pg-data:
   mysql-data:
   mariadb-data:
   rustfs-data:
   rustfs-logs:
-
+  mongo-data:
 networks:
   sentinel:
-
+    external: true
 services:
+  mongo:
+    image: docker.io/mongo:noble
+    hostname: mongo
+    networks:
+      - sentinel
+    volumes:
+      - mongo-data:/data/db
   mysql:
     image: docker.io/mysql:lts
     networks:
@@ -24,9 +30,8 @@ services:
       MYSQL_DATABASE: sentinel
       MYSQL_USER: sentinel
       MYSQL_PASSWORD: sentinel
-
   mariadb:
-    image: docker.io/mariadb:11.2.4-jammy
+    image: docker.io/mariadb:lts
     hostname: maria
     networks:
       - sentinel
@@ -39,7 +44,6 @@ services:
       MYSQL_DATABASE: sentinel
       MYSQL_USER: sentinel
       MYSQL_PASSWORD: sentinel
-
   phpmyadmin:
     image: docker.io/phpmyadmin
     networks:
@@ -49,9 +53,11 @@ services:
     environment:
       PMA_ARBITRARY: 1
       PMA_HOST: mysql
-
   pgsql:
-    image: docker.io/postgres:18-alpine
+    # PG17+ is the project's documented floor (WAL-based incremental);
+    # also keeps the server compatible with the pg18 client tools in the
+    # dev image (pg_dump 18 emits `SET transaction_timeout`, a PG17+ GUC).
+    image: docker.io/postgres:17-alpine
     hostname: pgdb
     networks:
       - sentinel
@@ -64,7 +70,6 @@ services:
       POSTGRES_DB: sentinel
       POSTGRES_USER: sentinel
       POSTGRES_PASSWORD: sentinel
-
   pgadmin:
     image: docker.io/dpage/pgadmin4:9
     networks:
@@ -74,7 +79,6 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: user@sentinel.io
       PGADMIN_DEFAULT_PASSWORD: secret1234
-
   rustfs:
     image: rustfs/rustfs:latest
     security_opt:
@@ -87,3 +91,6 @@ services:
     volumes:
       - rustfs-data:/data
       - rustfs-logs:/logs
+    environment:
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_SECRET_KEY: minioadmin

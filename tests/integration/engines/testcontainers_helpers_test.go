@@ -5,12 +5,42 @@ package engines
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+func startContainerOrSkip(t *testing.T, ctx context.Context, req testcontainers.ContainerRequest, name string) testcontainers.Container {
+	t.Helper()
+
+	container, err := safeGenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "rootless Docker not found") ||
+			strings.Contains(errMsg, "Cannot connect to the Docker daemon") ||
+			strings.Contains(errMsg, "docker socket") {
+			t.Skipf("Skipping %s integration test: docker is not available (%v)", name, err)
+		}
+		t.Fatalf("Failed to start %s container: %v", name, err)
+	}
+
+	return container
+}
+
+func safeGenericContainer(ctx context.Context, req testcontainers.GenericContainerRequest) (container testcontainers.Container, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("testcontainers panic: %v", r)
+		}
+	}()
+	return testcontainers.GenericContainer(ctx, req)
+}
 
 // PostgresContainer encapsulates a PostgreSQL testcontainer instance with connection details.
 type PostgresContainer struct {
@@ -37,13 +67,7 @@ func StartPostgres(t *testing.T, ctx context.Context) *PostgresContainer {
 		WaitingFor: wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60 * time.Second),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("Failed to start postgres container: %v", err)
-	}
+	container := startContainerOrSkip(t, ctx, req, "postgres")
 
 	host, err := container.Host(ctx)
 	if err != nil {
@@ -91,13 +115,7 @@ func StartMySQL(t *testing.T, ctx context.Context) *MySQLContainer {
 		WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").WithStartupTimeout(60 * time.Second),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("Failed to start mysql container: %v", err)
-	}
+	container := startContainerOrSkip(t, ctx, req, "mysql")
 
 	host, err := container.Host(ctx)
 	if err != nil {
@@ -148,13 +166,7 @@ func StartMariaDB(t *testing.T, ctx context.Context) *MariaDBContainer {
 		WaitingFor: wait.ForLog("mariadbd: ready for connections").WithOccurrence(2).WithStartupTimeout(60 * time.Second),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("Failed to start mariadb container: %v", err)
-	}
+	container := startContainerOrSkip(t, ctx, req, "mariadb")
 
 	host, err := container.Host(ctx)
 	if err != nil {
@@ -204,13 +216,7 @@ func StartMongoDB(t *testing.T, ctx context.Context) *MongoDBContainer {
 		WaitingFor: wait.ForLog("Waiting for connections").WithStartupTimeout(60 * time.Second),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("Failed to start mongodb container: %v", err)
-	}
+	container := startContainerOrSkip(t, ctx, req, "mongodb")
 
 	host, err := container.Host(ctx)
 	if err != nil {

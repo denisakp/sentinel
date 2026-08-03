@@ -2,7 +2,28 @@ package config
 
 import (
 	"fmt"
+	"time"
+
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 )
+
+// BinlogTargetPosition identifies a replay stop point in MySQL/MariaDB binlogs.
+type BinlogTargetPosition struct {
+	File string `yaml:"file"`
+	Pos  int64  `yaml:"pos"`
+}
+
+// MySQLRestoreConfig holds MySQL/MariaDB incremental replay selectors.
+type MySQLRestoreConfig struct {
+	BinlogTargetTime     string                `yaml:"binlog_target_time,omitempty"`
+	BinlogTargetPosition *BinlogTargetPosition `yaml:"binlog_target_position,omitempty"`
+}
+
+// MongoDBRestoreConfig holds MongoDB-specific restore options for oplog replay.
+type MongoDBRestoreConfig struct {
+	// OplogTargetTimestamp is an optional RFC3339 timestamp at which oplog replay stops.
+	OplogTargetTimestamp string `yaml:"oplog_target_timestamp,omitempty"`
+}
 
 // RestoreJob represents a scheduled restore operation in YAML config
 type RestoreJob struct {
@@ -40,6 +61,21 @@ type RestoreJob struct {
 	// Cron schedule for restore testing (5-field format)
 	Schedule string `yaml:"schedule"`
 
+	// RestoreMode selects restore execution mode: full, pitr, or incremental.
+	RestoreMode string `yaml:"restore_mode,omitempty"`
+
+	// PITRTimestamp is the operator-supplied timestamp for PITR requests.
+	PITRTimestamp string `yaml:"pitr_timestamp,omitempty"`
+
+	// PITRTargetTimeline optionally selects a recovery timeline for PITR.
+	PITRTargetTimeline string `yaml:"pitr_target_timeline,omitempty"`
+
+	// IncrementalFromBackup references the baseline backup for incremental planning.
+	IncrementalFromBackup string `yaml:"incremental_from_backup,omitempty"`
+
+	// ConfirmFullFallback authorizes fallback to full restore when required.
+	ConfirmFullFallback bool `yaml:"confirm_full_fallback,omitempty"`
+
 	// Restore-specific options
 	RestoreOptions map[string]interface{} `yaml:"restore_options,omitempty"`
 
@@ -55,8 +91,25 @@ type RestoreJob struct {
 	// What to do if data exists: "ignore", "replace", "error" (default: "error")
 	ConflictStrategy string `yaml:"conflict_strategy,omitempty"`
 
+	// AllowCascade is required for PostgreSQL replace operations that may
+	// remove dependent objects through DROP ... CASCADE.
+	AllowCascade bool `yaml:"allow_cascade,omitempty"`
+
+	// StagingDir overrides the global restore staging directory for this job.
+	StagingDir string `yaml:"staging_dir,omitempty"`
+
 	// Retention policy for backup files used in restore
 	Retention RestoreRetentionPolicy `yaml:"retention,omitempty"`
+
+	// KeepFile prevents the staged restore artifact from being deleted after the
+	// restore attempt.  Useful for debugging restore failures.
+	KeepFile bool `yaml:"keep_file,omitempty"`
+
+	// MySQL holds MySQL/MariaDB restore selectors for binlog-based replay.
+	MySQL MySQLRestoreConfig `yaml:"mysql,omitempty"`
+
+	// MongoDB holds MongoDB-specific restore options for oplog replay.
+	MongoDB MongoDBRestoreConfig `yaml:"mongodb,omitempty"`
 }
 
 // RestoreRetentionPolicy defines how long to keep restore backup files
@@ -73,7 +126,7 @@ type RestoreRetentionPolicy struct {
 
 // RestoreBackupSource specifies where to read the backup from
 type RestoreBackupSource struct {
-	// Source type: "local", "s3", "google-drive", "azure", "gcs"
+	// Source type: "local", "s3", or "gcs"
 	Type string `yaml:"type"`
 
 	// Local filesystem path
@@ -131,6 +184,18 @@ type RestoreConfiguration struct {
 }
 
 // RestoreDefaults provides default values for all restore jobs
+// AdvancedRestoreRequest captures normalized advanced restore input consumed by planner/executor flows.
+type AdvancedRestoreRequest struct {
+	RestoreMode           string
+	PITRTimestampUTC      *time.Time
+	PITRInputValue        string
+	PITRTargetTimeline    string
+	IncrementalFromBackup string
+	ConfirmFullFallback   bool
+	BinlogTargetTime      string
+	BinlogTargetPosition  *BinlogTargetPosition
+}
+
 type RestoreDefaults struct {
 	// Default verification on/off
 	VerifyAfterRestore bool `yaml:"verify_after_restore,omitempty"`
@@ -164,6 +229,9 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	if job.Type == "" {
 		return fmt.Errorf("restore job type is required")
 	}
+	if job.StagingDir == "" {
+		return fmt.Errorf("staging_dir is required")
+	}
 
 	// Validate type
 	validTypes := map[string]bool{
@@ -194,9 +262,21 @@ func ValidateRestoreJob(job *RestoreJob) error {
 		}
 	}
 
-	// Validate schedule
-	if job.Schedule == "" {
+	// Validate schedule — only required for enabled jobs
+	enabled := job.Enabled == nil || *job.Enabled
+	if enabled && job.Schedule == "" {
 		return fmt.Errorf("restore schedule (cron) is required")
+	}
+
+	// Validate restore_options.additional_args parses at config load.
+	if raw, ok := job.RestoreOptions["additional_args"]; ok {
+		s, isString := raw.(string)
+		if !isString {
+			return fmt.Errorf("restore_options.additional_args must be a string, got %T", raw)
+		}
+		if _, err := backup.ParseAdditionalArgs(s); err != nil {
+			return fmt.Errorf("restore_options.additional_args: %w", err)
+		}
 	}
 
 	// Validate conflict strategy if specified
@@ -209,6 +289,12 @@ func ValidateRestoreJob(job *RestoreJob) error {
 		if !validStrategies[job.ConflictStrategy] {
 			return fmt.Errorf("invalid conflict_strategy: %s", job.ConflictStrategy)
 		}
+	}
+	if job.AllowCascade && job.Type != "postgres" {
+		return fmt.Errorf("allow_cascade is only supported for postgres restores")
+	}
+	if job.Type == "postgres" && job.ConflictStrategy == "replace" && !job.AllowCascade {
+		return fmt.Errorf("conflict_strategy=replace for postgres requires allow_cascade: true (DROP ... CASCADE may remove dependent objects)")
 	}
 
 	// Validate retention policy
@@ -224,6 +310,23 @@ func ValidateRestoreJob(job *RestoreJob) error {
 	}
 	if job.BackupSource.BackupPath == "" {
 		return fmt.Errorf("backup_source.backup_path is required")
+	}
+
+	switch job.BackupSource.Type {
+	case "local":
+		if job.BackupSource.LocalPath == "" {
+			return fmt.Errorf("backup_source.local_path is required for local type")
+		}
+	case "s3":
+		if job.BackupSource.S3Bucket == "" {
+			return fmt.Errorf("backup_source.s3_bucket is required for s3 type")
+		}
+	case "gcs":
+		if job.BackupSource.GCSBucket == "" {
+			return fmt.Errorf("backup_source.gcs_bucket is required for gcs type")
+		}
+	default:
+		return fmt.Errorf("unsupported backup_source.type: %s", job.BackupSource.Type)
 	}
 
 	return nil

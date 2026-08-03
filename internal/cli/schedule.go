@@ -2,14 +2,18 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/scheduler"
 	"github.com/spf13/cobra"
 )
@@ -20,21 +24,19 @@ var scheduleCmd = &cobra.Command{
 	Long:  "Start, stop, list, or view status of scheduled backups and restores defined in YAML configuration.\n\nExamples:\n  sentinel schedule start --config sentinel.yaml\n  sentinel schedule list --config sentinel.yaml",
 }
 
+var runScheduledRestoreExecution = scheduler.ExecuteScheduledRestoreWithRunner
+
 var scheduleStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the backup and restore scheduler",
 	Long:  "Start the scheduler and run backups/restores at their configured cron schedules.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
-
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
 			return err
 		}
-		if err := config.ValidateConfig(cfg); err != nil {
+		if err := validateScheduledJobs(cfg); err != nil {
 			return err
 		}
 
@@ -71,13 +73,24 @@ var scheduleStartCmd = &cobra.Command{
 			}
 			jobCopy := job
 			if err := s.AddJob(job.Name, job.Schedule, func() error {
-				return executeBackupJob(cmd, cfg, jobCopy)
+				return scheduler.RunBackupWithRetry(ctx, jobCopy.Name, jobCopy.Database, func() (err error) {
+					// Per-attempt panic recovery so a panicking worker
+					// consumes a retry attempt rather than aborting the
+					// retry loop.
+					defer func() {
+						if pErr, _ := scheduler.HandlePanic(recover()); pErr != nil {
+							err = pErr
+						}
+					}()
+					return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+				})
 			}); err != nil {
 				return err
 			}
 		}
 
 		// Add restore jobs
+		restoreLimiter := make(chan struct{}, cfg.Scheduler.MaxConcurrentRestores)
 		for name, restoreJob := range cfg.Restores {
 			if restoreJob.Enabled != nil && !*restoreJob.Enabled {
 				continue
@@ -88,10 +101,24 @@ var scheduleStartCmd = &cobra.Command{
 			restoreCopy := restoreJob
 			restoreCopy.Name = name
 			if err := s.AddJob(name, restoreJob.Schedule, func() error {
-				return executeRestoreJob(cmd, cfg, restoreCopy)
+				return executeRestoreJob(cmd, cfg, mon, restoreCopy, restoreLimiter)
 			}); err != nil {
 				return err
 			}
+		}
+
+		// Add the scheduled integrity sweep. Additive:
+		// registered only when enabled with a cron; the backup/restore loops
+		// above are untouched. Inherits AddJob's skip-if-running + panic
+		// recovery for free.
+		integrityScheduled := false
+		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error {
+				return runScheduledIntegrityCheck(ctx, cfg, mon, ic)
+			}); err != nil {
+				return err
+			}
+			integrityScheduled = true
 		}
 
 		if err := s.Start(); err != nil {
@@ -100,6 +127,9 @@ var scheduleStartCmd = &cobra.Command{
 
 		cmd.Printf("Scheduler started with %d backup job(s) and %d restore job(s)\n",
 			len(cfg.Databases), len(cfg.Restores))
+		if integrityScheduled {
+			cmd.Printf("Scheduled integrity sweep registered (%s)\n", cfg.Integrity.ScheduledCheck.Cron)
+		}
 		stopCh := make(chan os.Signal, 1)
 		signal.Notify(stopCh, syscall.SIGTERM, syscall.SIGINT)
 		<-stopCh
@@ -124,17 +154,11 @@ var scheduleStopCmd = &cobra.Command{
 var scheduleListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all scheduled backups and restores",
-	Long:  "List all scheduled backups and restores with their next execution time.",
+	Long:  "List all scheduled backups and restores with their next execution time in table or JSON format.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
-			return err
-		}
-		if err := config.ValidateConfig(cfg); err != nil {
 			return err
 		}
 
@@ -162,6 +186,12 @@ var scheduleListCmd = &cobra.Command{
 				return err
 			}
 		}
+		// Add the scheduled integrity sweep to the listing.
+		if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+			if err := s.AddJob(config.IntegrityCheckJobName, ic.Cron, func() error { return nil }); err != nil {
+				return err
+			}
+		}
 		if err := s.Start(); err != nil {
 			return err
 		}
@@ -170,37 +200,72 @@ var scheduleListCmd = &cobra.Command{
 		}()
 
 		infos := s.ListJobs()
-		cmd.Printf("TYPE\tNAME\tSCHEDULE\tNEXT EXECUTION\tLAST STATUS\n")
-		for _, info := range infos {
-			// Determine type by checking if it exists in backups or restores
-			jobType := "backup"
-			if _, ok := cfg.Restores[info.Name]; ok {
-				jobType = "restore"
+		rows := buildScheduleListRows(infos, cfg.Restores)
+		format, _ := cmd.Flags().GetString("format")
+		switch strings.ToLower(format) {
+		case "json":
+			data, err := json.MarshalIndent(rows, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal schedule list json: %w", err)
 			}
-			cmd.Printf("%s\t%s\t%s\t%s\t%s\n", jobType, info.Name, info.ScheduleExpr,
-				info.NextExecution.Format(time.RFC3339), info.LastStatus)
+			cmd.Println(string(data))
+		default:
+			cmd.Print(renderScheduleListTable(rows))
 		}
 		return nil
 	},
 }
 
+type scheduleListRow struct {
+	Type          string `json:"type"`
+	Name          string `json:"name"`
+	Schedule      string `json:"schedule"`
+	NextExecution string `json:"next_execution"`
+	LastStatus    string `json:"last_status"`
+}
+
+func buildScheduleListRows(infos []schedule.JobInfo, restoreJobs map[string]config.RestoreJob) []scheduleListRow {
+	rows := make([]scheduleListRow, 0, len(infos))
+	for _, info := range infos {
+		jobType := "backup"
+		if _, ok := restoreJobs[info.Name]; ok {
+			jobType = "restore"
+		}
+		if info.Name == config.IntegrityCheckJobName {
+			jobType = string(schedule.KindIntegrityCheck)
+		}
+		rows = append(rows, scheduleListRow{
+			Type:          jobType,
+			Name:          info.Name,
+			Schedule:      info.ScheduleExpr,
+			NextExecution: info.NextExecution.Format(time.RFC3339),
+			LastStatus:    info.LastStatus,
+		})
+	}
+	return rows
+}
+
+func renderScheduleListTable(rows []scheduleListRow) string {
+	headers := []string{"TYPE", "NAME", "SCHEDULE", "NEXT EXECUTION"}
+	data := make([][]string, 0, len(rows))
+	for _, row := range rows {
+		data = append(data, []string{row.Type, row.Name, row.Schedule, row.NextExecution})
+	}
+	return formatAlignedTable(headers, data)
+}
+
 var scheduleStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status <job-name>",
 	Short: "Show scheduler status",
-	Long:  "Show the status and recent execution history for a scheduled backup job.",
+	Long: "Show the status and recent execution history for a scheduled backup job.\n\n" +
+		"Examples:\n" +
+		"  sentinel schedule status postgres-sample --config sentinel.yaml",
+	Example: "  sentinel schedule status postgres-sample --config sentinel.yaml",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("config")
-		if path == "" {
-			return fmt.Errorf("--config is required")
-		}
-		if len(args) == 0 {
-			return fmt.Errorf("job name is required")
-		}
-		cfg, err := config.LoadConfig(path)
+		cfg, err := LoadAndValidateConfig(path)
 		if err != nil {
-			return err
-		}
-		if err := config.ValidateConfig(cfg); err != nil {
 			return err
 		}
 
@@ -248,26 +313,82 @@ func init() {
 	// Add --config flag to schedule commands
 	scheduleStartCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 	scheduleListCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
+	scheduleListCmd.Flags().String("format", "table", "Output format (table/json)")
 	scheduleStatusCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
 }
 
+// validateScheduledJobs runs the pure domain validation (schedule.Validate)
+// over every job the scheduler would register: enabled backup jobs with a
+// schedule and enabled restore jobs with a schedule. Cron-expression parsing
+// stays in the scheduler runtime adapter.
+func validateScheduledJobs(cfg *config.Configuration) error {
+	for _, job := range cfg.Databases {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     job.Name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindBackup,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("backup job %q: %w", job.Name, err)
+		}
+	}
+	for name, job := range cfg.Restores {
+		if job.Enabled != nil && !*job.Enabled {
+			continue
+		}
+		if job.Schedule == "" {
+			continue
+		}
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     name,
+			CronExpr: job.Schedule,
+			Kind:     schedule.KindRestore,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("restore job %q: %w", name, err)
+		}
+	}
+	if ic := cfg.Integrity.ScheduledCheck; ic.Enabled && ic.Cron != "" {
+		if err := schedule.Validate(schedule.ScheduledJob{
+			Name:     config.IntegrityCheckJobName,
+			CronExpr: ic.Cron,
+			Kind:     schedule.KindIntegrityCheck,
+			Enabled:  true,
+		}); err != nil {
+			return fmt.Errorf("scheduled integrity check: %w", err)
+		}
+	}
+	return nil
+}
+
 // executeRestoreJob executes a single restore job
-func executeRestoreJob(cmd *cobra.Command, cfg *config.Configuration, job config.RestoreJob) error {
-	cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n",
-		job.Name, job.Type, job.Database)
+func executeRestoreJob(
+	cmd *cobra.Command,
+	cfg *config.Configuration,
+	mon ports.Recorder,
+	job config.RestoreJob,
+	limiter chan struct{},
+) error {
+	ctx := context.Background()
+	if cmd != nil {
+		ctx = cmd.Context()
+		cmd.Printf("Executing restore job: %s (type: %s, database: %s)\\n", job.Name, job.Type, job.Database)
+	}
 
-	// TODO: Implement full restore execution logic
-	// This will integrate with:
-	// - internal/scheduler/restore_integration.go (RestoreScheduleManager)
-	// - pkg/restore/{db}_restore/{db}_restore.go (actual restore functions)
-	// - internal/monitor (record restore execution)
-	// - internal/notifier (send restore notifications)
+	result, err := runScheduledRestoreExecution(ctx, cfg, job.Name, job, mon, limiter, runRestoreExecution)
+	if err != nil {
+		return err
+	}
 
-	// For now, log the restore job parameters
-	cmd.Printf("  Schedule: %s\\n", job.Schedule)
-	cmd.Printf("  Backup Source: %s\\n", job.BackupSource.Type)
-	cmd.Printf("  Verify After Restore: %v\\n", job.VerifyAfterRestore)
+	if result != nil && result.Status == ports.StatusSkipped && cmd != nil {
+		cmd.Printf("Restore job %s skipped: %s\\n", job.Name, result.Reason)
+	}
 
-	// Return success for now - full implementation will call actual restore functions
 	return nil
 }

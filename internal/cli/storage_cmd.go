@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/storage/azure"
-	"github.com/denisakp/sentinel/internal/storage/gdrive"
-	"github.com/denisakp/sentinel/internal/storage/local"
-	"github.com/denisakp/sentinel/internal/storage/sentinel_s3"
+	"github.com/denisakp/sentinel/internal/adapters/storage/azure"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gcs"
+	"github.com/denisakp/sentinel/internal/adapters/storage/gdrive"
+	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/adapters/storage/s3"
 )
 
 // StorageCmd is the root command for storage backend management.
@@ -29,12 +29,9 @@ var storageStatusCmd = &cobra.Command{
 	Long:  "Connect to each configured storage backend and report reachability, backup count, and total size.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgPath, _ := cmd.Flags().GetString("config")
-		if cfgPath == "" {
-			cfgPath = os.ExpandEnv("$HOME/.sentinel/config.yaml")
-		}
 		outputFmt, _ := cmd.Flags().GetString("output")
 
-		cfg, err := config.LoadConfig(cfgPath)
+		cfg, err := LoadAndValidateConfig(cfgPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
@@ -72,19 +69,19 @@ var storageStatusCmd = &cobra.Command{
 				}
 
 			case "s3":
-				s3Storage := &sentinel_s3.AmazonS3Storage{
+				s3Storage := &s3.AmazonS3Storage{
 					Bucket:    storageCfg.S3Bucket,
 					Region:    storageCfg.S3Region,
 					EndPoint:  storageCfg.S3BucketEndpoint,
 					AccessKey: storageCfg.S3AccessKeyID,
 					SecretKey: storageCfg.S3SecretAccessKey,
 				}
-				client, err := sentinel_s3.NewS3Storage(s3Storage)
+				client, err := s3.NewS3Storage(s3Storage)
 				if err != nil {
 					entry.Reachable = false
 					entry.Error = err.Error()
 				} else {
-					backend := sentinel_s3.NewS3Backend(client)
+					backend := s3.NewS3Backend(client)
 					status, _ := backend.Status(ctx)
 					entry.Reachable = status.Reachable
 					entry.BackupCount = status.BackupCount
@@ -116,8 +113,28 @@ var storageStatusCmd = &cobra.Command{
 					}
 				}
 
+			case "gcs":
+				backend, err := gcs.NewGCSBackend(gcs.Config{
+					Bucket:          storageCfg.GCSBucket,
+					ProjectID:       storageCfg.GCSProjectID,
+					CredentialsFile: storageCfg.GCSCredentialsFile,
+				})
+				if err != nil {
+					entry.Reachable = false
+					entry.Error = err.Error()
+				} else {
+					status, _ := backend.Status(ctx)
+					entry.Reachable = status.Reachable
+					entry.BackupCount = status.BackupCount
+					entry.TotalSizeMB = float64(status.TotalSizeBytes) / (1024 * 1024)
+					entry.Error = status.Error
+					if status.LastBackup != nil {
+						entry.LastBackup = status.LastBackup.Format(time.RFC3339)
+					}
+				}
+
 			case "azure":
-				azCfg := config.AzureConfig{
+				azCfg := azure.Config{
 					AccountName: storageCfg.AzureStorageAccount,
 					Container:   storageCfg.AzureContainer,
 				}

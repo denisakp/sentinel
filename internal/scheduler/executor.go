@@ -3,38 +3,63 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	domainbackup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Executor runs jobs with bounded concurrency.
 type Executor struct {
-	limit chan struct{}
-	wg    sync.WaitGroup
+	limit  chan struct{}
+	wg     sync.WaitGroup
+	logger *slog.Logger
 }
 
-// NewExecutor constructs a bounded executor.
+// NewExecutor constructs a bounded executor using slog.Default().
 func NewExecutor(maxConcurrent int) *Executor {
+	return NewExecutorWithLogger(maxConcurrent, slog.Default())
+}
+
+// NewExecutorWithLogger constructs a bounded executor with a custom logger,
+// used by tests to capture panic-recovery log records.
+func NewExecutorWithLogger(maxConcurrent int, logger *slog.Logger) *Executor {
 	if maxConcurrent < 1 {
 		maxConcurrent = 1
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Executor{
-		limit: make(chan struct{}, maxConcurrent),
+		limit:  make(chan struct{}, maxConcurrent),
+		logger: logger,
 	}
 }
 
-// Execute runs a job with concurrency control.
+// Execute runs a job with concurrency control. A panic inside job is recovered
+// by an outer safety-net defer that logs the panic + stack trace. The deferred
+// slot release runs before wg.Done so any caller blocked on Wait observes
+// restored capacity.
 func (e *Executor) Execute(job func()) {
 	e.wg.Add(1)
 	go func() {
 		e.limit <- struct{}{}
+		// Declared first → runs last: signals completion after slot release.
+		defer e.wg.Done()
+		// Declared second → runs middle: returns slot to the pool.
+		defer func() { <-e.limit }()
+		// Declared third → runs first: catches any in-flight panic.
 		defer func() {
-			<-e.limit
-			e.wg.Done()
+			if pErr, stack := handlePanic(recover()); pErr != nil {
+				e.logger.Error("scheduler: unrecovered panic in worker",
+					"error", pErr,
+					"stack", string(stack),
+				)
+			}
 		}()
 		job()
 	}()
@@ -56,57 +81,104 @@ type BackupExecutionResult struct {
 
 // ExecuteBackupWithCleanup wraps backup execution with automatic cleanup on failure.
 // This ensures partial artifacts are deleted if the backup fails or is interrupted.
+//
+// A panic inside backupFn is converted to result.Error via wrapPanic so the
+// existing cleanup defer records it as an ordinary failure.
+// If executionID is empty when the panic fires, a start record is synthesized
+// so every failure has a matching start.
 func ExecuteBackupWithCleanup(
 	ctx context.Context,
 	executionID string,
 	backupPath string,
 	store storage.Storage,
-	mon *monitor.Monitor,
+	mon ports.Recorder,
 	backupFn func(context.Context) error,
 ) *BackupExecutionResult {
-	result := &BackupExecutionResult{
+	return ExecuteBackupWithCleanupContext(ctx, executionID, backupPath, "", "", store, mon, backupFn)
+}
+
+// ExecuteBackupWithCleanupContext is like ExecuteBackupWithCleanup but accepts
+// jobName/database to populate a synthesized start record when a panic fires
+// before run-start was registered.
+func ExecuteBackupWithCleanupContext(
+	ctx context.Context,
+	executionID string,
+	backupPath string,
+	jobName string,
+	database string,
+	store storage.Storage,
+	mon ports.Recorder,
+	backupFn func(context.Context) error,
+) (result *BackupExecutionResult) {
+	result = &BackupExecutionResult{
 		ExecutionID: executionID,
 		BackupPath:  backupPath,
 	}
 
-	// Track whether cleanup should be attempted
 	var cleanupAttempted bool
 	var cleanupSucceeded *bool
 	var cleanupError string
 
-	// Defer cleanup handler - executes regardless of success/failure
+	// Cleanup defer — declared first, runs LAST so it observes result.Error
+	// set either by ordinary error return or by the inner-recover below.
+	// Body is wrapped in defer-recover so a panic *during* monitor recording
+	// itself is best-effort logged and does not propagate.
 	defer func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Default().Error("scheduler: panic during backup cleanup recording",
+					"error", fmt.Sprintf("%v", r),
+				)
+			}
+		}()
+		execID := result.ExecutionID
 		if result.Error != nil && backupPath != "" {
-			// Backup failed - attempt cleanup of partial artifacts
 			cleanupAttempted = true
 			if cleanupErr := store.DeleteBackup(ctx, backupPath); cleanupErr != nil {
-				// Cleanup failed
 				succeeded := false
 				cleanupSucceeded = &succeeded
 				cleanupError = cleanupErr.Error()
 			} else {
-				// Cleanup succeeded
 				succeeded := true
 				cleanupSucceeded = &succeeded
 			}
+		}
 
-			// Record failure with cleanup outcome
-			if mon != nil && executionID != "" {
-				errorMsg := result.Error.Error()
-				if recordErr := mon.RecordFailure(ctx, executionID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
-					// Log but don't override original error
-					fmt.Printf("Warning: failed to record execution failure: %v\n", recordErr)
-				}
+		if result.Error != nil && mon != nil && execID != "" {
+			errorMsg := result.Error.Error()
+			if recordErr := mon.RecordFailure(ctx, execID, errorMsg, cleanupAttempted, cleanupSucceeded, cleanupError); recordErr != nil {
+				slog.Default().Warn("failed to record execution failure", "error", recordErr)
 			}
-		} else if result.Success && mon != nil && executionID != "" {
-			// Backup succeeded - record success
-			if recordErr := mon.RecordSuccess(ctx, executionID); recordErr != nil {
-				fmt.Printf("Warning: failed to record execution success: %v\n", recordErr)
+		} else if result.Success && mon != nil && execID != "" {
+			if recordErr := mon.RecordSuccess(ctx, execID); recordErr != nil {
+				slog.Default().Warn("failed to record execution success", "error", recordErr)
 			}
 		}
 	}()
 
-	// Execute the backup
+	// Inner-recover — declared second, runs FIRST (before cleanup defer).
+	// Converts a panic into result.Error so cleanup proceeds normally.
+	defer func() {
+		if pErr, stack := handlePanic(recover()); pErr != nil {
+			result.Error = pErr
+			slog.Default().Error("scheduler: backup worker panic",
+				"error", pErr,
+				"stack", string(stack),
+				"job", jobName,
+				"database", database,
+			)
+			// If start was never registered, synthesize one so the failure
+			// record has a matching start row.
+			if result.ExecutionID == "" && mon != nil {
+				if id, serr := synthesizeRunStart(ctx, mon, jobName, database); serr == nil {
+					result.ExecutionID = id
+				} else {
+					slog.Default().Warn("failed to synthesize start record", "error", serr)
+				}
+			}
+		}
+	}()
+
 	if err := backupFn(ctx); err != nil {
 		result.Error = err
 		result.CleanupNeeded = true
@@ -117,11 +189,25 @@ func ExecuteBackupWithCleanup(
 	return result
 }
 
+// synthesizeRunStart persists a "running" record for an execution that
+// panicked before its start could be recorded. Used by *WithCleanup helpers.
+func synthesizeRunStart(ctx context.Context, mon ports.Recorder, jobName, database string) (string, error) {
+	exec := &ports.Execution{
+		BackupName:   jobName,
+		DatabaseType: database,
+		Timestamp:    time.Now().UTC(),
+	}
+	if err := mon.RecordRunning(ctx, exec); err != nil {
+		return "", err
+	}
+	return exec.ID, nil
+}
+
 // withRetry executes fn up to maxAttempts times with the given backoffs between attempts.
 // Non-retriable errors (config errors, cert errors) cause immediate failure without retry.
 func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error {
 	var lastErr error
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := range maxAttempts {
 		lastErr = fn()
 		if lastErr == nil {
 			return nil
@@ -139,8 +225,13 @@ func withRetry(fn func() error, maxAttempts int, backoffs []time.Duration) error
 
 // isNonRetriable returns true for errors that should not be retried:
 // configuration errors, certificate errors, and authentication errors.
+// An explicit domain RetriableErr classification (e.g. the backup
+// Executor's connectivity gate) always wins over the string-based heuristic.
 func isNonRetriable(err error) bool {
 	if err == nil {
+		return false
+	}
+	if domainbackup.IsRetriable(err) {
 		return false
 	}
 	msg := strings.ToLower(err.Error())

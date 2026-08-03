@@ -9,7 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	internaltls "github.com/denisakp/sentinel/internal/tls"
+	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // tlsModeSubtest is a common helper that:
@@ -25,7 +26,7 @@ func tlsModeSubtest(
 ) {
 	t.Helper()
 
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled: true,
 		Mode:    mode,
 	}
@@ -131,6 +132,43 @@ func TestTLS_MariaDB_AllModes(t *testing.T) {
 	}
 }
 
+// TestTLS_MariaDB_mTLS_KeyForwarded is the PRD-05 regression guard at the
+// integration boundary. With both ClientCert and ClientKey configured, the
+// MariaDB arg builder must emit BOTH --ssl-cert= and --ssl-key=. Previously
+// --ssl-key was silently dropped, breaking mutual TLS.
+func TestTLS_MariaDB_mTLS_KeyForwarded(t *testing.T) {
+	ca := GenerateSelfSignedCA(t)
+	client := GenerateSignedClientCert(t, ca)
+
+	cfg := &ports.Config{
+		Enabled:    true,
+		Mode:       "verify-full",
+		CACertPath: ca.CertFile,
+		ClientCert: client.CertFile,
+		ClientKey:  client.KeyFile,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+
+	args := internaltls.BuildTLSArgs("mariadb", cfg)
+	hasCert, hasKey := false, false
+	for _, a := range args {
+		if strings.HasPrefix(a, "--ssl-cert=") {
+			hasCert = true
+		}
+		if strings.HasPrefix(a, "--ssl-key=") {
+			hasKey = true
+		}
+	}
+	if !hasCert {
+		t.Errorf("BuildTLSArgs(mariadb, mTLS) missing --ssl-cert in %v", args)
+	}
+	if !hasKey {
+		t.Errorf("BuildTLSArgs(mariadb, mTLS) missing --ssl-key in %v (PRD-05 regression)", args)
+	}
+}
+
 // TestTLS_MongoDB_AllModes verifies TLS config validation and arg generation
 // for all supported modes against the MongoDB engine.
 func TestTLS_MongoDB_AllModes(t *testing.T) {
@@ -138,7 +176,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	server := GenerateSignedServerCert(t, ca, []string{"localhost"})
 
 	t.Run("require", func(t *testing.T) {
-		cfg := &internaltls.Config{Enabled: true, Mode: "require"}
+		cfg := &ports.Config{Enabled: true, Mode: "require"}
 		if err := cfg.Validate(); err != nil {
 			t.Errorf("Validate() unexpected error: %v", err)
 		}
@@ -157,7 +195,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("verify-ca", func(t *testing.T) {
-		cfg := &internaltls.Config{
+		cfg := &ports.Config{
 			Enabled:    true,
 			Mode:       "verify-ca",
 			CACertPath: ca.CertFile,
@@ -171,7 +209,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("verify-full", func(t *testing.T) {
-		cfg := &internaltls.Config{
+		cfg := &ports.Config{
 			Enabled:    true,
 			Mode:       "verify-full",
 			CACertPath: ca.CertFile,
@@ -185,7 +223,7 @@ func TestTLS_MongoDB_AllModes(t *testing.T) {
 	})
 
 	t.Run("prefer", func(t *testing.T) {
-		cfg := &internaltls.Config{Enabled: true, Mode: "prefer"}
+		cfg := &ports.Config{Enabled: true, Mode: "prefer"}
 		if err := cfg.Validate(); err != nil {
 			t.Errorf("Validate() unexpected error: %v", err)
 		}
@@ -214,13 +252,13 @@ func TestTLS_FallbackWarning(t *testing.T) {
 		t.Fatalf("invalid port %q: %v", db.Port, err)
 	}
 
-	cfg := internaltls.DatabaseConfig{
+	cfg := ports.DatabaseConfig{
 		Type:     "postgres",
 		Host:     db.Host,
 		Port:     portInt,
 		Username: db.Username,
 		Password: db.Password,
-		TLS: &internaltls.Config{
+		TLS: &ports.Config{
 			Enabled: true,
 			Mode:    "prefer",
 		},
@@ -248,7 +286,7 @@ func TestTLS_ExpiredCert_Aborts(t *testing.T) {
 	expiredCA := GenerateExpiredCA(t)
 
 	// Attempt to validate a config using the expired CA
-	cfg := &internaltls.Config{
+	cfg := &ports.Config{
 		Enabled:    true,
 		Mode:       "verify-full",
 		CACertPath: expiredCA.CertFile,

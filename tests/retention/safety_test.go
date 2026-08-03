@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/retention"
+	"github.com/denisakp/sentinel/internal/domain/retention"
 )
 
 func TestCalculateCandidatesKeepsOne(t *testing.T) {
