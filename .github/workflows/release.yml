@@ -6,6 +6,10 @@ on:
       - "v*"
 permissions:
   contents: write
+  # Required for cosign keyless signing: lets the job mint a GitHub OIDC token
+  # that cosign exchanges with Fulcio for a short-lived signing cert
+  # (spec 053 / PRD 42). Without it, keyless signing fails.
+  id-token: write
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -19,10 +23,31 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: '1.24'
+      - name: Install cosign
+        # Provides the cosign v3 binary used by the .goreleaser.yaml `signs:`
+        # block to keyless-sign checksums.txt (spec 053 / PRD 42).
+        uses: sigstore/cosign-installer@v4.1.0
       - name: Run GoReleaser
+        # Fail-closed: no `continue-on-error` here. If cosign signing fails,
+        # GoReleaser exits non-zero and the release publishes NOTHING — a
+        # published release is always signed (spec 053 FR-012). Do not add
+        # continue-on-error to this step.
         uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify checksums signature (smoke check)
+        # Post-publication self-check (spec 053 FR-013): verify the just-signed
+        # bundle against the tight release-workflow-on-tag identity, so a broken
+        # signing/identity config fails THIS run instead of shipping unnoticed.
+        # Fail-closed: no `continue-on-error`. The identity regexp MUST stay
+        # identical to the one documented in README (single source of truth);
+        # if this workflow file is renamed, update both.
+        run: |
+          cosign verify-blob \
+            --certificate-identity-regexp 'https://github.com/denisakp/sentinel/.github/workflows/release.yml@refs/tags/.*' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            --bundle dist/checksums.txt.sigstore.json \
+            dist/checksums.txt

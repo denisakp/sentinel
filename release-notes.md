@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Security / Supply chain
+
+- **signed release checksums (cosign keyless)**: each release now signs its
+  `checksums.txt` with [cosign](https://github.com/sigstore/cosign) keyless
+  signing (GitHub Actions OIDC → Fulcio short-lived cert, logged in Rekor) and
+  publishes a single sigstore bundle `checksums.txt.sigstore.json` alongside
+  the existing assets. Downloaders can now cryptographically verify a release
+  originated from Sentinel's release workflow — not merely that an archive
+  matches an otherwise-unsigned checksums list — with
+  `cosign verify-blob --certificate-identity-regexp '…/release.yml@refs/tags/.*' --certificate-oidc-issuer https://token.actions.githubusercontent.com --bundle checksums.txt.sigstore.json checksums.txt`
+  (full command in README → Installation → "Verify the release signature").
+  One signature over `checksums.txt` transitively covers every archive (verify
+  the bundle, then `sha256sum -c`). Signing is **fail-closed**: if signing
+  cannot complete, the release publishes nothing, and a post-publication CI
+  step re-verifies the bundle against the pinned workflow identity so a broken
+  config fails the run. The existing `checksums.txt` (SHA-256) and its
+  `sha256sum -c` path are **unchanged** and remain valid for users without
+  cosign; releases published **before** this change ship no bundle and stay
+  checksum-only. No product/`internal` code change — release pipeline + docs
+  only. SLSA build-provenance attestation remains a separate future item.
+  (spec 053 / PRD 42)
+
 ### Security
 
 - **`sentinel security reencrypt` (guided envelope migration + key rotation)**: a
