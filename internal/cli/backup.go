@@ -2,64 +2,109 @@ package cli
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/backup"
-	backupMongo "github.com/denisakp/sentinel/internal/backup/mongo"
-	backupSQL "github.com/denisakp/sentinel/internal/backup/sql"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/notifier"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mariadb_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mongo_dump"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
-	"github.com/denisakp/sentinel/pkg/backup/pg_dump"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/utils"
+	"github.com/denisakp/sentinel/internal/adapters/dump"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
 	"github.com/spf13/cobra"
 )
 
 var dbType, host, port, user, password, database,
 	pgOutFormat, pgCompressionAlgo, uri,
 	output, storageType, localPath, gDriveSaFile, gDriveFolderId,
+	gcsBucket, gcsProjectID, gcsCredentialsFile,
 	awsSecretAccessKey, awsAccessKeyID, awsRegion, awsBucket, awsBucketEndpoint,
 	additionalArgs, configPath string
 var compress bool
 var pgCompressionLevel int
 var err error
 
+type backupExecutionMode string
+
+type backupRunOptions struct {
+	forceFull bool
+}
+
+const (
+	executionModeConfig    backupExecutionMode = "config"
+	executionModeScheduled backupExecutionMode = "scheduled"
+)
+
+// passwordFlagDeprecationSuffix is the message body appended to pflag's
+// "Flag --password has been deprecated, " prefix on use.
+const passwordFlagDeprecationSuffix = "will be removed in the next minor release; passing a password on the command line exposes it via `ps`, /proc/<pid>/cmdline, and shell history. Use --password-env <VAR>, --password-file <PATH>, or set databases.<id>.password_env in the config file instead."
+
+var passwordFilePermWarnOnce sync.Once
+
+var backupForceFullJob string
+var backupChainStatusJob string
+var backupChainListID string
+
+var backupForceFullCmd = &cobra.Command{
+	Use:   "force-full",
+	Short: "Run a forced full backup for a configured job",
+	Long:  "Run a full backup immediately for a configured job and reset incremental chain state.",
+	RunE:  handleBackupForceFull,
+}
+
+var backupChainStatusCmd = &cobra.Command{
+	Use:   "chain-status",
+	Short: "Show incremental chain status for a backup job",
+	Long:  "Display active chain id, depth, and latest backup metadata for a configured backup job.",
+	RunE:  handleBackupChainStatus,
+}
+
+var backupChainListCmd = &cobra.Command{
+	Use:   "chain-list",
+	Short: "List backups belonging to a chain",
+	Long:  "List backup executions that belong to the provided incremental chain id.",
+	RunE:  handleBackupChainList,
+}
+
 var BackupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Run a database backup",
 	Long:  "Run a database backup using CLI flags or a YAML config.\n\nExamples:\n  sentinel backup --config sentinel.yaml\n  sentinel backup --type postgres --host db --port 5432 --user backup --database app",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath, _ = cmd.Flags().GetString("config")
-		if configPath != "" {
-			if err := runBackupFromConfig(cmd, configPath); err != nil {
+		cfg, cfgErr := LoadAndValidateConfig(configPath)
+		if cfgErr == nil {
+			if err := runBackupJobsFromConfig(cmd, cfg); err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
-			return
+			return nil
+		}
+		if configPath != "" {
+			cmd.PrintErrln(cfgErr)
+			return cfgErr
 		}
 
 		dbType, _ = cmd.Flags().GetString("type")
 		if dbType == "" {
-			cmd.PrintErrln("database type is required when --config is not provided")
-			return
+			cmd.PrintErrln(cfgErr)
+			return cfgErr
 		}
 
 		// validate the database type
 		if err = backup.ValidateDbType(dbType); err != nil {
 			cmd.PrintErrln(err)
-			return
+			return err
 		}
 
 		host, _ = cmd.Flags().GetString("host")           // get the host flag value
@@ -76,6 +121,10 @@ var BackupCmd = &cobra.Command{
 		// google drive
 		gDriveFolderId, _ = cmd.Flags().GetString("gdrive-folder-id")
 		gDriveSaFile, _ = cmd.Flags().GetString("gdrive-sa-file")
+		// google cloud storage
+		gcsBucket, _ = cmd.Flags().GetString("gcs-bucket")
+		gcsProjectID, _ = cmd.Flags().GetString("gcs-project-id")
+		gcsCredentialsFile, _ = cmd.Flags().GetString("gcs-credentials-file")
 		//aws s3 storage
 		awsBucket, _ = cmd.Flags().GetString("aws-bucket")
 		awsRegion, _ = cmd.Flags().GetString("aws-region")
@@ -89,6 +138,9 @@ var BackupCmd = &cobra.Command{
 			OutName:              output,
 			GoogleServiceAccount: gDriveSaFile,
 			GoogleDriveFolderId:  gDriveFolderId,
+			GCSBucket:            gcsBucket,
+			GCSProjectID:         gcsProjectID,
+			GCSCredentialsFile:   gcsCredentialsFile,
 			AWSBucket:            awsBucket,
 			AWSRegion:            awsRegion,
 			AWSBucketEndpoint:    awsBucketEndpoint,
@@ -98,7 +150,7 @@ var BackupCmd = &cobra.Command{
 
 		if err = storage.ValidateStorage(params); err != nil {
 			cmd.PrintErrln(err)
-			return
+			return err
 		}
 
 		// validate the storage parameters
@@ -109,7 +161,7 @@ var BackupCmd = &cobra.Command{
 			pgCompressionAlgo, _ = cmd.Flags().GetString("pg-compression-algo") // get the pg-compression-algo flag value
 			pgCompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")  // get the pg-compression-level flag value
 
-			pda := &pg_dump.PgDumpArgs{
+			pda := &pg.PgDumpArgs{
 				Host:                 host,
 				Port:                 port,
 				Username:             user,
@@ -123,15 +175,15 @@ var BackupCmd = &cobra.Command{
 				Storage:              params,
 			}
 
-			err = pg_dump.Backup(pda)
+			_, err = pg.Backup(dbprobe.NewAdapter(), pda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
 		if dbType == "mysql" {
-			mda := &mysql_dump.MySqlDumpArgs{
+			mda := &mysql.MySqlDumpArgs{
 				Host:           host,
 				Port:           port,
 				Username:       user,
@@ -141,15 +193,15 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			err = mysql_dump.Backup(mda)
+			_, err = mysql.Backup(dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
 		if dbType == "mariadb" {
-			mda := &mariadb_dump.MariaDBDumpArgs{
+			mda := &mariadb.MariaDBDumpArgs{
 				Host:           host,
 				Port:           port,
 				Username:       user,
@@ -159,10 +211,10 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			err = mariadb_dump.Backup(mda)
+			_, err = mariadb.Backup(dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
 
@@ -170,23 +222,26 @@ var BackupCmd = &cobra.Command{
 			compress, _ = cmd.Flags().GetBool("compress") // get the compress flag value
 			uri, _ := cmd.Flags().GetString("uri")        // get the uri flag value
 
-			da := &mongo_dump.DumpMongoArgs{
+			da := &mongo.DumpMongoArgs{
 				Compress:       compress,
 				AdditionalArgs: additionalArgs,
 				Uri:            uri,
 				Storage:        params,
 			}
 
-			err = mongo_dump.Backup(da)
+			_, err = mongo.Backup(dbprobe.NewAdapter(), da)
 			if err != nil {
 				cmd.PrintErrln(err)
-				os.Exit(1)
+				return err
 			}
 		}
+		return nil
 	},
 }
 
 func init() {
+	BackupCmd.AddCommand(backupForceFullCmd, backupChainStatusCmd, backupChainListCmd)
+
 	BackupCmd.Flags().StringVarP(&dbType, "type", "t", "", "Database type (mysql, postgres, mariadb, mongodb)")
 	BackupCmd.Flags().StringVar(&configPath, "config", "", "Path to YAML configuration file (preferred)")
 
@@ -194,6 +249,9 @@ func init() {
 	BackupCmd.Flags().StringVarP(&port, "port", "P", "", "Database port")
 	BackupCmd.Flags().StringVarP(&user, "user", "u", "root", "Database user")
 	BackupCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")
+	BackupCmd.Flags().String("password-env", "", "Name of environment variable holding the database password")
+	BackupCmd.Flags().String("password-file", "", "Path to a file whose first line is the database password")
+	_ = BackupCmd.Flags().MarkDeprecated("password", passwordFlagDeprecationSuffix)
 	BackupCmd.Flags().StringVarP(&database, "database", "d", "", "Database name")
 
 	BackupCmd.Flags().BoolVarP(&compress, "compress", "c", false, "Compress the backup")
@@ -208,9 +266,13 @@ func init() {
 	BackupCmd.Flags().StringVarP(&uri, "uri", "", "mongodb://localhost:27017", "MongoDB URI")
 
 	// storage flags
-	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, google-drive)")
+	BackupCmd.Flags().StringVarP(&storageType, "storage", "s", "local", "storage type (local, s3, gcs, google-drive)")
 	BackupCmd.Flags().StringVarP(&localPath, "local-path", "", "", "Local path to store the backup")
 	BackupCmd.Flags().StringVarP(&output, "output", "o", "", "Output name")
+	// google cloud storage
+	BackupCmd.Flags().StringVarP(&gcsBucket, "gcs-bucket", "", "", "Google Cloud Storage bucket name")
+	BackupCmd.Flags().StringVarP(&gcsProjectID, "gcs-project-id", "", "", "Google Cloud project ID (optional)")
+	BackupCmd.Flags().StringVarP(&gcsCredentialsFile, "gcs-credentials-file", "", "", "Google Cloud service account key file")
 	//google drive
 	BackupCmd.Flags().StringVarP(&gDriveFolderId, "gdrive-folder-id", "", "", "Google Drive folder ID")
 	BackupCmd.Flags().StringVarP(&gDriveSaFile, "gdrive-sa-file", "", "", "Google Drive service account file")
@@ -221,23 +283,24 @@ func init() {
 	BackupCmd.Flags().StringVarP(&awsAccessKeyID, "aws-access-key-id", "", "", "AWS access key ID")
 	BackupCmd.Flags().StringVarP(&awsSecretAccessKey, "aws-secret", "", "", "AWS secret")
 
+	backupForceFullCmd.Flags().StringVar(&backupForceFullJob, "job", "", "Configured backup job name")
+	backupForceFullCmd.MarkFlagRequired("job")
+
+	backupChainStatusCmd.Flags().StringVar(&backupChainStatusJob, "job", "", "Configured backup job name")
+	backupChainStatusCmd.MarkFlagRequired("job")
+
+	backupChainListCmd.Flags().StringVar(&backupChainListID, "chain-id", "", "Incremental chain ID")
+	backupChainListCmd.MarkFlagRequired("chain-id")
+
 	// required args are enforced at runtime when --config is not provided
 }
 
-func runBackupFromConfig(cmd *cobra.Command, path string) error {
-	cfg, err := config.LoadConfig(path)
-	if err != nil {
-		return err
-	}
-	if err := config.ValidateConfig(cfg); err != nil {
-		return err
-	}
-
+func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) error {
 	for _, job := range cfg.Databases {
 		if job.Enabled != nil && !*job.Enabled {
 			continue
 		}
-		if err := executeBackupJob(cmd, cfg, job); err != nil {
+		if err := executeBackupJobWithMode(cmd, cfg, job, executionModeConfig, backupRunOptions{}); err != nil {
 			return err
 		}
 	}
@@ -245,25 +308,51 @@ func runBackupFromConfig(cmd *cobra.Command, path string) error {
 	return nil
 }
 
-func executeBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	if err := applyCLIOverrides(cmd, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
 	if job.Database == "*" {
-		return executeAutoDiscovery(cmd, cfg, job)
+		return executeAutoDiscovery(cmd, cfg, job, mode, opts)
 	}
 
-	return executeSingleBackupJob(cmd, cfg, job)
+	return executeSingleBackupJob(cmd, cfg, job, mode, opts)
 }
 
-func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
-	start := time.Now()
+// executeSingleBackupJob is the carved driving-adapter body: parse flags →
+// translate to domain Job → factory → Executor.Run.
+// Orchestration (dump, manifest, encryption, record, notify) lives in
+// internal/domain/backup.Executor.
+func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
+	applyScheduledOutputName(job, storageParams, mode, time.Now())
 
+	engineOpts, dumps, err := buildSingleDump(cmd, job, storageParams)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	be, err := NewBackupExecutorFromConfig(cfg, job, storageParams, mode == executionModeScheduled, opts.forceFull, engineOpts, dumps)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	res, backupErr := be.exec.Run(context.Background(), be.job)
+	reportBackupRunDiagnostics(cmd, be, res)
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
+
+	return backupErr
+}
+
+// buildSingleDump resolves the engine arg bag (config + CLI flag overrides)
+// and the matching ports.DumpBuilder for a single-database job.
+func buildSingleDump(cmd *cobra.Command, job config.BackupJob, storageParams *storage.Params) (ports.EngineOptions, ports.DumpBuilder, error) {
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
 		additionalArgs, _ = cmd.Flags().GetString("args")
@@ -271,16 +360,23 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 
 	password, err := resolvePassword(cmd, job)
 	if err != nil {
-		return fmt.Errorf("backup '%s': %w", job.Name, err)
+		return nil, nil, err
 	}
 
-	var backupErr error
+	spec := config.BuildDumpJobSpec(job, password, additionalArgs)
+	factory, err := dump.NewArgsFactory(job.Type)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts, err := factory.BuildDumpArgs(spec)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch job.Type {
 	case "postgres":
-		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
-		}
+		pgArgs := opts.(*pg.PgDumpArgs)
+		pgArgs.Storage = storageParams
 		if cmd.Flags().Changed("pg-out-format") {
 			pgArgs.PgOutFormat, _ = cmd.Flags().GetString("pg-out-format")
 		}
@@ -293,79 +389,71 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		if cmd.Flags().Changed("pg-compression-level") {
 			pgArgs.CompressionLevel, _ = cmd.Flags().GetInt("pg-compression-level")
 		}
-		backupErr = pg_dump.Backup(pgArgs)
+		return pgArgs, pg.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mysql":
-		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
-		}
-		backupErr = mysql_dump.Backup(mysqlArgs)
+		mysqlArgs := opts.(*mysql.MySqlDumpArgs)
+		mysqlArgs.Storage = storageParams
+		return mysqlArgs, mysql.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mariadb":
-		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
-		}
-		backupErr = mariadb_dump.Backup(mariaArgs)
+		mariaArgs := opts.(*mariadb.MariaDBDumpArgs)
+		mariaArgs.Storage = storageParams
+		return mariaArgs, mariadb.NewBuilder(dbprobe.NewAdapter()), nil
 	case "mongodb":
-		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
-		}
+		mongoArgs := opts.(*mongo.DumpMongoArgs)
+		mongoArgs.Storage = storageParams
 		if cmd.Flags().Changed("compress") {
 			mongoArgs.Compress, _ = cmd.Flags().GetBool("compress")
 		}
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		backupErr = mongo_dump.Backup(mongoArgs)
+		return mongoArgs, mongo.NewBuilder(dbprobe.NewAdapter()), nil
 	default:
-		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
+		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
-
-	end := time.Now()
-	var security *backupSecurityResult
-	if backupErr == nil {
-		security, _ = applyBackupSecurity(cfg, job, storageParams)
-	}
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
-		cmd.PrintErrln("notification error:", notifyErr)
-	}
-
-	return backupErr
 }
 
-func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+// reportBackupRunDiagnostics prints the non-fatal Run signals with the
+// pre-carve wording.
+func reportBackupRunDiagnostics(cmd *cobra.Command, be *backupExecution, res backup.RunResult) {
+	for _, w := range res.Warnings {
+		fmt.Println(w)
+	}
+	if res.RecordErr != nil {
+		cmd.PrintErrln("monitor error:", res.RecordErr)
+	}
+	if be.notifWarn != nil {
+		cmd.PrintErrln("notification error:", be.notifWarn)
+	}
+	if res.NotifyErr != nil {
+		cmd.PrintErrln("notification error:", res.NotifyErr)
+	}
+}
+
+func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	strategy := job.Strategy
 	if strategy == "" {
 		strategy = "individual"
 	}
 
 	if strategy == "single" {
-		return executeAutoDiscoverySingle(cmd, cfg, job)
+		return executeAutoDiscoverySingle(cmd, cfg, job, mode, opts)
 	}
 
-	return executeAutoDiscoveryIndividual(cmd, cfg, job)
+	return executeAutoDiscoveryIndividual(cmd, cfg, job, mode, opts)
 }
 
-func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
+func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	databaseNames, err := listDatabases(job)
 	if err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
-	excluded := map[string]struct{}{}
-	for _, name := range job.Exclude {
-		excluded[name] = struct{}{}
-	}
-
-	for _, dbName := range databaseNames {
-		if _, skip := excluded[dbName]; skip {
-			continue
-		}
+	for _, dbName := range backup.FilterExcludedSources(databaseNames, job.Exclude) {
 		childJob := job
 		childJob.Database = dbName
 		childJob.Strategy = ""
-		if err := executeSingleBackupJob(cmd, cfg, childJob); err != nil {
+		if err := executeSingleBackupJob(cmd, cfg, childJob, mode, opts); err != nil {
 			return err
 		}
 	}
@@ -373,13 +461,39 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 	return nil
 }
 
-func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) error {
-	start := time.Now()
+// executeAutoDiscoverySingle handles the "single" auto-discovery strategy
+// (one dump-all artifact). Same factory + Run shape as
+// executeSingleBackupJob; the dump-all entry points (no port-side Build)
+// are adapted via a dumpBuilderFunc closure.
+func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
+	applyScheduledOutputName(job, storageParams, mode, time.Now())
 
+	engineOpts, dumps, err := buildAllDump(cmd, job, storageParams)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	be, err := NewBackupExecutorFromConfig(cfg, job, storageParams, mode == executionModeScheduled, opts.forceFull, engineOpts, dumps)
+	if err != nil {
+		return fmt.Errorf("backup '%s': %w", job.Name, err)
+	}
+
+	res, backupErr := be.exec.Run(context.Background(), be.job)
+	reportBackupRunDiagnostics(cmd, be, res)
+	if mode == executionModeScheduled && backupErr == nil {
+		runScheduledRetention(cmd, cfg, job)
+	}
+
+	return backupErr
+}
+
+// buildAllDump resolves the engine arg bag + dump-all builder for the
+// auto-discovery "single" strategy.
+func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *storage.Params) (ports.EngineOptions, ports.DumpBuilder, error) {
 	additionalArgs := config.BuildAdditionalArgs(job)
 	if cmd.Flags().Changed("args") {
 		additionalArgs, _ = cmd.Flags().GetString("args")
@@ -387,55 +501,68 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 
 	password, err := resolvePassword(cmd, job)
 	if err != nil {
-		return fmt.Errorf("backup '%s': %w", job.Name, err)
+		return nil, nil, err
 	}
 
-	var backupErr error
+	spec := config.BuildDumpJobSpec(job, password, additionalArgs)
+	factory, err := dump.NewArgsFactory(job.Type)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts, err := factory.BuildDumpArgs(spec)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	switch job.Type {
 	case "postgres":
-		pgArgs, err := config.BuildPgDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
-		}
-		backupErr = pg_dump.BackupAll(&pg_dump.PgDumpAllArgs{
+		pgArgs := opts.(*pg.PgDumpArgs)
+		pgArgs.Storage = storageParams
+		allArgs := &pg.PgDumpAllArgs{
 			Host:           pgArgs.Host,
 			Port:           pgArgs.Port,
 			Username:       pgArgs.Username,
 			Password:       pgArgs.Password,
 			AdditionalArgs: pgArgs.AdditionalArgs,
 			Storage:        pgArgs.Storage,
-		})
-	case "mysql":
-		mysqlArgs, err := config.BuildMySQLDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mysql_dump.BackupAll(&mysql_dump.MySqlDumpAllArgs{
+		return pgArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := pg.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
+	case "mysql":
+		mysqlArgs := opts.(*mysql.MySqlDumpArgs)
+		mysqlArgs.Storage = storageParams
+		allArgs := &mysql.MySqlDumpAllArgs{
 			Host:           mysqlArgs.Host,
 			Port:           mysqlArgs.Port,
 			Username:       mysqlArgs.Username,
 			Password:       mysqlArgs.Password,
 			AdditionalArgs: mysqlArgs.AdditionalArgs,
 			Storage:        mysqlArgs.Storage,
-		})
-	case "mariadb":
-		mariaArgs, err := config.BuildMariaDBDumpArgs(job, password, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
-		backupErr = mariadb_dump.BackupAll(&mariadb_dump.MariaDBDumpAllArgs{
+		return mysqlArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mysql.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
+	case "mariadb":
+		mariaArgs := opts.(*mariadb.MariaDBDumpArgs)
+		mariaArgs.Storage = storageParams
+		allArgs := &mariadb.MariaDBDumpAllArgs{
 			Host:           mariaArgs.Host,
 			Port:           mariaArgs.Port,
 			Username:       mariaArgs.Username,
 			Password:       mariaArgs.Password,
 			AdditionalArgs: mariaArgs.AdditionalArgs,
 			Storage:        mariaArgs.Storage,
-		})
-	case "mongodb":
-		mongoArgs, err := config.BuildMongoDumpArgs(job, additionalArgs, storageParams)
-		if err != nil {
-			return fmt.Errorf("backup '%s': %w", job.Name, err)
 		}
+		return mariaArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mariadb.BackupAll(allArgs)
+			return ports.BuildResult{Digest: digest}, err
+		}), nil
+	case "mongodb":
+		mongoArgs := opts.(*mongo.DumpMongoArgs)
+		mongoArgs.Storage = storageParams
 		mongoArgs.Database = ""
 		if cmd.Flags().Changed("compress") {
 			mongoArgs.Compress, _ = cmd.Flags().GetBool("compress")
@@ -443,184 +570,88 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		if cmd.Flags().Changed("uri") {
 			mongoArgs.Uri, _ = cmd.Flags().GetString("uri")
 		}
-		backupErr = mongo_dump.Backup(mongoArgs)
+		return mongoArgs, mongo.NewBuilder(dbprobe.NewAdapter()), nil
 	default:
-		return fmt.Errorf("backup '%s': unsupported database type '%s'", job.Name, job.Type)
+		return nil, nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
-
-	end := time.Now()
-	var security *backupSecurityResult
-	if backupErr == nil {
-		security, _ = applyBackupSecurity(cfg, job, storageParams)
-	}
-	if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, security); notifyErr != nil {
-		cmd.PrintErrln("notification error:", notifyErr)
-	}
-
-	return backupErr
 }
 
-func notifyBackupResult(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult) error {
-	if err := recordBackupExecution(cfg, job, storageParams, start, end, backupErr, security); err != nil {
-		cmd.PrintErrln("monitor error:", err)
+func applyScheduledOutputName(job config.BackupJob, storageParams *storage.Params, mode backupExecutionMode, timestamp time.Time) {
+	if mode != executionModeScheduled || storageParams == nil {
+		return
 	}
 
-	if len(job.Notifications) == 0 {
-		return nil
+	pgOutFormat := ""
+	if value, ok := job.DatabaseOptions["pg_out_format"].(string); ok {
+		pgOutFormat = value
 	}
-
-	status := notifier.StatusSuccess
-	errorMessage := ""
-	if backupErr != nil {
-		if notifyErr := notifyBackupResult(cmd, cfg, job, storageParams, start, end, backupErr, nil); notifyErr != nil {
-			cmd.PrintErrln("notification error:", notifyErr)
-		}
-		errorMessage = backupErr.Error()
-	}
-
-	filePath, fileSize := localBackupInfo(storageParams)
-	ctx := &notifier.BackupContext{
-		BackupName:   job.Name,
-		DatabaseType: job.Type,
-		DatabaseName: job.Database,
-		Status:       status,
-		StartTime:    start,
-		EndTime:      end,
-		Error:        errorMessage,
-		FilePath:     filePath,
-		FileSize:     fileSize,
-	}
-
-	dispatcher, err := notifier.NewDispatcherFromConfig(job.Notifications)
-	if err != nil {
-		return err
-	}
-
-	return dispatcher.Notify(ctx)
+	canonicalExt := backup.CanonicalScheduledExtension(job.Type, pgOutFormat)
+	storageParams.OutName = utils.BuildScheduledOutName(storageParams.OutName, canonicalExt, job.Name, timestamp)
 }
 
-func recordBackupExecution(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, start, end time.Time, backupErr error, security *backupSecurityResult) error {
-	if cfg == nil || cfg.HistoryDBPath == "" {
-		return nil
+func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob) {
+	if cfg == nil {
+		return
 	}
+	if !retentionEnabled(job.Retention) {
+		return
+	}
+
+	gfsSuffix := ""
+	if g := job.Retention.GFS; g != nil {
+		gfsSuffix = fmt.Sprintf(", gfs=[daily=%d weekly=%d monthly=%d yearly=%d]", g.KeepDaily, g.KeepWeekly, g.KeepMonthly, g.KeepYearly)
+	}
+	cmd.Printf("Retention: evaluating backup '%s' (keep_last=%d, keep_days=%d%s)\n", job.Name, job.Retention.KeepLast, job.Retention.KeepDays, gfsSuffix)
 
 	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
 	if err != nil {
-		return err
+		cmd.PrintErrf("warning: retention monitor init failed for backup '%s': %v\n", job.Name, err)
+		return
 	}
-	defer mon.Close()
-
-	status := "success"
-	errorMessage := ""
-	if backupErr != nil {
-		status = "failure"
-		errorMessage = backupErr.Error()
-	}
-
-	filePath, fileSize := resolveBackupPath(storageParams)
-	storageBackend := ""
-	if storageParams != nil {
-		storageBackend = storageParams.StorageType
-	}
-
-	exec := &monitor.Execution{
-		BackupName:     job.Name,
-		DatabaseType:   job.Type,
-		Timestamp:      start.UTC(),
-		DurationMs:     end.Sub(start).Milliseconds(),
-		Status:         status,
-		ErrorMessage:   errorMessage,
-		StorageBackend: storageBackend,
-		FilePath:       filePath,
-		FileSizeBytes:  fileSize,
-	}
-
-	ctx := context.Background()
-	if err := mon.RecordExecution(ctx, exec); err != nil {
-		return err
-	}
-
-	if security != nil && exec.ID != "" {
-		if secErr := mon.RecordSecurityInfo(ctx, exec.ID, security.hashAlgo, security.hashValue, "", security.manifestPath, security.encrypted, security.keyHint); secErr != nil {
-			fmt.Printf("Warning: failed to record security info for '%s': %v\n", job.Name, secErr)
+	defer func() {
+		if closeErr := mon.Close(); closeErr != nil {
+			cmd.PrintErrf("warning: retention monitor close failed for backup '%s': %v\n", job.Name, closeErr)
 		}
-	}
+	}()
 
-	return nil
-}
-
-func resolveBackupPath(storageParams *storage.Params) (string, int64) {
-	if storageParams == nil {
-		return "unknown", 0
-	}
-	if storageParams.StorageType == "" || storageParams.StorageType == "local" {
-		path, size := localBackupInfo(storageParams)
-		if path == "" {
-			return "unknown", size
-		}
-		return path, size
-	}
-
-	if storageParams.OutName != "" {
-		return storageParams.OutName, 0
-	}
-
-	return "unknown", 0
-}
-
-func localBackupInfo(storageParams *storage.Params) (string, int64) {
-	if storageParams == nil {
-		return "", 0
-	}
-	if storageParams.StorageType != "" && storageParams.StorageType != "local" {
-		return "", 0
-	}
-
-	path := storageParams.OutName
-	if path == "" {
-		return "", 0
-	}
-
-	if storageParams.LocalPath != "" && !filepath.IsAbs(path) {
-		path = filepath.Join(storageParams.LocalPath, path)
-	}
-
-	info, err := os.Stat(path)
+	deleted, err := applyJobRetention(context.Background(), cfg, mon, job.Name, false)
 	if err != nil {
-		return path, 0
+		cmd.PrintErrf("warning: retention apply failed for backup '%s': %v\n", job.Name, err)
+		return
 	}
-	if info.IsDir() {
-		return path, 0
+
+	if len(deleted) > 0 {
+		cmd.Printf("Retention: deleted %d artifact(s) for backup '%s'\n", len(deleted), job.Name)
 	}
-	return path, info.Size()
 }
 
+// listDatabases enumerates databases for auto-discovery. SQL engines go
+// through the domain source resolver over ports.DBProber; Mongo stays
+// adapter-direct because the prober port's
+// DatabaseConfig carries no URI.
 func listDatabases(job config.BackupJob) ([]string, error) {
 	switch job.Type {
-	case "postgres":
+	case "postgres", "mysql", "mariadb":
 		password, err := config.PasswordFromEnv(job.PasswordEnv)
 		if err != nil {
 			return nil, err
 		}
-		return backupSQL.ListDatabases("postgres", job.Host, portString(job.Port), job.Username, password)
-	case "mysql", "mariadb":
-		password, err := config.PasswordFromEnv(job.PasswordEnv)
-		if err != nil {
-			return nil, err
+		djob := backup.Job{
+			Engine: job.Type,
+			DBConn: ports.DatabaseConfig{
+				Type:     job.Type,
+				Host:     job.Host,
+				Port:     job.Port,
+				Username: job.Username,
+				Password: password,
+			},
 		}
-		return backupSQL.ListDatabases("mysql", job.Host, portString(job.Port), job.Username, password)
+		return backup.ListSQLSources(context.Background(), dbprobe.NewAdapter(), djob)
 	case "mongodb":
-		return backupMongo.ListDatabases(job.URI)
+		return dbprobe.ListMongoDatabases(job.URI)
 	default:
 		return nil, fmt.Errorf("unsupported database type '%s'", job.Type)
 	}
-}
-
-func portString(port int) string {
-	if port == 0 {
-		return ""
-	}
-	return strconv.Itoa(port)
 }
 
 func applyCLIOverrides(cmd *cobra.Command, job *config.BackupJob) error {
@@ -711,6 +742,18 @@ func applyStorageOverrides(cmd *cobra.Command, params *storage.Params, job *conf
 		params.GoogleServiceAccount, _ = cmd.Flags().GetString("gdrive-sa-file")
 		job.Storage.GDriveSAFile = params.GoogleServiceAccount
 	}
+	if cmd.Flags().Changed("gcs-bucket") {
+		params.GCSBucket, _ = cmd.Flags().GetString("gcs-bucket")
+		job.Storage.GCSBucket = params.GCSBucket
+	}
+	if cmd.Flags().Changed("gcs-project-id") {
+		params.GCSProjectID, _ = cmd.Flags().GetString("gcs-project-id")
+		job.Storage.GCSProjectID = params.GCSProjectID
+	}
+	if cmd.Flags().Changed("gcs-credentials-file") {
+		params.GCSCredentialsFile, _ = cmd.Flags().GetString("gcs-credentials-file")
+		job.Storage.GCSCredentialsFile = params.GCSCredentialsFile
+	}
 	if cmd.Flags().Changed("aws-bucket") {
 		params.AWSBucket, _ = cmd.Flags().GetString("aws-bucket")
 		job.Storage.S3Bucket = params.AWSBucket
@@ -735,13 +778,26 @@ func applyStorageOverrides(cmd *cobra.Command, params *storage.Params, job *conf
 }
 
 func resolvePassword(cmd *cobra.Command, job config.BackupJob) (string, error) {
-	if cmd.Flags().Changed("password") {
-		return cmd.Flags().GetString("password")
+	flags := config.ResolveFlags{
+		PasswordSet:     cmd.Flags().Changed("password"),
+		PasswordEnvSet:  cmd.Flags().Changed("password-env"),
+		PasswordFileSet: cmd.Flags().Changed("password-file"),
 	}
-	if job.Type == "mongodb" {
-		return "", nil
+	flags.Password, _ = cmd.Flags().GetString("password")
+	flags.PasswordEnv, _ = cmd.Flags().GetString("password-env")
+	flags.PasswordFile, _ = cmd.Flags().GetString("password-file")
+
+	res, err := config.Resolve(flags, job)
+	if err != nil {
+		return "", err
 	}
-	return config.PasswordFromEnv(job.PasswordEnv)
+
+	if res.Source == config.SourceFileFlag && res.FileMode.Perm()&0o044 != 0 {
+		passwordFilePermWarnOnce.Do(func() {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: password file '%s' has permissions 0o%03o (group- or world-readable); recommend chmod 0600\n", res.FilePath, res.FileMode.Perm())
+		})
+	}
+	return res.Password, nil
 }
 
 func ensureDatabaseOptions(job *config.BackupJob) {
@@ -750,161 +806,155 @@ func ensureDatabaseOptions(job *config.BackupJob) {
 	}
 }
 
-// backupSecurityResult holds hash and encryption metadata produced by applyBackupSecurity.
-type backupSecurityResult struct {
-	hashAlgo     string
-	hashValue    string
-	manifestPath string
-	encrypted    bool
-	keyHint      string
+
+func handleBackupForceFull(cmd *cobra.Command, args []string) error {
+	cfgPath, _ := cmd.Flags().GetString("config")
+	if strings.TrimSpace(cfgPath) == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	cfg, err := LoadAndValidateConfig(cfgPath)
+	if err != nil {
+		return err
+	}
+
+	jobName, _ := cmd.Flags().GetString("job")
+	job, ok := cfg.Databases[jobName]
+	if !ok {
+		return fmt.Errorf("backup job %q not found", jobName)
+	}
+
+	if err := executeBackupJobWithMode(cmd, cfg, job, executionModeConfig, backupRunOptions{forceFull: true}); err != nil {
+		return err
+	}
+
+	cmd.Printf("Forced full backup completed for job %s\n", jobName)
+	return nil
 }
 
-// applyBackupSecurity computes a SHA-256 hash of the local backup file and optionally
-// encrypts it in-place using AES-256-GCM (T023, T033). A BackupManifest is written
-// alongside the file. Returns nil silently for non-local or missing files.
-func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params) (*backupSecurityResult, error) {
-	filePath, fileSize := localBackupInfo(storageParams)
-	if filePath == "" {
-		return nil, nil
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		return nil, nil
+func handleBackupChainStatus(cmd *cobra.Command, args []string) error {
+	cfgPath, _ := cmd.Flags().GetString("config")
+	if strings.TrimSpace(cfgPath) == "" {
+		return fmt.Errorf("--config is required")
 	}
 
-	hashValue, err := computeFileHash(filePath)
+	cfg, err := LoadAndValidateConfig(cfgPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute backup hash: %w", err)
-	}
-	plaintextHash := hashValue
-
-	result := &backupSecurityResult{
-		hashAlgo:  "sha256",
-		hashValue: hashValue,
+		return err
 	}
 
-	// T033: encrypt if a master key is configured
-	var encInfo *manifest.EncryptionInfo
-	if cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "") {
-		encrypted, encMeta, encHash, encErr := encryptBackupFile(cfg, filePath, job.Name)
-		if encErr != nil {
-			fmt.Printf("Warning: backup encryption failed for '%s': %v\n", job.Name, encErr)
-		} else if encrypted {
-			result.encrypted = true
-			result.hashValue = encHash
-			result.keyHint = cfg.EncryptionKeyEnv
-			encInfo = encMeta
+	jobName, _ := cmd.Flags().GetString("job")
+	if _, ok := cfg.Databases[jobName]; !ok {
+		return fmt.Errorf("backup job %q not found", jobName)
+	}
+
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize monitor: %w", err)
+	}
+	defer mon.Close()
+
+	executions, err := mon.ListExecutions(cmd.Context(), &ports.Filter{BackupName: jobName}, 300, 0)
+	if err != nil {
+		return fmt.Errorf("failed to list backup history: %w", err)
+	}
+
+	latest := latestSuccessfulExecution(executions)
+	if latest == nil {
+		cmd.Printf("No successful backup executions found for job %s\n", jobName)
+		return nil
+	}
+
+	depth := 0
+	if latest.ChainID != "" {
+		for i := range executions {
+			exec := executions[i]
+			if !isSuccessfulStatus(exec.Status) {
+				continue
+			}
+			if exec.ChainID == latest.ChainID {
+				depth++
+			}
 		}
 	}
 
-	// Write manifest alongside the backup file
-	manifestPath := filePath + ".manifest.json"
-	m := &manifest.BackupManifest{
-		BackupID:     job.Name,
-		Database:     job.Database,
-		DatabaseType: job.Type,
-		CreatedAt:    time.Now().UTC(),
-		SizeBytes:    fileSize,
-		Hash: manifest.HashInfo{
-			Algorithm:      "sha256",
-			Value:          result.hashValue,
-			PlaintextValue: plaintextHash,
-		},
-		Encryption: encInfo,
-	}
-	if writeErr := manifest.WriteManifest(manifestPath, m); writeErr != nil {
-		fmt.Printf("Warning: failed to write manifest for '%s': %v\n", job.Name, writeErr)
-	} else {
-		result.manifestPath = manifestPath
-	}
-
-	return result, nil
+	cmd.Printf("Job: %s\n", jobName)
+	cmd.Printf("Latest Backup Type: %s\n", latest.BackupType)
+	cmd.Printf("Chain ID: %s\n", latest.ChainID)
+	cmd.Printf("Chain Index: %d\n", latest.ChainIndex)
+	cmd.Printf("Chain Depth: %d\n", depth)
+	cmd.Printf("Last Success: %s\n", latest.Timestamp.UTC().Format(time.RFC3339))
+	return nil
 }
 
-// computeFileHash returns the hex-encoded SHA-256 digest of the file at path.
-func computeFileHash(path string) (string, error) {
-	f, err := os.Open(path)
+func handleBackupChainList(cmd *cobra.Command, args []string) error {
+	cfgPath, _ := cmd.Flags().GetString("config")
+	if strings.TrimSpace(cfgPath) == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	cfg, err := LoadAndValidateConfig(cfgPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open file for hashing: %w", err)
+		return err
 	}
-	defer f.Close()
-	hw := crypto.NewHashingWriter(io.Discard)
-	if _, err := io.Copy(hw, f); err != nil {
-		return "", fmt.Errorf("failed to read file for hashing: %w", err)
+
+	chainID, _ := cmd.Flags().GetString("chain-id")
+	chainID = strings.TrimSpace(chainID)
+	if chainID == "" {
+		return fmt.Errorf("--chain-id is required")
 	}
-	return hw.Sum(), nil
+
+	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize monitor: %w", err)
+	}
+	defer mon.Close()
+
+	executions, err := mon.ListExecutions(cmd.Context(), nil, 2000, 0)
+	if err != nil {
+		return fmt.Errorf("failed to list backup history: %w", err)
+	}
+
+	chainExecutions := make([]ports.Execution, 0)
+	for i := range executions {
+		exec := executions[i]
+		if !isSuccessfulStatus(exec.Status) {
+			continue
+		}
+		if exec.ChainID == chainID {
+			chainExecutions = append(chainExecutions, exec)
+		}
+	}
+
+	if len(chainExecutions) == 0 {
+		cmd.Printf("No executions found for chain %s\n", chainID)
+		return nil
+	}
+
+	sort.Slice(chainExecutions, func(i, j int) bool {
+		return chainExecutions[i].ChainIndex < chainExecutions[j].ChainIndex
+	})
+
+	cmd.Printf("Chain: %s\n", chainID)
+	cmd.Println("INDEX\tTYPE\tBACKUP\tTIME\tPATH")
+	for i := range chainExecutions {
+		exec := chainExecutions[i]
+		cmd.Printf("%d\t%s\t%s\t%s\t%s\n", exec.ChainIndex, exec.BackupType, exec.BackupName, exec.Timestamp.UTC().Format(time.RFC3339), exec.FilePath)
+	}
+
+	return nil
 }
 
-// encryptBackupFile encrypts filePath in-place using AES-256-GCM via ChunkEncryptWriter.
-// Returns (encrypted, encInfo, hashOfEncryptedFile, err).
-func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *manifest.EncryptionInfo, string, error) {
-	kp := &crypto.FileKeyProvider{
-		EnvVar:   cfg.EncryptionKeyEnv,
-		FilePath: cfg.EncryptionKeyFile,
+func latestSuccessfulExecution(executions []ports.Execution) *ports.Execution {
+	for i := range executions {
+		exec := executions[i]
+		if isSuccessfulStatus(exec.Status) {
+			return &exec
+		}
 	}
-	masterKey, err := kp.GetKey()
-	if err != nil {
-		return false, nil, "", fmt.Errorf("failed to get encryption key: %w", err)
-	}
+	return nil
+}
 
-	salt, err := crypto.GenerateSalt()
-	if err != nil {
-		return false, nil, "", err
-	}
-	derivedKey := crypto.DeriveKey(masterKey, salt)
-
-	in, err := os.Open(filePath)
-	if err != nil {
-		return false, nil, "", fmt.Errorf("failed to open file for encryption: %w", err)
-	}
-
-	encPath := filePath + ".enc"
-	out, err := os.Create(encPath)
-	if err != nil {
-		in.Close()
-		return false, nil, "", fmt.Errorf("failed to create encrypted output: %w", err)
-	}
-
-	hw := crypto.NewHashingWriter(out)
-	enc, err := crypto.NewChunkEncryptWriter(hw, derivedKey, backupID)
-	if err != nil {
-		in.Close()
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", err
-	}
-
-	_, copyErr := io.Copy(enc, in)
-	in.Close()
-	if copyErr != nil {
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed during encryption: %w", copyErr)
-	}
-
-	if flushErr := enc.Flush(); flushErr != nil {
-		out.Close()
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed to flush encrypted data: %w", flushErr)
-	}
-
-	encHash := hw.Sum()
-	nonce := enc.BaseNonce()
-	authTag := enc.LastAuthTag()
-	out.Close()
-
-	if renameErr := os.Rename(encPath, filePath); renameErr != nil {
-		os.Remove(encPath)
-		return false, nil, "", fmt.Errorf("failed to replace file with encrypted version: %w", renameErr)
-	}
-
-	encInfo := &manifest.EncryptionInfo{
-		Algorithm:     "AES-256-GCM",
-		KeyDerivation: "PBKDF2-HMAC-SHA256",
-		Iterations:    100_000,
-		Salt:          base64.StdEncoding.EncodeToString(salt),
-		IV:            hex.EncodeToString(nonce),
-		AuthTag:       hex.EncodeToString(authTag),
-	}
-
-	return true, encInfo, encHash, nil
+func isSuccessfulStatus(status string) bool {
+	return status == "success" || status == ports.StatusCompleted
 }

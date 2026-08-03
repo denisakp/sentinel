@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestListExecutionsWithFilters(t *testing.T) {
@@ -19,7 +20,7 @@ func TestListExecutionsWithFilters(t *testing.T) {
 	insertExecution(t, mon, "job-a", "postgres", "failure", start.Add(30*time.Minute), 50)
 	insertExecution(t, mon, "job-b", "mysql", "success", start.Add(90*time.Minute), 75)
 
-	filter := &monitor.Filter{BackupName: "job-a"}
+	filter := &ports.Filter{BackupName: "job-a"}
 	execs, err := mon.ListExecutions(context.Background(), filter, 10, 0)
 	if err != nil {
 		t.Fatalf("list executions failed: %v", err)
@@ -28,7 +29,7 @@ func TestListExecutionsWithFilters(t *testing.T) {
 		t.Fatalf("expected 2 executions, got %d", len(execs))
 	}
 
-	filter = &monitor.Filter{Status: "success"}
+	filter = &ports.Filter{Status: "success"}
 	execs, err = mon.ListExecutions(context.Background(), filter, 10, 0)
 	if err != nil {
 		t.Fatalf("list executions failed: %v", err)
@@ -37,7 +38,7 @@ func TestListExecutionsWithFilters(t *testing.T) {
 		t.Fatalf("expected 2 successes, got %d", len(execs))
 	}
 
-	filter = &monitor.Filter{StartDate: start.Add(45 * time.Minute)}
+	filter = &ports.Filter{StartDate: start.Add(45 * time.Minute)}
 	execs, err = mon.ListExecutions(context.Background(), filter, 10, 0)
 	if err != nil {
 		t.Fatalf("list executions failed: %v", err)
@@ -59,6 +60,52 @@ func TestGetExecution(t *testing.T) {
 	}
 	if exec.ID != id {
 		t.Fatalf("expected id %s, got %s", id, exec.ID)
+	}
+}
+
+func TestGetAggregateStatisticsAllJobs(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	insertExecution(t, mon, "job-a", "postgres", "success", now.Add(-2*time.Hour), 100)
+	insertExecution(t, mon, "job-b", "mysql", "failed", now.Add(-time.Hour), 200)
+	insertExecution(t, mon, "job-c", "postgres", "completed", now, 300)
+
+	stats, err := mon.GetAggregateStatistics(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("get aggregate statistics failed: %v", err)
+	}
+
+	if stats.BackupName != "all jobs" {
+		t.Fatalf("expected aggregate backup name label, got %q", stats.BackupName)
+	}
+	if stats.TotalExecutions != 3 {
+		t.Fatalf("expected 3 executions, got %d", stats.TotalExecutions)
+	}
+	if stats.SuccessCount != 2 {
+		t.Fatalf("expected 2 successes, got %d", stats.SuccessCount)
+	}
+	if stats.FailureCount != 1 {
+		t.Fatalf("expected 1 failure, got %d", stats.FailureCount)
+	}
+}
+
+func TestGetAggregateStatisticsRespectsTimeWindow(t *testing.T) {
+	mon := newTestMonitor(t)
+	defer mon.Close()
+
+	now := time.Now().UTC()
+	insertExecution(t, mon, "job-old", "postgres", "success", now.Add(-72*time.Hour), 100)
+	insertExecution(t, mon, "job-recent", "postgres", "success", now.Add(-2*time.Hour), 200)
+
+	stats, err := mon.GetAggregateStatistics(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("get aggregate statistics with day filter failed: %v", err)
+	}
+
+	if stats.TotalExecutions != 1 {
+		t.Fatalf("expected 1 recent execution in 1-day window, got %d", stats.TotalExecutions)
 	}
 }
 
@@ -138,7 +185,7 @@ func newTestMonitor(t *testing.T) *monitor.Monitor {
 
 func insertExecution(t *testing.T, mon *monitor.Monitor, jobName, dbType, status string, timestamp time.Time, size int64) string {
 	t.Helper()
-	exec := &monitor.Execution{
+	exec := &ports.Execution{
 		BackupName:     jobName,
 		DatabaseType:   dbType,
 		Timestamp:      timestamp.UTC(),

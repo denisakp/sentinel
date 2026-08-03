@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/crypto"
-	"github.com/denisakp/sentinel/internal/manifest"
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/notifier"
-	internalrestore "github.com/denisakp/sentinel/internal/restore"
-	"github.com/denisakp/sentinel/internal/retention"
-	"github.com/denisakp/sentinel/pkg/restore/mariadb_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mongo_restore"
-	"github.com/denisakp/sentinel/pkg/restore/mysql_restore"
-	"github.com/denisakp/sentinel/pkg/restore/pg_restore"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
+	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
+	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
+	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
+	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
 )
 
 // RestoreScheduleConfig represents a scheduled restore job configuration
@@ -55,8 +55,7 @@ type RestoreScheduleManager struct {
 	verifier      PostRestoreVerifier
 	backupStorage BackupStorage
 	cfg           *config.Configuration
-	monitor       *monitor.Monitor
-	retention     *retention.Manager
+	monitor       ports.Recorder
 }
 
 // BackupStorage provides methods to retrieve backups from various sources
@@ -72,8 +71,7 @@ func NewRestoreScheduleManager(
 	verifier PostRestoreVerifier,
 	backupStorage BackupStorage,
 	cfg *config.Configuration,
-	mon *monitor.Monitor,
-	ret *retention.Manager,
+	mon ports.Recorder,
 ) *RestoreScheduleManager {
 	restoreExec := NewRestoreExecutor(nil) // will be set with actual implementation
 	return &RestoreScheduleManager{
@@ -84,7 +82,6 @@ func NewRestoreScheduleManager(
 		backupStorage: backupStorage,
 		cfg:           cfg,
 		monitor:       mon,
-		retention:     ret,
 	}
 }
 
@@ -155,7 +152,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 	m, manifestErr := manifest.ReadManifest(manifestPath)
 	if manifestErr == nil {
 		// Manifest found: verify hash and handle decryption.
-		var keyProvider crypto.KeyProvider
+		var keyProvider ports.KeyProvider
 		if rsm.cfg != nil && (rsm.cfg.EncryptionKeyEnv != "" || rsm.cfg.EncryptionKeyFile != "") {
 			keyProvider = &crypto.FileKeyProvider{EnvVar: rsm.cfg.EncryptionKeyEnv, FilePath: rsm.cfg.EncryptionKeyFile}
 		}
@@ -175,7 +172,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 				slog.String("error", verifyErr.Error()),
 			)
 		}
-	} else if !errors.Is(manifestErr, manifest.ErrNoManifest) {
+	} else if !errors.Is(manifestErr, ports.ErrNoManifest) {
 		rsm.logger.Warn("Could not read backup manifest; skipping integrity check (pre-v1.1 backup)",
 			slog.String("job", config.Name),
 			slog.String("backup_path", config.BackupPath),
@@ -185,6 +182,10 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 	// Perform restore based on database type
 	result, err := rsm.performDatabaseRestore(ctx, config, backupData)
 	if err != nil {
+		bytesRestored := int64(0)
+		if result != nil {
+			bytesRestored = result.BytesRestored
+		}
 		rsm.logger.Error("Restore operation failed",
 			slog.String("job", config.Name),
 			slog.String("database_type", config.RestoreConfig.DatabaseType),
@@ -193,7 +194,7 @@ func (rsm *RestoreScheduleManager) executeRestore(ctx context.Context, config *R
 		// Send failure notification
 		rsm.notifyRestoreFailure(ctx, config, startTime, err.Error())
 		// Record failure
-		rsm.recordRestoreExecution(ctx, config, startTime, false, result.BytesRestored, false, err.Error())
+		rsm.recordRestoreExecution(ctx, config, startTime, false, bytesRestored, false, err.Error())
 		return err
 	}
 
@@ -260,11 +261,11 @@ func (rsm *RestoreScheduleManager) notifyRestoreSuccess(ctx context.Context, res
 		return
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:        restoreScheduleConfig.Name,
 		DatabaseType:       restoreScheduleConfig.RestoreConfig.DatabaseType,
 		DatabaseName:       restoreScheduleConfig.RestoreConfig.Database,
-		Status:             notifier.StatusSuccess,
+		Status:             ports.NotifyStatusSuccess,
 		StartTime:          startTime,
 		EndTime:            time.Now(),
 		BytesRestored:      result.BytesRestored,
@@ -301,11 +302,11 @@ func (rsm *RestoreScheduleManager) notifyRestoreFailure(ctx context.Context, res
 		return
 	}
 
-	restoreCtx := &notifier.RestoreContext{
+	restoreCtx := &ports.RestoreContext{
 		RestoreName:      restoreScheduleConfig.Name,
 		DatabaseType:     restoreScheduleConfig.RestoreConfig.DatabaseType,
 		DatabaseName:     restoreScheduleConfig.RestoreConfig.Database,
-		Status:           notifier.StatusFailure,
+		Status:           ports.NotifyStatusFailure,
 		StartTime:        startTime,
 		EndTime:          time.Now(),
 		Error:            errorMsg,
@@ -331,10 +332,13 @@ func (rsm *RestoreScheduleManager) recordRestoreExecution(ctx context.Context, c
 		status = "failure"
 	}
 
-	exec := &monitor.RestoreExecution{
+	exec := &ports.RestoreExecution{
 		RestoreName:        config.Name,
 		DatabaseType:       config.RestoreConfig.DatabaseType,
 		DatabaseName:       config.RestoreConfig.Database,
+		RestoreMode:        "full",
+		PlanningStatus:     "ready",
+		FallbackDecision:   "none",
 		Timestamp:          startTime.UTC(),
 		DurationMs:         time.Since(startTime).Milliseconds(),
 		Status:             status,
@@ -354,7 +358,7 @@ func (rsm *RestoreScheduleManager) recordRestoreExecution(ctx context.Context, c
 
 // applyRestoreRetention applies retention policy to cleanup old restore execution records
 func (rsm *RestoreScheduleManager) applyRestoreRetention(ctx context.Context, restoreConfig *RestoreScheduleConfig) {
-	if rsm.cfg == nil || rsm.retention == nil {
+	if rsm.cfg == nil || rsm.monitor == nil {
 		return
 	}
 
@@ -372,13 +376,13 @@ func (rsm *RestoreScheduleManager) applyRestoreRetention(ctx context.Context, re
 		return
 	}
 
-	policy := retention.Policy{
+	policy := domainret.Policy{
 		KeepLast: restoreJobCfg.Retention.KeepLast,
 		KeepDays: restoreJobCfg.Retention.KeepDays,
 		DryRun:   false,
 	}
 
-	if err := rsm.retention.ApplyRestoreRetention(ctx, restoreConfig.Name, policy); err != nil {
+	if err := rsm.monitor.DeleteRestoreExecutions(ctx, restoreConfig.Name, policy); err != nil {
 		rsm.logger.Warn("Failed to apply restore retention policy",
 			slog.String("job", restoreConfig.Name),
 			slog.String("error", err.Error()),

@@ -4,18 +4,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func TestFormatMessage(t *testing.T) {
 	startTime := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(5 * time.Minute)
 
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "daily-backup",
 		DatabaseType: "postgres",
 		DatabaseName: "mydb",
-		Status:       notifier.StatusSuccess,
+		Status:       ports.NotifyStatusSuccess,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		FileSize:     1024 * 1024 * 500,
@@ -32,7 +33,7 @@ func TestFormatMessage(t *testing.T) {
 		t.Fatal("expected non-empty message")
 	}
 
-	if msg.Status != notifier.StatusSuccess {
+	if msg.Status != ports.NotifyStatusSuccess {
 		t.Fatalf("expected status success, got %s", msg.Status)
 	}
 
@@ -46,11 +47,11 @@ func TestFormatMessage(t *testing.T) {
 }
 
 func TestFormatMessage_WithError(t *testing.T) {
-	backup := &notifier.BackupContext{
+	backup := &ports.BackupContext{
 		BackupName:   "backup",
 		DatabaseType: "mysql",
 		DatabaseName: "db",
-		Status:       notifier.StatusFailure,
+		Status:       ports.NotifyStatusFailure,
 		EndTime:      time.Now(),
 		Error:        "connection timeout",
 		FileSize:     0,
@@ -78,11 +79,11 @@ func TestFormatDuration(t *testing.T) {
 		startTime := time.Now()
 		endTime := startTime.Add(tt.duration)
 
-		backup := &notifier.BackupContext{
+		backup := &ports.BackupContext{
 			BackupName:   "test",
 			DatabaseType: "postgres",
 			DatabaseName: "db",
-			Status:       notifier.StatusSuccess,
+			Status:       ports.NotifyStatusSuccess,
 			StartTime:    startTime,
 			EndTime:      endTime,
 		}
@@ -106,11 +107,11 @@ func TestFormatFileSize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		backup := &notifier.BackupContext{
+		backup := &ports.BackupContext{
 			BackupName:   "test",
 			DatabaseType: "postgres",
 			DatabaseName: "db",
-			Status:       notifier.StatusSuccess,
+			Status:       ports.NotifyStatusSuccess,
 			EndTime:      time.Now(),
 			FileSize:     tt.bytes,
 		}
@@ -143,12 +144,12 @@ func TestSanitizeForSlack(t *testing.T) {
 
 func TestStatusEmoji(t *testing.T) {
 	tests := []struct {
-		status notifier.BackupStatus
+		status ports.BackupStatus
 		label  string
 	}{
-		{notifier.StatusSuccess, "OK"},
-		{notifier.StatusFailure, "FAIL"},
-		{notifier.StatusWarning, "WARN"},
+		{ports.NotifyStatusSuccess, "OK"},
+		{ports.NotifyStatusFailure, "FAIL"},
+		{ports.NotifyStatusWarning, "WARN"},
 	}
 
 	for _, tt := range tests {

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/monitor"
-	"github.com/denisakp/sentinel/internal/storage"
-	"github.com/denisakp/sentinel/pkg/backup/mysql_dump"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 )
 
 func TestMySQLBackup(t *testing.T) {
@@ -33,7 +34,7 @@ func TestMySQLBackup(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_test.sql")
 
-	args := &mysql_dump.MySqlDumpArgs{
+	args := &mysql.MySqlDumpArgs{
 		Username: db.Username,
 		Password: db.Password,
 		Host:     db.Host,
@@ -49,7 +50,7 @@ func TestMySQLBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MySQL backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	err := mysql_dump.Backup(args)
+	_, err := mysql.Backup(dbprobe.NewAdapter(), args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -89,7 +90,7 @@ func TestMySQLRestore(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_test.sql")
 
-	backupArgs := &mysql_dump.MySqlDumpArgs{
+	backupArgs := &mysql.MySqlDumpArgs{
 		Username: db.Username,
 		Password: db.Password,
 		Host:     db.Host,
@@ -102,7 +103,7 @@ func TestMySQLRestore(t *testing.T) {
 		},
 	}
 
-	if err := mysql_dump.Backup(backupArgs); err != nil {
+	if _, err := mysql.Backup(dbprobe.NewAdapter(), backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -132,7 +133,7 @@ func TestMySQLBackupCleanupOnFailure(t *testing.T) {
 	backupDir := t.TempDir()
 	backupPath := filepath.Join(backupDir, "mysql_fail.sql")
 
-	args := &mysql_dump.MySqlDumpArgs{
+	args := &mysql.MySqlDumpArgs{
 		Username: "invalid_user",
 		Password: "invalid_password",
 		Host:     "invalid_host",
@@ -147,7 +148,7 @@ func TestMySQLBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MySQL backup with invalid credentials (expecting failure)")
-	err = mysql_dump.Backup(args)
+	_, err = mysql.Backup(dbprobe.NewAdapter(), args)
 
 	// Verify backup failed as expected
 	if err == nil {
@@ -168,7 +169,7 @@ func TestMySQLDryRun(t *testing.T) {
 	}
 
 	// Test validation without container (dry-run scenario)
-	args := &mysql_dump.MySqlDumpArgs{
+	args := &mysql.MySqlDumpArgs{
 		Username: "test_user",
 		Password: "test_pass",
 		Host:     "localhost",

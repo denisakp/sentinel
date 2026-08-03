@@ -1,0 +1,38 @@
+version: "1.0"
+defaults:
+  schedule: "*/1 * * * *"
+  storage:
+    type: local
+    local_path: ./backups
+databases:
+  postgres-fixed-output:
+    type: postgres
+    host: localhost
+    username: sentinel
+    password_env: PG_PASSWORD
+    database: app
+    output: postgres-dev
+    database_options:
+      pg_out_format: p
+    retention:
+      keep_last: 2
+      keep_days: 7
+  mysql-fixed-output:
+    type: mysql
+    host: localhost
+    username: root
+    password_env: MYSQL_PASSWORD
+    database: app
+    output: mysql-dev
+  mariadb-fixed-output:
+    type: mariadb
+    host: localhost
+    username: root
+    password_env: MARIADB_PASSWORD
+    database: app
+    output: mariadb-dev
+  mongo-fixed-output:
+    type: mongodb
+    uri_env: MONGO_URI
+    database: app
+    output: mongo-dev

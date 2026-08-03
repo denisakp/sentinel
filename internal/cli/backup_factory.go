@@ -1,0 +1,549 @@
+package cli
+
+// Backup Executor factory. Single construction
+// point translating config.BackupJob (+ resolved storage params and engine
+// args) into a domain backup.Executor + backup.Job. Used by every backup
+// call site: CLI single jobs, auto-discovery, and the scheduled path (which
+// flows through executeBackupJobWithMode).
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	compresspkg "github.com/denisakp/sentinel/internal/adapters/compress"
+	"github.com/denisakp/sentinel/internal/adapters/crypto"
+	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
+	dumpmariadb "github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	dumpmongo "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
+	dumpmysql "github.com/denisakp/sentinel/internal/adapters/dump/mysql"
+	dumppg "github.com/denisakp/sentinel/internal/adapters/dump/pg"
+	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/notifier"
+	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/config"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/ports"
+)
+
+// verifyIncrementalArtifactHash is the incremental-hash verification seam
+// (overridden in tests). Wired into backup.Job.VerifyArtifactHash.
+var verifyIncrementalArtifactHash = manifest.VerifyBackupHash
+
+// dumpBuilderFunc adapts a closure to ports.DumpBuilder (used for the
+// BackupAll auto-discovery "single" strategy, which has no port-side Build).
+type dumpBuilderFunc func(ctx ports.BuildContext) (ports.BuildResult, error)
+
+func (f dumpBuilderFunc) Build(ctx ports.BuildContext) (ports.BuildResult, error) { return f(ctx) }
+
+// monitorBackedRecorder is the per-call history recorder handed to the
+// Executor. It preserves the pre-carve open-per-operation monitor lifecycle
+// and always feeds the incremental metrics observer, even without a history
+// DB. Only the three methods the Executor touches are implemented; the
+// embedded nil interface covers the rest of ports.Recorder at compile time.
+type monitorBackedRecorder struct {
+	ports.Recorder
+	historyDBPath string
+	jobName       string
+}
+
+func (r *monitorBackedRecorder) RecordExecution(ctx context.Context, exec *ports.Execution) error {
+	monitor.ObserveIncrementalBackup(r.jobName, exec)
+	if strings.TrimSpace(r.historyDBPath) == "" {
+		return nil
+	}
+	mon, err := monitor.NewMonitor(r.historyDBPath)
+	if err != nil {
+		return err
+	}
+	defer mon.Close()
+	return mon.RecordExecution(ctx, exec)
+}
+
+func (r *monitorBackedRecorder) RecordSecurityInfo(ctx context.Context, id, hashAlgo, hashValue, plaintextHash, manifestPath string, encrypted bool, keyHint string) error {
+	if strings.TrimSpace(r.historyDBPath) == "" {
+		return nil
+	}
+	mon, err := monitor.NewMonitor(r.historyDBPath)
+	if err != nil {
+		return err
+	}
+	defer mon.Close()
+	return mon.RecordSecurityInfo(ctx, id, hashAlgo, hashValue, plaintextHash, manifestPath, encrypted, keyHint)
+}
+
+func (r *monitorBackedRecorder) ListExecutions(ctx context.Context, filter *ports.Filter, limit, offset int) ([]ports.Execution, error) {
+	if strings.TrimSpace(r.historyDBPath) == "" {
+		return nil, nil
+	}
+	mon, err := monitor.NewMonitor(r.historyDBPath)
+	if err != nil {
+		return nil, err
+	}
+	defer mon.Close()
+	return mon.ListExecutions(ctx, filter, limit, offset)
+}
+
+// backupExecution bundles a constructed Executor + translated Job.
+type backupExecution struct {
+	exec *backup.Executor
+	job  backup.Job
+	// notifWarn carries a dispatcher construction failure; non-fatal,
+	// printed by the caller after Run (pre-carve parity).
+	notifWarn error
+}
+
+// NewBackupExecutorFromConfig constructs the domain backup Executor and Job
+// for one configured backup job. engineOpts/dumps may be nil when only the
+// post-dump pipeline is exercised (applyBackupSecurity wrapper).
+func NewBackupExecutorFromConfig(
+	cfg *config.Configuration,
+	job config.BackupJob,
+	storageParams *storage.Params,
+	scheduled, forceFull bool,
+	engineOpts ports.EngineOptions,
+	dumps ports.DumpBuilder,
+) (*backupExecution, error) {
+	historyPath := ""
+	if cfg != nil {
+		historyPath = cfg.HistoryDBPath
+	}
+	rec := &monitorBackedRecorder{historyDBPath: historyPath, jobName: job.Name}
+
+	var notif ports.Dispatcher
+	var notifWarn error
+	if len(job.Notifications) > 0 {
+		dispatcher, err := notifier.NewDispatcherFromConfig(job.Notifications)
+		if err != nil {
+			notifWarn = err
+		} else {
+			notif = dispatcher
+		}
+	}
+
+	// Remote-artifact security: redirect the dump to a local staging
+	// dir so the domain pipeline can hash/encrypt/manifest the artifact before
+	// the Executor uploads it (encrypted) + its manifest sidecar to the remote
+	// backend. Wired only for stageable single-artifact dumps (the engine
+	// Builders); the pg/mysql/mariadb dump-all closure writes remotely itself
+	// and is left untouched. Local storage is never staged.
+	verifyAfterUpload := resolveVerifyAfterUpload(cfg, job)
+
+	var storageBackend ports.StorageBackend
+	stagingDir := ""
+	if shouldStageRemote(storageParams, engineOpts, dumps) {
+		sd, backend, err := redirectDumpToStaging(storageParams, engineOpts)
+		if err != nil {
+			return nil, fmt.Errorf("backup '%s': %w", job.Name, err)
+		}
+		stagingDir = sd
+		storageBackend = backend
+	} else if isRemoteStorage(storageParams) && encryptionConfigured(cfg) {
+		// Fail-loud: the auto-discovery "single" dump-all
+		// path (a dumpBuilderFunc) uploads to remote storage itself and cannot
+		// be staged in place, so the artifact cannot be encrypted before it
+		// leaves the host. Refuse rather than leak plaintext to the bucket.
+		return nil, fmt.Errorf("backup '%s': encrypted remote backup is not supported for the auto-discovery 'single' strategy; use strategy 'individual' or local storage", job.Name)
+	} else if verifyAfterUpload && storageParams != nil {
+		// verify_after_upload: no staging redirect is in
+		// play here — either local storage, or a remote auto-discovery
+		// "single" dump-all with no encryption. Construct a real backend
+		// purely so the Executor's post-upload verify step can re-download
+		// the artifact. For local storage this simply re-reads the on-disk
+		// file (Q4: allowed but off by default; its real value is remote).
+		// For the remote dump-all case there is no staged artifact and thus
+		// no manifest hash, so the verify step degrades to a no-op — see
+		// Executor.verifyAfterUpload.
+		backend, err := storage.NewBackend(storageParams)
+		if err != nil {
+			return nil, fmt.Errorf("backup '%s': verify_after_upload: %w", job.Name, err)
+		}
+		storageBackend = backend
+	}
+
+	exec := backup.NewExecutor(
+		dumps,
+		storageBackend, // ports.StorageBackend — remote upload target (nil for local)
+		nil,            // ports.EncryptWriter — per-file encryption goes through Job.EncryptArtifact
+		nil,            // ports.Hasher — digests computed inline by dump adapters
+		rec,
+		notif,
+		nil, // ports.LockManager — job serialization owned by the scheduler runtime
+		dbprobe.NewAdapter(),
+		manifest.Adapter{},
+	)
+
+	djob := buildDomainBackupJob(cfg, job, storageParams, scheduled, forceFull, engineOpts)
+	djob.StagingDir = stagingDir
+	djob.VerifyAfterUpload = verifyAfterUpload
+
+	return &backupExecution{
+		exec:      exec,
+		job:       djob,
+		notifWarn: notifWarn,
+	}, nil
+}
+
+// isRemoteStorage reports whether storageParams targets a non-local backend.
+func isRemoteStorage(p *storage.Params) bool {
+	return p != nil && p.StorageType != "" && p.StorageType != "local"
+}
+
+// encryptionConfigured reports whether the config enables at-rest encryption.
+func encryptionConfigured(cfg *config.Configuration) bool {
+	return cfg != nil && (cfg.EncryptionKeyEnv != "" || cfg.EncryptionKeyFile != "")
+}
+
+// resolveVerifyAfterUpload resolves the effective verify_after_upload flag
+// for job: a per-job override (job.VerifyAfterUpload) wins when set,
+// otherwise the top-level integrity.verify_after_upload default applies.
+// loader.go's applyDefaults already resolves job.VerifyAfterUpload to a
+// non-nil pointer for configs loaded from YAML; this fallback also covers
+// BackupJob values built directly (e.g. by tests) that bypass the loader.
+// Opt-in, default off.
+func resolveVerifyAfterUpload(cfg *config.Configuration, job config.BackupJob) bool {
+	if job.VerifyAfterUpload != nil {
+		return *job.VerifyAfterUpload
+	}
+	if cfg != nil {
+		return cfg.Integrity.VerifyAfterUpload
+	}
+	return false
+}
+
+// shouldStageRemote decides whether to redirect a remote dump through a local
+// staging dir. It applies only to real single-artifact engine Builders; the
+// pg/mysql/mariadb dump-all path (a dumpBuilderFunc that writes remotely on its
+// own) is excluded so its behaviour is unchanged.
+func shouldStageRemote(p *storage.Params, engineOpts ports.EngineOptions, dumps ports.DumpBuilder) bool {
+	if engineOpts == nil || !isRemoteStorage(p) {
+		return false
+	}
+	if _, isDumpAll := dumps.(dumpBuilderFunc); isDumpAll {
+		return false
+	}
+	return true
+}
+
+// redirectDumpToStaging creates a unique local staging dir and points the dump
+// at it (SQL engines write there as local storage; mongo stages an archive
+// there via RemoteStagingDir). It also constructs the real remote backend the
+// Executor uploads to. On any error the staging dir is removed.
+func redirectDumpToStaging(storageParams *storage.Params, engineOpts ports.EngineOptions) (string, ports.StorageBackend, error) {
+	stagingDir, err := os.MkdirTemp("", "sentinel-stage-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create staging dir: %w", err)
+	}
+
+	backend, err := storage.NewBackend(storageParams)
+	if err != nil {
+		_ = os.RemoveAll(stagingDir)
+		return "", nil, fmt.Errorf("failed to initialize %s backend: %w", storageParams.StorageType, err)
+	}
+
+	switch opts := engineOpts.(type) {
+	case *dumppg.PgDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmysql.MySqlDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmariadb.MariaDBDumpArgs:
+		opts.Storage = localStagingParams(storageParams, stagingDir)
+	case *dumpmongo.DumpMongoArgs:
+		// Mongo keeps its remote Storage params (it needs --archive mode); it
+		// stages the archive into stagingDir and defers upload to the Executor.
+		opts.RemoteStagingDir = stagingDir
+	default:
+		// Unknown engine options: nothing to redirect. Drop the unused backend
+		// + staging dir so we don't leave the dump writing to a dead end.
+		_ = os.RemoveAll(stagingDir)
+		return "", nil, nil
+	}
+
+	return stagingDir, backend, nil
+}
+
+// localStagingParams builds local storage params writing into stagingDir while
+// preserving the configured output name (the Executor uploads to the real
+// remote key held on the domain Job).
+func localStagingParams(remote *storage.Params, stagingDir string) *storage.Params {
+	return &storage.Params{
+		StorageType: "local",
+		LocalPath:   stagingDir,
+		OutName:     remote.OutName,
+	}
+}
+
+// buildDomainBackupJob translates the config shapes into the pure domain Job.
+func buildDomainBackupJob(
+	cfg *config.Configuration,
+	job config.BackupJob,
+	storageParams *storage.Params,
+	scheduled, forceFull bool,
+	engineOpts ports.EngineOptions,
+) backup.Job {
+	normalized := config.NormalizeIncrementalBackupConfig(job)
+	incrementalEnabled := normalized.IncrementalBackup != nil && normalized.IncrementalBackup.Enabled
+	maxChainDepth := 0
+	if incrementalEnabled {
+		maxChainDepth = normalized.IncrementalBackup.MaxChainDepth
+	}
+
+	djob := backup.Job{
+		Name:     job.Name,
+		Engine:   job.Type,
+		Database: job.Database,
+		DBConn: ports.DatabaseConfig{
+			Type:     job.Type,
+			Host:     job.Host,
+			Port:     job.Port,
+			Username: job.Username,
+		},
+		Options:            engineOpts,
+		IncrementalEnabled: incrementalEnabled,
+		MaxChainDepth:      maxChainDepth,
+		ForceFull:          forceFull,
+		Scheduled:          scheduled,
+		Retention: buildRetentionPolicy(job.Retention, false),
+		VerifyArtifactHash: verifyIncrementalArtifactHash,
+	}
+
+	if storageParams != nil {
+		djob.StorageType = storageParams.StorageType
+		djob.LocalPath = storageParams.LocalPath
+		djob.OutName = storageParams.OutName
+		djob.GCSBucket = storageParams.GCSBucket
+	}
+
+	// Pipeline compression: wired only when the effective
+	// (post-inheritance) job config enables it with a real codec. The validator
+	// has already rejected enabling this alongside engine-native compression.
+	if cc := job.Compression; cc != nil && cc.Enabled && cc.Algorithm != "" && cc.Algorithm != "none" {
+		algorithm := cc.Algorithm
+		level := cc.Level
+		djob.CompressArtifact = func(path string) (bool, *ports.CompressionInfo, string, error) {
+			return compressBackupFile(algorithm, level, path)
+		}
+	}
+
+	if encryptionConfigured(cfg) {
+		djob.EncryptionKeyHint = cfg.EncryptionKeyEnv
+		djob.EncryptArtifact = func(path, backupID string) (bool, *ports.EncryptionInfo, string, error) {
+			return encryptBackupFile(cfg, path, backupID)
+		}
+	}
+
+	switch job.Type {
+	case "mysql", "mariadb":
+		jobCopy := job
+		djob.ArchiveBinlogs = func(ctx context.Context, artifactPath string) (backup.IncrementalArtifacts, error) {
+			return archiveMySQLBinlogArtifacts(ctx, jobCopy, artifactPath)
+		}
+	case "mongodb":
+		jobCopy := job
+		djob.ArchiveOplog = func(ctx context.Context, artifactPath string) (backup.IncrementalArtifacts, error) {
+			return archiveMongoOplogArtifacts(ctx, jobCopy, artifactPath)
+		}
+	}
+
+	return djob
+}
+
+// applyBackupSecurity preserves the historical CLI entry point (and its test
+// surface): it runs only the post-dump pipeline for an already-produced
+// artifact. Relocated orchestration lives in
+// internal/domain/backup/pipeline.go.
+func applyBackupSecurity(cfg *config.Configuration, job config.BackupJob, storageParams *storage.Params, forceFull bool, plaintextDigest string) (*backup.SecurityOutcome, error) {
+	be, err := NewBackupExecutorFromConfig(cfg, job, storageParams, false, forceFull, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	outcome, warnings, secErr := be.exec.ApplyArtifactSecurity(context.Background(), be.job, plaintextDigest, be.job.LocalPath)
+	for _, w := range warnings {
+		fmt.Println(w)
+	}
+	return outcome, secErr
+}
+
+func archiveMySQLBinlogArtifacts(ctx context.Context, job config.BackupJob, backupFilePath string) (backup.IncrementalArtifacts, error) {
+	binlogPath := strings.TrimSpace(job.MySQL.BinlogPath)
+	if binlogPath == "" {
+		return backup.IncrementalArtifacts{}, fmt.Errorf("mysql.binlog_path is required for incremental %s backup", job.Type)
+	}
+
+	archiveName := fmt.Sprintf("%s.binlogs.tar", filepath.Base(backupFilePath))
+	archiveResult, err := mysqlbinlog.Archive(ctx, &mysqlbinlog.ArchiveArgs{
+		BinlogDir:   binlogPath,
+		OutputDir:   filepath.Dir(backupFilePath),
+		ArchiveName: archiveName,
+	})
+	if err != nil {
+		return backup.IncrementalArtifacts{}, fmt.Errorf("failed to archive %s binlogs: %w", job.Type, err)
+	}
+
+	return backup.IncrementalArtifacts{
+		BinlogStartFile: archiveResult.StartFile,
+		BinlogEndFile:   archiveResult.EndFile,
+		BinlogArtifacts: []string{archiveResult.ArchivePath},
+	}, nil
+}
+
+func archiveMongoOplogArtifacts(ctx context.Context, job config.BackupJob, backupFilePath string) (backup.IncrementalArtifacts, error) {
+	mongoURI := strings.TrimSpace(job.URI)
+	if mongoURI == "" {
+		return backup.IncrementalArtifacts{}, fmt.Errorf("mongodb uri is required for incremental oplog archival")
+	}
+
+	archiveName := fmt.Sprintf("%s.oplog.archive", filepath.Base(backupFilePath))
+	archiveResult, err := dumpmongo.ArchiveOplog(ctx, &dumpmongo.OplogArchiveArgs{
+		URI:         mongoURI,
+		OutputDir:   filepath.Dir(backupFilePath),
+		ArchiveName: archiveName,
+	})
+	if err != nil {
+		return backup.IncrementalArtifacts{}, fmt.Errorf("failed to archive mongodb oplog: %w", err)
+	}
+
+	return backup.IncrementalArtifacts{
+		OplogArtifactPath: archiveResult.ArchivePath,
+	}, nil
+}
+
+// compressBackupFile compresses filePath in place using the pipeline codec
+// (gzip/zstd) and returns (compressed, compression info, sha256 of the
+// compressed bytes). It mirrors encryptBackupFile: stream source → codec →
+// HashingWriter → temp file, then atomically replace the original. The
+// compressed digest is the stored-artifact hash when the backup is not
+// subsequently encrypted.
+func compressBackupFile(algorithm string, level int, filePath string) (bool, *ports.CompressionInfo, string, error) {
+	in, err := os.Open(filePath)
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to open file for compression: %w", err)
+	}
+
+	cmpPath := filePath + ".cmp"
+	out, err := os.Create(cmpPath)
+	if err != nil {
+		in.Close()
+		return false, nil, "", fmt.Errorf("failed to create compressed output: %w", err)
+	}
+
+	hw := crypto.NewHashingWriter(out)
+	cw, err := compresspkg.NewCompressWriter(hw, algorithm, level)
+	if err != nil {
+		in.Close()
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", err
+	}
+
+	if _, copyErr := io.Copy(cw, in); copyErr != nil {
+		in.Close()
+		cw.Close()
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed during compression: %w", copyErr)
+	}
+	in.Close()
+
+	if closeErr := cw.Close(); closeErr != nil {
+		out.Close()
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to finalize compressed data: %w", closeErr)
+	}
+
+	compressedHash := hw.Sum()
+	if closeErr := out.Close(); closeErr != nil {
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to close compressed output: %w", closeErr)
+	}
+
+	if renameErr := os.Rename(cmpPath, filePath); renameErr != nil {
+		os.Remove(cmpPath)
+		return false, nil, "", fmt.Errorf("failed to replace file with compressed version: %w", renameErr)
+	}
+
+	return true, &ports.CompressionInfo{Algorithm: algorithm, Level: level}, compressedHash, nil
+}
+
+// encryptBackupFile encrypts filePath in-place using AES-256-GCM via
+// ChunkEncryptWriter. Returns (encrypted, encInfo, hashOfEncryptedFile, err).
+func encryptBackupFile(cfg *config.Configuration, filePath, backupID string) (bool, *ports.EncryptionInfo, string, error) {
+	kp := &crypto.FileKeyProvider{
+		EnvVar:   cfg.EncryptionKeyEnv,
+		FilePath: cfg.EncryptionKeyFile,
+	}
+	masterKey, err := kp.GetKey()
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to get encryption key: %w", err)
+	}
+
+	salt, err := crypto.GenerateSalt()
+	if err != nil {
+		return false, nil, "", err
+	}
+	derivedKey := crypto.DeriveKey(masterKey, salt)
+
+	in, err := os.Open(filePath)
+	if err != nil {
+		return false, nil, "", fmt.Errorf("failed to open file for encryption: %w", err)
+	}
+
+	encPath := filePath + ".enc"
+	out, err := os.Create(encPath)
+	if err != nil {
+		in.Close()
+		return false, nil, "", fmt.Errorf("failed to create encrypted output: %w", err)
+	}
+
+	hw := crypto.NewHashingWriter(out)
+	enc, err := crypto.NewChunkEncryptWriter(hw, derivedKey, backupID)
+	if err != nil {
+		in.Close()
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", err
+	}
+
+	_, copyErr := io.Copy(enc, in)
+	in.Close()
+	if copyErr != nil {
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed during encryption: %w", copyErr)
+	}
+
+	if flushErr := enc.Flush(); flushErr != nil {
+		out.Close()
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed to flush encrypted data: %w", flushErr)
+	}
+
+	encHash := hw.Sum()
+	nonce := enc.BaseNonce()
+	authTag := enc.LastAuthTag()
+	out.Close()
+
+	if renameErr := os.Rename(encPath, filePath); renameErr != nil {
+		os.Remove(encPath)
+		return false, nil, "", fmt.Errorf("failed to replace file with encrypted version: %w", renameErr)
+	}
+
+	encInfo := &ports.EncryptionInfo{
+		Algorithm:       "AES-256-GCM",
+		KeyDerivation:   "PBKDF2-HMAC-SHA256",
+		Iterations:      100_000,
+		Salt:            base64.StdEncoding.EncodeToString(salt),
+		IV:              hex.EncodeToString(nonce),
+		AuthTag:         hex.EncodeToString(authTag),
+		EnvelopeVersion: 2,
+	}
+
+	return true, encInfo, encHash, nil
+}

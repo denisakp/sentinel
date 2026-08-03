@@ -16,7 +16,7 @@ guidelines.
 
 ## Getting Started
 
-To contribute to Sentinel, follow these steps:
+Prerequisite: Go 1.24+.
 
 1. Fork the repository to your GitHub account.
 2. Clone your forked repository to your local machine.
@@ -25,8 +25,19 @@ To contribute to Sentinel, follow these steps:
    ``` shell
      git checkout -b feature/your-feature-name
    ```
-4. Make your changes, additions, or fixes.
-5. Ensure your code adheres to our coding standards and conventions.
+4. Build and test locally:
+
+   ``` shell
+     go build -o sentinel
+     go test ./...
+   ```
+
+   For end-to-end coverage against real database engines (requires Docker):
+
+   ``` shell
+     make e2e
+   ```
+5. Make your changes, additions, or fixes, following the [Architecture](#architecture) rules below.
 6. Commit your changes with descriptive commit messages.
 7. Push your changes to your forked repository:
 
@@ -34,6 +45,22 @@ To contribute to Sentinel, follow these steps:
      git push origin feature/your-feature-name
    ```
 8. Open a pull request (PR) from your forked repository to this main repository.
+
+## Architecture
+
+Sentinel follows a hexagonal (ports-and-adapters) architecture: domain logic
+depends only on `internal/ports/` interfaces, never on concrete adapters, and
+adapters within the same axis (e.g. the storage backends, or the per-engine
+dump/restore adapters) never import each other. This keeps each database
+engine and storage backend swappable and independently testable. Before
+adding or moving code across package boundaries, read
+[`docs/architecture/vision.md`](docs/architecture/vision.md) and
+[ADR 0001](docs/adr/0001-adopt-hexagonal-architecture.md).
+
+Feature-sized contributions (new commands, new adapters, new architectural
+surface) go through the project's Spec Kit workflow (spec → clarify → plan →
+tasks → analyze → implement) rather than landing as a single ad hoc PR —
+maintainers can help scope this with you before you start writing code.
 
 ## Pull Request Guidelines
 

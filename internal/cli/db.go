@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/spf13/cobra"
 )
 
@@ -29,12 +28,9 @@ var dbMigrateStatusCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get config path
 		configPath, _ := cmd.Flags().GetString("config")
-		if configPath == "" {
-			return fmt.Errorf("--config flag is required")
-		}
 
 		// Load configuration to get history_db_path (skip full validation for db commands)
-		cfg, err := config.LoadConfig(configPath)
+		cfg, err := LoadConfigMinimal(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
@@ -98,5 +94,4 @@ func init() {
 
 	// Add --config flag to status command
 	dbMigrateStatusCmd.Flags().StringP("config", "c", "", "Path to YAML configuration file")
-	dbMigrateStatusCmd.MarkFlagRequired("config")
 }

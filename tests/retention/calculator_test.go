@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/retention"
+	"github.com/denisakp/sentinel/internal/domain/retention"
 )
 
 func TestCalculateCandidatesKeepLast(t *testing.T) {
@@ -34,5 +34,31 @@ func TestCalculateCandidatesKeepDays(t *testing.T) {
 	}
 	if candidates[0].FilePath != "old" {
 		t.Fatalf("expected 'old' to be deleted")
+	}
+}
+
+func TestCalculateCandidatesCumulativeKeepLastAndKeepDays(t *testing.T) {
+	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	records := []retention.BackupRecord{
+		{FilePath: "newest", Timestamp: now.Add(-1 * time.Hour), FileSize: 100, Status: "success"},
+		{FilePath: "recent", Timestamp: now.Add(-48 * time.Hour), FileSize: 100, Status: "success"},
+		{FilePath: "old-but-in-last", Timestamp: now.Add(-72 * time.Hour), FileSize: 100, Status: "success"},
+		{FilePath: "old", Timestamp: now.Add(-10 * 24 * time.Hour), FileSize: 100, Status: "success"},
+	}
+
+	// keep_last=2 marks old-but-in-last and old.
+	// keep_days=7 marks old.
+	// Combined result remains cumulative and de-duplicated.
+	candidates := retention.CalculateCandidates(records, retention.Policy{KeepLast: 2, KeepDays: 7}, now)
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 cumulative candidates, got %d", len(candidates))
+	}
+
+	paths := map[string]bool{}
+	for _, cand := range candidates {
+		paths[cand.FilePath] = true
+	}
+	if !paths["old"] || !paths["old-but-in-last"] {
+		t.Fatalf("unexpected cumulative candidates: %#v", candidates)
 	}
 }

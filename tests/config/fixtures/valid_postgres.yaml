@@ -1,9 +1,7 @@
 version: "1.0"
-
 defaults:
   storage:
     type: local
-
 databases:
   prod-postgres:
     type: postgres

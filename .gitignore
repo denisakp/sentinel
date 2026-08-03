@@ -23,6 +23,17 @@ Thumbs.db
 *.tmp
 *.swp
 *.log
-docs/roadmap/
+docs/roadmap/*
+!docs/roadmap/ROADMAP.md
 .claude/
 prds/
+# infra/dataset used to hold an untracked, ad-hoc Python venv; PRD 41 replaced
+# it with committed, deterministic generators (infra/dataset/generate.sh), so
+# the directory is no longer blanket-ignored. Anything a generator run leaves
+# behind locally (seed files, .venv/, etc.) is still ignored below.
+infra/dataset/*.venv/
+infra/dataset/.venv/
+infra/docker/Dockerfile.dev
+.e2e/
+.bench/
+.prds/

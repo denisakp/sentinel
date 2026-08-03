@@ -1,0 +1,26 @@
+[
+  {
+    "id": "exec-001",
+    "backup_name": "prod-postgres",
+    "database_type": "postgres",
+    "timestamp": "2026-03-10T02:00:00Z",
+    "duration_ms": 1250,
+    "status": "failed",
+    "error_message": "connection reset by peer while streaming backup",
+    "storage_backend": "s3",
+    "file_path": "/tmp/prod-postgres-20260310.sql.gz",
+    "file_size_bytes": 1048576
+  },
+  {
+    "id": "exec-002",
+    "backup_name": "analytics-mysql",
+    "database_type": "mysql",
+    "timestamp": "2026-03-10T03:00:00Z",
+    "duration_ms": 980,
+    "status": "completed",
+    "error_message": "",
+    "storage_backend": "local",
+    "file_path": "/tmp/analytics-mysql-20260310.sql",
+    "file_size_bytes": 524288
+  }
+]

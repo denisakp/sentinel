@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"path/filepath"
-	"time"
 )
 
 // DefaultValue returns the default value if the value is empty
@@ -16,7 +15,7 @@ func DefaultValue(value, defaultValue string) string {
 
 // DefaultBackupOutName returns the default backup output name
 func DefaultBackupOutName() string {
-	return fmt.Sprintf("SENTINEL_%s", time.Now().Format("2006-01-02T15-04-05"))
+	return fmt.Sprintf("SENTINEL_%s", Now().Format("2006-01-02T15-04-05"))
 }
 
 func FinalOutName(outName string) string {
