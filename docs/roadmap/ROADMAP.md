@@ -7,12 +7,11 @@ For full technical detail on any shipped change, see [`release-notes.md`](../../
 
 ## Shipped
 
-**Latest tagged release: v1.1.1** (March 20, 2026) — restore observability
-(real execution history for `sentinel restore history`, normalized status
-values).
+**Latest tagged release: v1.3.0** (August 3, 2026).
 
-Since then, `develop` has shipped substantial additional capability — current
-version string is **v1.3.0** — including:
+Since v1.1.1 (restore observability — real execution history for
+`sentinel restore history`, normalized status values), Sentinel has shipped
+substantial additional capability, including:
 
 - Backup compression (gzip/zstd) across all supported engines
 - Grandfather-Father-Son (GFS) retention alongside flat keep-last/keep-days rules
