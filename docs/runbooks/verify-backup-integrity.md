@@ -84,6 +84,30 @@ Security regressions between the two backups are flagged and set a **non-zero ex
 Size/duration swings get a `⚠` marker but keep exit 0. A pre-v1.1 backup with no manifest still
 diffs on its monitor-row fields with a warning.
 
+### Catching corruption at backup time (`verify_after_upload`)
+
+Everything above verifies **after the fact** (a later sweep, or manually). `integrity.verify_after_upload`
+does it immediately, as part of the backup job itself: right after the artifact reaches its storage
+backend, Sentinel re-downloads it and re-hashes it against the manifest — failing the backup with
+`verify_after_upload_failed` on a mismatch instead of reporting success on a silently-corrupted upload.
+
+```yaml
+integrity:
+  verify_after_upload: true   # default for all jobs
+
+databases:
+  prod-s3:
+    storage: { type: s3, s3_bucket: backups }
+    verify_after_upload: true   # per-job override (wins over the default above)
+```
+
+Opt-in, default off (doubles read I/O; adds egress cost/latency on remote backends proportional to
+artifact size). Its value is remote storage (S3/GCS/Azure/GDrive — network writes can be silently
+truncated); it also runs for local storage if enabled, but that mainly catches disk write faults
+between the write and the re-read. On mismatch: the job is recorded/notified as a failure, and the
+corrupt object is **left in place** (never auto-deleted) so it can be pulled for forensics before
+retention has a chance to sweep the last good copy.
+
 ## Manifest contract (per ADR 0005)
 
 - Sidecar file: `<backup-filename>.manifest.json`, JSON, mode `0600`.
@@ -110,3 +134,4 @@ If verify fails, treat the artifact as untrusted:
 - `internal/manifest/manifest.go`, `internal/manifest/types.go`
 - `internal/cli/backup_verify.go`
 - `internal/cli/backup_diff.go` — `backup diff <id1> <id2>` metadata comparison
+- `internal/domain/backup/executor.go::verifyAfterUpload`, `internal/cli/backup_factory.go::resolveVerifyAfterUpload` — `integrity.verify_after_upload` (PRD 40)

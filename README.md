@@ -384,6 +384,31 @@ Size/duration swings get a `⚠` marker but stay informational (exit 0). A backu
 (pre-v1.1) still diffs on its monitor-row fields with a warning. See
 [docs/runbooks/verify-backup-integrity.md](docs/runbooks/verify-backup-integrity.md).
 
+### Verifying immediately after upload
+
+The checks above catch corruption **after the fact** — at the next scheduled sweep or restore.
+`integrity.verify_after_upload` closes that gap at backup time: right after the artifact reaches
+its storage backend, Sentinel re-downloads it and re-hashes it against the manifest, **failing the
+backup immediately** on a mismatch instead of reporting success on a corrupted upload:
+
+```yaml
+integrity:
+  verify_after_upload: true   # default for every job unless overridden
+
+databases:
+  prod-s3:
+    type: postgres
+    storage: { type: s3, s3_bucket: backups }
+    verify_after_upload: true   # per-job override (inherits the default above when omitted)
+```
+
+Opt-in and **off by default** — it doubles read I/O and, on S3/GCS/Azure/GDrive, adds egress cost
+and latency proportional to the backup size. It is most valuable for **remote** backends (network
+writes can be silently truncated); it also works for local storage (catches disk write faults) but
+is lower-value there since it re-reads the same file. On mismatch the job fails with
+`verify_after_upload_failed`, is recorded/notified like any other failure, and the corrupt object
+is **left in place** (never auto-deleted) so it can be inspected.
+
 ---
 
 ## State repair
