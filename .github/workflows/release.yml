@@ -13,6 +13,12 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # `hashes` feeds the SLSA provenance generator (spec 055 / PRD 48) — see
+    # the binary-provenance job below. This job's own steps/permissions are
+    # otherwise UNCHANGED; provenance generation must never affect what this
+    # job already publishes (FR-006/FR-007).
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -51,3 +57,34 @@ jobs:
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             --bundle dist/checksums.txt.sigstore.json \
             dist/checksums.txt
+      - id: hash
+        name: Generate subject hashes for SLSA provenance
+        # dist/checksums.txt is ALREADY in sha256sum-line format (GoReleaser's
+        # `checksum:` block) — the exact format the SLSA generator's
+        # base64-subjects input expects. Re-using it verbatim (rather than
+        # re-deriving hashes from dist/*.tar.gz/*.zip) guarantees the attested
+        # artifact set is IDENTICAL to the checksummed/signed set by
+        # construction, not by convention (spec 055 FR-012).
+        run: echo "hashes=$(base64 -w0 < dist/checksums.txt)" >> "$GITHUB_OUTPUT"
+
+  binary-provenance:
+    needs: [goreleaser]
+    # A SEPARATE job, deliberately — not a step inside `goreleaser`. SLSA's
+    # trust model requires the attestor's identity to be independent of the
+    # builder's (spec 055 FR-002); a step would share goreleaser's single
+    # OIDC token, which is exactly the self-attestation this exists to
+    # prevent. Being a separate job is also what makes a provenance-only
+    # failure structurally unable to affect goreleaser's already-published
+    # outputs (FR-007) — no `continue-on-error` or `if:` logic needed on
+    # either side; GitHub Actions job independence provides this for free.
+    # A goreleaser failure means this job never runs (`needs:` semantics) —
+    # no provenance is ever generated for a release that wasn't published
+    # (FR-008).
+    permissions:
+      actions: read      # to read this workflow's path (embedded in the provenance)
+      id-token: write     # to sign the provenance — its OWN identity, independent of goreleaser's
+      contents: write      # to attach the attestation asset to the release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
+      upload-assets: true

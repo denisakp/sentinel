@@ -21,8 +21,31 @@
   `sha256sum -c` path are **unchanged** and remain valid for users without
   cosign; releases published **before** this change ship no bundle and stay
   checksum-only. No product/`internal` code change — release pipeline + docs
-  only. SLSA build-provenance attestation remains a separate future item.
-  (spec 053 / PRD 42)
+  only. (spec 053 / PRD 42)
+- **SLSA build provenance**: each release now also publishes a
+  [SLSA](https://slsa.dev) build-provenance attestation (`multiple.intoto.jsonl`),
+  complementary to (not a replacement for) the cosign signature above:
+  signing proves *who published* a release, provenance proves *how it was
+  built* — the exact source commit, repository, and build workflow, attested
+  by a process with its own identity, independent of the job that produced
+  the binaries, so a compromise of the build job alone cannot forge its own
+  attestation. Generated via the pinned `slsa-framework/slsa-github-generator`
+  reusable workflow as a **second, separate** release-pipeline job
+  (`needs: [goreleaser]`); the attested artifact set exactly mirrors
+  `checksums.txt` (verbatim base64 of the file — no independent re-hash).
+  Verify with
+  `slsa-verifier verify-artifact <archive> --provenance-path multiple.intoto.jsonl --source-uri github.com/denisakp/sentinel --source-tag v<version>`
+  (full walkthrough in README → Installation → "Verify build provenance").
+  **Fails closed**: a tampered artifact or an attestation claiming an
+  unexpected source repository/tag is rejected. If provenance generation
+  fails after the binaries/checksums/signature already published
+  successfully, those already-valid assets remain published unchanged — a
+  provenance-only failure is visibly flagged (a failed job on the run) but
+  never retroactively unpublishes anything. Existing release outputs
+  (binaries, `checksums.txt`, cosign signature) are byte-for-byte unchanged;
+  releases published **before** this change ship no attestation. No
+  product/`internal` code change — release pipeline + docs only.
+  (spec 055 / PRD 48)
 
 ### Security
 
