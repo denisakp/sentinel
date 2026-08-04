@@ -178,6 +178,9 @@ func warnPlaintextCredentials(name string, job BackupJob) {
 }
 
 func validateConnection(job BackupJob) error {
+	if job.DefaultsFile != "" && job.Type != "mysql" && job.Type != "mariadb" {
+		return fmt.Errorf("defaults_file is only valid for mysql or mariadb backup jobs")
+	}
 	if job.Type == "mongodb" {
 		if job.URI == "" && job.URIEnv == "" {
 			return fmt.Errorf("uri_env is required for mongodb backups")
@@ -191,7 +194,10 @@ func validateConnection(job BackupJob) error {
 	if job.Username == "" && job.UsernameEnv == "" {
 		return fmt.Errorf("username or username_env is required")
 	}
-	if job.PasswordEnv == "" {
+	// myCnfPassword is resolved from defaults_file at load time (loader.go);
+	// its presence means password_env's requirement is satisfied by the file
+	// instead (spec 056 / PRD 44).
+	if job.PasswordEnv == "" && job.myCnfPassword == "" {
 		return fmt.Errorf("password_env is required")
 	}
 	return nil

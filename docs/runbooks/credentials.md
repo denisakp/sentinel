@@ -45,9 +45,34 @@ export DB_PWD='hunter2'
 sentinel backup --config sentinel.yaml
 ```
 
+### 4. MySQL/MariaDB defaults file (my.cnf) — `defaults_file`
+
+For MySQL/MariaDB jobs only, `defaults_file` points at a standard my.cnf-format option file and seeds `host`/`user`/`password`/`port` from its `[client]` section for **every** part of the pipeline that needs them — the pre-backup connectivity check, `database: "*"` auto-discovery, and the dump itself (spec 056 / PRD 44, closing GitHub issue #28).
+
+```yaml
+databases:
+  mydb:
+    type: mysql
+    database: "*"
+    defaults_file: /etc/sentinel/.my.cnf
+```
+
+```ini
+# /etc/sentinel/.my.cnf  (chmod 0600)
+[client]
+host = 127.0.0.1
+user = sentinel_backup
+password = s3cr3t
+port = 3306
+```
+
+Only the `[client]` section is read; other sections (e.g. `[mysqldump]`) and `!include`/`!includedir` directives are ignored. Any explicit config field (`host`, `username`, `password_env`) always overrides the file's corresponding value — the file only fills in what's left unset. A missing, unreadable, or malformed `defaults_file` fails **at config-load time**, not partway through a backup run. Same group/world-readable permission warning as the `--password-file` channel above.
+
+This is unrelated to (and can be combined with) `additional_args: "--defaults-extra-file=..."`, which forwards a raw flag to `mysqldump`/`mariadb-dump` directly — that dump-only passthrough still works exactly as before, but on its own it does not reach the Go-side connectivity check or discovery, which is exactly the gap `defaults_file` closes.
+
 ## Precedence
 
-CLI flag > config `password_env`. The override is silent (no warning), enabling one-off drills:
+CLI flag > config `password_env` > `defaults_file` (MySQL/MariaDB only). The CLI-flag override is silent (no warning), enabling one-off drills:
 
 ```bash
 export OPS_PWD='different'

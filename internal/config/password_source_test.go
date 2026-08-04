@@ -222,4 +222,48 @@ func TestResolve(t *testing.T) {
 			t.Fatalf("got %+v", res)
 		}
 	})
+
+	t.Run("defaults_file password used when no CLI flags and password_env unset", func(t *testing.T) {
+		job := BackupJob{Type: "mysql", myCnfPassword: "fromfile"}
+		res, err := Resolve(ResolveFlags{}, job)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if res.Source != SourceConfigEnv || res.Password != "fromfile" {
+			t.Fatalf("got %+v", res)
+		}
+	})
+}
+
+func TestResolveJobPassword(t *testing.T) {
+	t.Run("password_env set takes precedence, unchanged behavior", func(t *testing.T) {
+		t.Setenv("RJP_ENV_VAR", "envvalue")
+		job := BackupJob{PasswordEnv: "RJP_ENV_VAR", myCnfPassword: "fromfile"}
+		got, err := ResolveJobPassword(job)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if got != "envvalue" {
+			t.Fatalf("got %q, want envvalue (password_env must win)", got)
+		}
+	})
+
+	t.Run("myCnfPassword used when password_env unset", func(t *testing.T) {
+		job := BackupJob{myCnfPassword: "fromfile"}
+		got, err := ResolveJobPassword(job)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if got != "fromfile" {
+			t.Fatalf("got %q, want fromfile", got)
+		}
+	})
+
+	t.Run("neither set produces the same error as before this feature", func(t *testing.T) {
+		job := BackupJob{}
+		_, err := ResolveJobPassword(job)
+		if err == nil || !strings.Contains(err.Error(), "password_env is required") {
+			t.Fatalf("got err=%v, want 'password_env is required'", err)
+		}
+	})
 }

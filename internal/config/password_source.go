@@ -118,11 +118,30 @@ func Resolve(flags ResolveFlags, job BackupJob) (Resolution, error) {
 		return Resolution{Source: SourceNone}, nil
 	}
 
-	pw, err := PasswordFromEnv(job.PasswordEnv)
+	pw, err := ResolveJobPassword(job)
 	if err != nil {
 		return Resolution{}, err
 	}
 	return Resolution{Password: pw, Source: SourceConfigEnv}, nil
+}
+
+// ResolveJobPassword resolves a backup job's password from password_env,
+// falling back to the password parsed from defaults_file (spec 056 / PRD 44)
+// when password_env is unset. Both existing independent password-resolution
+// call sites (Resolve above, and internal/cli/backup.go's listDatabases)
+// converge on this single function so my.cnf-sourced credentials are visible
+// consistently across the dump build, its in-dump connectivity check, and
+// discovery — without either consumer needing its own edit.
+func ResolveJobPassword(job BackupJob) (string, error) {
+	if job.PasswordEnv != "" {
+		return PasswordFromEnv(job.PasswordEnv)
+	}
+	if job.myCnfPassword != "" {
+		return job.myCnfPassword, nil
+	}
+	// Same error shape PasswordFromEnv("") would have produced — preserves
+	// today's exact "nothing supplied" error when defaults_file is unset.
+	return "", fmt.Errorf("password_env is required")
 }
 
 func suppliedFlagNames(f ResolveFlags) []string {

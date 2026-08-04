@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added
+
+- **MySQL/MariaDB credential loading from a my.cnf defaults file** (`defaults_file`):
+  a new per-job config field, valid only for `mysql`/`mariadb`, that seeds
+  `host`/`user`/`password`/`port` from a standard option file's `[client]`
+  section for the **entire** backup pipeline — the pre-backup connectivity
+  check, `database: "*"` auto-discovery, and the dump itself — not just the
+  dump subprocess (closing GitHub issue #28). Previously, the existing
+  `additional_args: "--defaults-extra-file=..."` passthrough only reached
+  `mysqldump`/`mariadb-dump` directly; Sentinel's own Go-side preflight and
+  discovery never saw those credentials, so `database: "*"` auto-discovery
+  was entirely blocked when credentials lived only in a my.cnf file.
+  Precedence: explicit job fields (`host`/`host_env`, `username`/
+  `username_env`, `password_env`) always win; `defaults_file` only fills
+  fields left unset. A missing, unreadable, or malformed `defaults_file`
+  fails at **configuration-load time**, never partway through a live backup
+  run. A group- or world-readable file emits the same permission warning as
+  the existing `--password-file` channel. Only the `[client]` section is
+  parsed (no `[mysqldump]`-style tool sections, no `!include`/`!includedir`
+  directives) — a documented v1 limitation, not a gap. Rejected by config
+  validation on any non-mysql/mariadb job. No new port; zero behavior change
+  for jobs that don't set `defaults_file`. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 056 / PRD 44)
+
 ### Security / Supply chain
 
 - **signed release checksums (cosign keyless)**: each release now signs its
