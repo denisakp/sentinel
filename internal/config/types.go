@@ -275,6 +275,19 @@ type BackupJob struct {
 	// Password connection parameters (env-only, never inline)
 	PasswordEnv string `yaml:"password_env,omitempty"`
 
+	// DefaultsFile is a path to a MySQL/MariaDB option file (my.cnf). Its
+	// [client] section seeds host/user/password for BOTH the dump subprocess
+	// and Sentinel's own preflight/discovery when the corresponding field is
+	// not explicitly configured. Explicit fields always take precedence;
+	// valid only for mysql/mariadb (spec 056 / PRD 44).
+	DefaultsFile string `yaml:"defaults_file,omitempty"`
+
+	// myCnfPassword caches the password resolved from DefaultsFile at config
+	// load time (internal/config/loader.go). Not part of the YAML schema —
+	// mirrors Name's yaml:"-" pattern for a runtime-computed field. Read only
+	// via ResolveJobPassword to keep resolution centralized in one place.
+	myCnfPassword string
+
 	// MongoDB URI (env-only variant)
 	URI    string `yaml:"uri,omitempty"`
 	URIEnv string `yaml:"uri_env,omitempty"`

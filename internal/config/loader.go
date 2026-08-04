@@ -229,6 +229,12 @@ func applyEnvOverrides(cfg *Configuration) error {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
 
+		if job.DefaultsFile != "" && (job.Type == "mysql" || job.Type == "mariadb") {
+			if err := applyDefaultsFile(&job); err != nil {
+				return fmt.Errorf("backup '%s': %w", name, err)
+			}
+		}
+
 		for i := range job.Notifications {
 			channel := &job.Notifications[i]
 			enabled := channel.Enabled == nil || *channel.Enabled
@@ -251,7 +257,7 @@ func applyEnvOverrides(cfg *Configuration) error {
 			}
 		}
 
-		if job.Type != "mongodb" {
+		if job.Type != "mongodb" && job.myCnfPassword == "" {
 			if err := requireEnvValue(job.PasswordEnv); err != nil {
 				return fmt.Errorf("backup '%s': %w", name, err)
 			}
