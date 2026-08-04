@@ -12,8 +12,15 @@
 # OIDC + Fulcio/Rekor) via the `signs:` block below, producing a single
 # sigstore bundle (checksums.txt.sigstore.json). Verify a download with
 # `cosign verify-blob --bundle checksums.txt.sigstore.json checksums.txt`
-# (see README → Installation). SLSA build-provenance attestation remains a
-# separate future item (its own PRD), out of scope here. (spec 053 / PRD 42)
+# (see README → Installation). (spec 053 / PRD 42)
+#
+# SLSA build provenance: GoReleaser itself does NOT participate in
+# generating it — this file only needs to keep producing checksums.txt in
+# its current sha256sum-line format, which the SLSA generator's
+# base64-subjects input consumes directly. The actual provenance generation
+# (a second, independently-identified job calling
+# slsa-framework/slsa-github-generator) lives entirely in
+# .github/workflows/release.yml. (spec 055 / PRD 48)
 version: 2
 
 project_name: sentinel
