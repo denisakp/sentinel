@@ -1,0 +1,113 @@
+name: Documentation site
+
+# Builds and publishes the Sentinel documentation site (website/).
+#
+# On pull requests: build, link check, and accessibility audit — no deploy.
+# On push to 1.x, or manual dispatch: the same gates, then deploy.
+#
+# Build and deploy are separate jobs on purpose. If the build fails, the deploy
+# job never runs and the previously published site stays intact and reachable.
+
+on:
+  push:
+    branches:
+      - 1.x
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never let two publishes race. In-progress runs are allowed to finish so a
+# half-uploaded artifact is never deployed.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check the site configuration
+        run: npm run typecheck
+
+      # This is the real gate. onBrokenLinks, onBrokenAnchors, and
+      # onBrokenMarkdownLinks are all set to 'throw', so a broken internal link
+      # or a stale heading anchor fails here rather than reaching a reader.
+      - name: Build
+        run: npm run build
+
+      # Serve and audit in one step: a background process started in one step is
+      # not reliably still there in the next.
+      #
+      # Automated auditing catches roughly half of WCAG 2.1 AA. The rest —
+      # meaningful alt text, descriptive link text, heading nesting — is covered
+      # by the authoring convention and by review, not by this step.
+      - name: Accessibility audit (WCAG 2.1 AA)
+        run: |
+          set -euo pipefail
+          npm run serve -- --no-open --port 3000 &
+          SERVE_PID=$!
+          trap 'kill "$SERVE_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -sSf -o /dev/null http://localhost:3000/sentinel/; then
+              echo "site is up"
+              break
+            fi
+            sleep 2
+          done
+
+          curl -sSf -o /dev/null http://localhost:3000/sentinel/ \
+            || { echo "site did not come up within 60s" >&2; exit 1; }
+
+          npm run a11y
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Only publishes from the stable release line, or on an explicit manual run.
+    # Pull requests build and audit but never deploy.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

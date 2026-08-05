@@ -1,0 +1,55 @@
+/**
+ * Global styles for the Sentinel documentation site.
+ *
+ * Deliberately minimal — the classic theme's Infima defaults are good, and every
+ * override is a thing that can drift or break contrast. Only the palette and a
+ * couple of readability adjustments are customised.
+ *
+ * ACCESSIBILITY: the site targets WCAG 2.1 Level AA. The primary colour is used
+ * for link text, so any replacement must keep a contrast ratio of at least 4.5:1
+ * against the page background — in BOTH light and dark mode. Do not pick a new
+ * colour without checking it.
+ */
+
+/* Light mode. A deep, sober blue: this documents a backup and disaster-recovery
+   tool, and the default template green reads as generic. */
+:root {
+  --ifm-color-primary: #1a5fb4;
+  --ifm-color-primary-dark: #185798;
+  --ifm-color-primary-darker: #16528e;
+  --ifm-color-primary-darkest: #124375;
+  --ifm-color-primary-light: #2069c4;
+  --ifm-color-primary-lighter: #2a72cd;
+  --ifm-color-primary-lightest: #3d82d8;
+
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+/* Dark mode needs a lighter tint of the same hue — the light-mode blue does not
+   have enough contrast against a dark background. */
+[data-theme='dark'] {
+  --ifm-color-primary: #7fb0e8;
+  --ifm-color-primary-dark: #6aa3e4;
+  --ifm-color-primary-darker: #5f9ce2;
+  --ifm-color-primary-darkest: #4187d9;
+  --ifm-color-primary-light: #94bdec;
+  --ifm-color-primary-lighter: #9fc4ee;
+  --ifm-color-primary-lightest: #c0d9f5;
+
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* This documentation leans on tables for per-engine differences and for flag and
+   configuration-key references. Let them use the full column width rather than
+   shrinking to their content. */
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+/* Long command lines and file paths are common here; wrapping them beats a
+   horizontal scrollbar inside every code block. */
+.markdown table code {
+  overflow-wrap: anywhere;
+}

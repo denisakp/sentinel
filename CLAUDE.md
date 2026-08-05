@@ -113,5 +113,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/059-encrypt-secrets-file/plan.md`
+`specs/060-documentation-site/plan.md`
 <!-- SPECKIT END -->
