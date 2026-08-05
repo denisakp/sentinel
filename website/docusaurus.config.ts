@@ -109,6 +109,27 @@ const config: Config = {
     ],
   ],
 
+  themes: [
+    [
+      // Search is served from an index built at compile time and shipped with the
+      // site (FR-041). No third-party search service is contacted at runtime, and
+      // no reader query leaves the page. That rules out Algolia DocSearch, which
+      // is otherwise the first-party option.
+      //
+      // Version is pinned exactly: this is community-maintained, and a build-time
+      // dependency that emits a static index deserves the same supply-chain care
+      // the project applies to its own release artifacts.
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        indexBlog: false,
+        docsRouteBasePath: '/',
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+      },
+    ],
+  ],
+
   plugins: [
     [
       '@docusaurus/plugin-client-redirects',

@@ -14,16 +14,24 @@ Tutorials teach by doing. If you would rather understand the machinery first, re
 
 ## Pick your engine
 
-| Engine | Track |
-|---|---|
-| PostgreSQL | [Start here](./postgres/index.md) |
-| MySQL | Not yet written |
-| MariaDB | Not yet written |
-| MongoDB | Not yet written |
+| Engine | Track | Verified by |
+|---|---|---|
+| PostgreSQL | [Start here](./postgres/index.md) | Running it end to end against a real container |
+| MySQL | [Start here](./mysql/index.md) | Reading the source |
+| MariaDB | [Start here](./mariadb/index.md) | Reading the source |
+| MongoDB | [Start here](./mongodb/index.md) | Reading the source |
 
-The MySQL, MariaDB, and MongoDB tracks are being written for a later increment. Until they land, the
-[concepts](../concepts/index.md) pages describe the per-engine differences, and the
-[configuration reference](../reference/configuration.md) documents every key those engines accept.
+The distinction in that last column is worth knowing. Every command, flag and configuration key on
+every track was checked against the shipped binary, so none of them is invented. But only the
+PostgreSQL track was written by actually running it, with each expected output captured from a real
+session. The other three derive their expected results from the code and describe in prose what you
+should observe, rather than showing a transcript nobody produced.
+
+Where a step cannot work in the current release, the track says so and shows the real failure instead
+of skipping it. That happens more than it should: point-in-time recovery cannot be planned for any
+engine ([#148](https://github.com/denisakp/sentinel/issues/148)), and incremental restore fails while
+staging its baseline ([#150](https://github.com/denisakp/sentinel/issues/150)). Incremental *backup*
+works, and each track covers it.
 
 ## Before you start
 

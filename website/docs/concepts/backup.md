@@ -83,12 +83,30 @@ immediately after the pipeline runs, because a corrupt link invalidates every ba
 | PostgreSQL | `pg_dump` | `pg_dumpall` for the `single` strategy | Chain lineage over WAL summarisation; the chain is reassembled at restore time with `pg_combinebackup` | PostgreSQL 17+ and WAL summarisation enabled |
 | MySQL | `mysqldump` | `mysqldump` per database, or one combined dump | Binary logs archived next to the artifact as `<artifact>.binlogs.tar` | `mysql.binlog_path` must point at a readable, locally mounted directory; binary logging on |
 | MariaDB | `mariadb-dump` | `mariadb-dump` per database, or one combined dump | Identical to MySQL: binary logs archived as `<artifact>.binlogs.tar` | Same as MySQL |
-| MongoDB | `mongodump` | Enumerated through the MongoDB driver | Oplog captured by a second `mongodump` into `<artifact>.oplog.archive` | A replica set: a standalone `mongod` has no oplog. `oplog_window_warn_hours` warns when the window is short |
+| MongoDB | `mongodump` | Enumerated through the MongoDB driver | Oplog captured by a second `mongodump` into `<artifact>.oplog.archive` | A replica set: a standalone `mongod` has no oplog. See the caution below about `oplog_window_warn_hours` |
 
 The MySQL and MariaDB paths share one argument builder and differ only in the binary they invoke, so
 their behaviour is deliberately identical. PostgreSQL is the outlier: it archives no side artifact at
 backup time, because the change data already lives in the write-ahead log and is combined during
 restore instead.
+
+:::caution The incremental prerequisite checks do not run
+Three configuration keys read like guards against a misconfigured server. None of them checks
+anything today.
+
+- `oplog_window_warn_hours` is defaulted and bounds-checked, but the function that would compare it
+  against the server's actual oplog window is never called. A short oplog window silently breaks
+  incremental coverage, which is the exact failure this key appears to guard against.
+- `wal_summary_check` is stored and never probes the server for `summarize_wal`
+  ([#155](https://github.com/denisakp/sentinel/issues/155)).
+- `binlog_check` parses and is read by nothing.
+
+The MySQL and MongoDB prerequisite validators are also invoked with their "feature enabled" argument
+hard-coded to `true`, so `log_bin_off` and `oplog_unavailable_standalone` can never fire. A standalone
+`mongod`, or a MySQL server with binary logging off, passes validation and fails later at backup time.
+
+Verify these server-side settings yourself. Sentinel will not.
+:::
 
 Configuration validation rejects `incremental_backup.enabled` for MySQL or MariaDB without
 `mysql.binlog_path`, and for any engine outside these four.

@@ -5,6 +5,9 @@ It supports PostgreSQL, MySQL, MariaDB, and MongoDB — with cloud storage, sche
 
 **Current version: v1.4.0**
 
+📖 **[Documentation](https://denisakp.github.io/sentinel/)** — concepts, guides, per-engine tutorials,
+and the complete CLI and configuration reference.
+
 ---
 
 ## What it does
