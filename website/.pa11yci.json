@@ -3,7 +3,7 @@
     "standard": "WCAG2AA",
     "runners": ["axe", "htmlcs"],
     "timeout": 60000,
-    "wait": 1000,
+    "wait": 3000,
     "concurrency": 1,
     "chromeLaunchConfig": {
       "args": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
