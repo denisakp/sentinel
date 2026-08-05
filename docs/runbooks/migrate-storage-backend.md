@@ -96,5 +96,5 @@ To revert: restore the old `defaults.storage` block, validate, restart scheduler
 
 ## References
 
-- `internal/storage/storage.go`, `internal/storage/{local,sentinel_s3,gcs,gdrive,azure}/`
+- `internal/adapters/storage/registry.go`, `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`
 - [check-storage-backend](./check-storage-backend.md)

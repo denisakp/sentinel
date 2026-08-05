@@ -77,5 +77,5 @@ Deletes are not reversible from Sentinel. If you over-pruned: restore from offsi
 
 ## References
 
-- `internal/retention/`
+- `internal/domain/retention/` — pure policy evaluation; CLI orchestration in `internal/cli/retention_helpers.go`
 - [check-storage-backend](./check-storage-backend.md) — confirm backend health before/after retention

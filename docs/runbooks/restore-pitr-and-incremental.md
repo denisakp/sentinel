@@ -107,6 +107,6 @@ If the chain is broken or the recovery point is unreachable: see [chain-corrupti
 
 ## References
 
-- `pkg/backup/mysqlbinlog/`, `pkg/backup/pg_combine/`
+- `internal/adapters/restore/incremental/mysqlbinlog/`, `internal/adapters/restore/incremental/pgcombine/`
 - `internal/scheduler/restore_integration.go`
 - ADR 0005 — Manifest v1 (`docs/adr/0005-manifest-format-v1.md`) — advanced restore metadata

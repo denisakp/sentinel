@@ -40,6 +40,7 @@ Operational procedures for running, recovering, and maintaining Sentinel in prod
 
 ## Maintenance
 - [Upgrade Sentinel binary](./upgrade-sentinel-binary.md)
+- [Verify release artifacts (cosign + SLSA)](./verify-release-artifacts.md)
 - [Migrate storage backend](./migrate-storage-backend.md)
 - [Key rotation](./key-rotation.md)
 

@@ -72,5 +72,5 @@ Same as [restore-from-backup](./restore-from-backup.md) — restore is destructi
 
 ## References
 
-- `internal/storage/gcs/`
+- `internal/adapters/storage/gcs/`
 - [check-storage-backend](./check-storage-backend.md)

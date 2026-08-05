@@ -81,5 +81,5 @@ Not applicable — this runbook is itself the recovery path. If the new base als
 
 ## References
 
-- `pkg/backup/mysqlbinlog/`, `pkg/backup/pg_combine/`
+- `internal/adapters/restore/incremental/mysqlbinlog/`, `internal/adapters/restore/incremental/pgcombine/`
 - `internal/cli/backup.go` (chain subcommands)
