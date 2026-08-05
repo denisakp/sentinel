@@ -77,8 +77,15 @@ restores:
       local_path: ./backups
       backup_path: "SENTINEL_*.sql"
       use_latest_match: true
-    verify_after_restore: true
 ```
+
+:::warning Do not set `verify_after_restore: true`
+The key is accepted by the configuration, but no post-restore verification handler is wired in the
+current release. Setting it makes the restore fail with
+`verification handler is required for restore mode "full"` **after** the data has already been
+written, so the run is recorded as a failure even though the restore succeeded. Step 7 below verifies
+the result by querying the database, which is what you want here anyway.
+:::
 
 Two things in there are worth understanding now, because they are Sentinel-wide rules rather than
 quickstart shortcuts:
