@@ -54,6 +54,24 @@
   overflow-wrap: anywhere;
 }
 
+/* Underline links inside prose.
+ *
+ * WCAG 1.4.1: a link in a block of text must be distinguishable from the
+ * surrounding text by something other than colour alone — otherwise readers who
+ * cannot distinguish the hues cannot see there is a link at all. The theme's
+ * default relies on colour, and the accessibility audit flagged it.
+ *
+ * Scoped to prose (paragraphs, list items, tables, admonitions). Navigation,
+ * sidebar, and footer links sit in link-only contexts where the rule does not
+ * apply and an underline would just be noise. */
+.markdown p a,
+.markdown li a,
+.markdown td a,
+.markdown .alert a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 /* The one WCAG AA failure left in the vsLight syntax theme.
  *
  * vsLight colours `attr-name` pure red, rgb(255, 0, 0), which is 4.00:1 on white

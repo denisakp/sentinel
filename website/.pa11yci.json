@@ -2,11 +2,11 @@
   "defaults": {
     "standard": "WCAG2AA",
     "runners": ["axe", "htmlcs"],
-    "timeout": 30000,
-    "wait": 500,
-    "concurrency": 2,
+    "timeout": 60000,
+    "wait": 1000,
+    "concurrency": 1,
     "chromeLaunchConfig": {
-      "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+      "args": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
     }
   }
 }
