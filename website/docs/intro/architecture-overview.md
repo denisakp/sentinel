@@ -29,9 +29,15 @@ A single backup job moves through the same sequence every time:
 4. **Dump**: Sentinel builds an argument list and runs your engine's own tool: `pg_dump`,
    `mysqldump`, `mariadb-dump`, or `mongodump`. Credentials are passed through the environment, never
    as command-line arguments.
-5. **Pipeline**: the dump stream is optionally compressed, optionally encrypted, hashed with
-   SHA-256, and written to the configured storage backend. A manifest recording the hash and lineage
-   is written alongside it.
+5. **Pipeline**: the dump is optionally compressed, optionally encrypted, hashed with SHA-256, and
+   written to the configured storage backend. A manifest recording the hash and lineage is written
+   alongside it.
+
+   :::caution Peak memory scales with dump size
+   The dump is buffered in memory in full before it is hashed and written. Compression and
+   encryption are streaming, but the dump that feeds them is not, so a database whose uncompressed
+   dump is 50 GB needs comparable memory to back up. Size the machine accordingly.
+   :::
 6. **Record**: the outcome, success or failure, is written to the execution history.
 7. **Notify**: configured channels are told what happened.
 

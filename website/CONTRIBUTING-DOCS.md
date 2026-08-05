@@ -84,6 +84,21 @@ sidebar_position: 2
 | `sidebar_position` | Yes | Integer ordering within the directory. |
 | `sidebar_label` | No | Only when `title` is too long for the sidebar. |
 
+### Quote a description that contains a colon
+
+Front matter is YAML. An unquoted value containing `: ` is a parse error and fails the build:
+
+```yaml
+# breaks the build
+description: How Sentinel decides what to delete: the flat rules and the GFS tiers.
+
+# correct
+description: "How Sentinel decides what to delete: the flat rules and the GFS tiers."
+```
+
+This bites more often than it should here, because the punctuation rule below pushes you toward
+colons where you might otherwise have reached for a dash.
+
 ### Never set these
 
 - **`slug`**: the file path *is* the URL, permanently. A slug override decouples the two and makes
@@ -126,6 +141,24 @@ sentinel <command> --help
 If you cannot find it, it does not exist. Do not document it.
 
 ---
+
+## Punctuation
+
+**Do not use em dashes.** The `—` character does not appear anywhere on this site, in prose, tables,
+front matter, or code comments.
+
+Rewrite the clause rather than swapping the character, because a straight substitution leaves broken
+grammar behind:
+
+| Instead of | Write |
+|---|---|
+| A label followed by a gloss | A colon. `**Validate**: the configuration is parsed.` |
+| An aside inside a sentence | Commas, or parentheses if the aside is long. |
+| A break between two independent clauses | A semicolon, or two sentences. |
+| A "no value" placeholder in a table | `n/a` |
+
+If you find yourself reaching for a dash to join two halves of a thought, the sentence is usually
+better as two sentences.
 
 ## Universal rules
 

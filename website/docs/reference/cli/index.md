@@ -14,22 +14,19 @@ sentinel <command> --help
 
 ## Commands
 
-| Command | Purpose | Reference |
-|---|---|---|
-| `backup` | Run a database backup, and inspect or verify existing ones | [Documented](./backup.md) |
-| `restore` | Manage backup restoration and recovery | [Documented](./restore.md) |
-| `schedule` | Manage automated backup and restore scheduling | [Documented](./schedule.md) |
-| `monitor` | Monitor backup history and statistics | Not yet written |
-| `retention` | Manage backup retention policies | Not yet written |
-| `config` | Manage configuration files | Not yet written |
-| `db` | Database schema and migration management | Not yet written |
-| `security` | Security key management | Not yet written |
-| `storage` | Storage backend management | Not yet written |
-| `repair` | Reconcile internal state across monitor rows, manifests, artifacts, and locks | Not yet written |
-| `version` | Print Sentinel build metadata | Not yet written |
-
-Commands marked "not yet written" work exactly as `--help` describes; only their reference page is
-still to come.
+| Command | Purpose |
+|---|---|
+| [`backup`](./backup.md) | Run a database backup, and inspect or verify existing ones |
+| [`restore`](./restore.md) | Manage backup restoration and recovery |
+| [`schedule`](./schedule.md) | Manage automated backup and restore scheduling |
+| [`monitor`](./monitor.md) | Monitor backup history and statistics |
+| [`retention`](./retention.md) | Manage backup retention policies |
+| [`config`](./config.md) | Manage configuration files |
+| [`db`](./db.md) | Database schema and migration management |
+| [`security`](./security.md) | Security key management |
+| [`storage`](./storage.md) | Storage backend management |
+| [`repair`](./repair.md) | Reconcile internal state across monitor rows, manifests, artifacts, and locks |
+| [`version`](./version.md) | Print Sentinel build metadata |
 
 Cobra also supplies `help` and `completion`, which behave as they do in any Cobra program.
 
