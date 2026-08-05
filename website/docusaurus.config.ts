@@ -176,8 +176,21 @@ const config: Config = {
       copyright: `Documentation for Sentinel ${SENTINEL_RELEASE}. Built with Docusaurus.`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      // Syntax-highlighting themes chosen for contrast, not looks. Auditing every
+      // bundled prism-react-renderer theme against WCAG AA (4.5:1, measured
+      // against each theme's own background) gave:
+      //
+      //   light — nothing passes outright. vsLight is closest, failing on exactly
+      //           one token (attr-name, pure red at 4.00:1), which src/css/custom.css
+      //           overrides. The previous default, github, failed 5 of 9 token
+      //           groups and produced 84 violations across just four pages.
+      //   dark  — oceanicNext passes with its worst token at 4.68:1. The previous
+      //           default, dracula, failed on comments at 3.03:1.
+      //
+      // Before changing either, re-run the audit. A pretty theme that fails AA is
+      // not a trade this project makes.
+      theme: prismThemes.vsLight,
+      darkTheme: prismThemes.oceanicNext,
       additionalLanguages: ['bash', 'yaml', 'json', 'go', 'sql'],
     },
   } satisfies Preset.ThemeConfig,

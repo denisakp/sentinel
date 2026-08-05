@@ -53,3 +53,16 @@
 .markdown table code {
   overflow-wrap: anywhere;
 }
+
+/* The one WCAG AA failure left in the vsLight syntax theme.
+ *
+ * vsLight colours `attr-name` pure red, rgb(255, 0, 0), which is 4.00:1 on white
+ * — under the 4.5:1 floor. #c40000 keeps the red reading as red at 6.27:1.
+ *
+ * !important is required, not sloppiness: Prism emits its colours as inline
+ * `style` attributes on each token span, and an inline style beats a class rule.
+ *
+ * Light mode only — the dark theme (oceanicNext) passes AA unaided. */
+html:not([data-theme='dark']) .token.attr-name {
+  color: #c40000 !important;
+}
