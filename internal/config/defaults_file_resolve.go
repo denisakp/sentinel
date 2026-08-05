@@ -16,16 +16,23 @@ import (
 // problem reading or parsing the file is a hard config-load error (FR-006) —
 // except "no [client] section", which means the file simply has nothing to
 // contribute (spec Edge Cases), not a failure.
-func applyDefaultsFile(job *BackupJob) error {
-	creds, mode, err := mysqlargs.ParseDefaultsFile(job.DefaultsFile)
+func applyDefaultsFile(job *BackupJob, cfg *Configuration) error {
+	data, mode, encrypted, err := readSecretsFileMaybeDecrypt(job.DefaultsFile, cfg)
+	if err != nil {
+		return fmt.Errorf("defaults_file: %w", err)
+	}
+
+	creds, err := mysqlargs.ParseDefaultsFileBytes(data)
 	if err != nil {
 		if errors.Is(err, mysqlargs.ErrDefaultsFileNoClientSection) {
 			return nil
 		}
-		return fmt.Errorf("defaults_file: %w", err)
+		return fmt.Errorf("defaults_file '%s': %w", job.DefaultsFile, err)
 	}
 
-	if mode.Perm()&0o044 != 0 {
+	// Permission warning applies only to plaintext files: an encrypted secrets
+	// file being group/world-readable is ciphertext, not a credential exposure.
+	if !encrypted && mode.Perm()&0o044 != 0 {
 		fmt.Fprintf(os.Stderr,
 			"warning: defaults_file '%s' has permissions 0o%03o (group- or world-readable); recommend chmod 0600\n",
 			job.DefaultsFile, mode.Perm())

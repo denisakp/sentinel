@@ -2,8 +2,10 @@ package mysqlargs
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -40,17 +42,37 @@ func ParseDefaultsFile(path string) (ClientCreds, os.FileMode, error) {
 		return ClientCreds{}, 0, fmt.Errorf("%w '%s': %v", ErrDefaultsFileUnreadable, path, err)
 	}
 
-	creds, sawClient, err := parseClientSection(f)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return ClientCreds{}, info.Mode(), fmt.Errorf("%w '%s': %v", ErrDefaultsFileUnreadable, path, err)
 	}
-	if !sawClient || creds == (ClientCreds{}) {
-		return ClientCreds{}, info.Mode(), fmt.Errorf("%w: '%s'", ErrDefaultsFileNoClientSection, path)
+
+	creds, err := ParseDefaultsFileBytes(data)
+	if err != nil {
+		if errors.Is(err, ErrDefaultsFileNoClientSection) {
+			return ClientCreds{}, info.Mode(), fmt.Errorf("%w: '%s'", ErrDefaultsFileNoClientSection, path)
+		}
+		return ClientCreds{}, info.Mode(), fmt.Errorf("%w '%s': %v", ErrDefaultsFileUnreadable, path, err)
 	}
 	return creds, info.Mode(), nil
 }
 
-func parseClientSection(f *os.File) (ClientCreds, bool, error) {
+// ParseDefaultsFileBytes parses my.cnf-format bytes (already read into memory,
+// e.g. after in-memory decryption of an encrypted secrets file) and returns the
+// [client]-section credentials. Errors are path-free; callers wrap them with the
+// originating path.
+func ParseDefaultsFileBytes(data []byte) (ClientCreds, error) {
+	creds, sawClient, err := parseClientSection(bytes.NewReader(data))
+	if err != nil {
+		return ClientCreds{}, err
+	}
+	if !sawClient || creds == (ClientCreds{}) {
+		return ClientCreds{}, ErrDefaultsFileNoClientSection
+	}
+	return creds, nil
+}
+
+func parseClientSection(f io.Reader) (ClientCreds, bool, error) {
 	var creds ClientCreds
 	inClient := false
 	sawClient := false
@@ -106,12 +128,12 @@ func parseClientSection(f *os.File) (ClientCreds, bool, error) {
 // A bare "key" (no '=') is a valid my.cnf option but carries no value we care
 // about here, so it is skipped (ok=false).
 func splitOptionLine(line string) (key, value string, ok bool) {
-	idx := strings.Index(line, "=")
-	if idx < 0 {
+	rawKey, rawValue, found := strings.Cut(line, "=")
+	if !found {
 		return "", "", false
 	}
-	key = strings.TrimSpace(line[:idx])
-	value = strings.TrimSpace(line[idx+1:])
+	key = strings.TrimSpace(rawKey)
+	value = strings.TrimSpace(rawValue)
 	if key == "" {
 		return "", "", false
 	}
