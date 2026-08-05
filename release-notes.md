@@ -1,6 +1,6 @@
 # Sentinel Release Notes
 
-## [Unreleased]
+## [v1.4.0] - August 5, 2026
 
 ### Added
 

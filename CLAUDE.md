@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sentinel — Go 1.24 CLI for automated DB backup, restore, and disaster recovery (PostgreSQL, MySQL, MariaDB, MongoDB). Entry point: `main.go` → `internal/cli.Execute()`. Built with Cobra.
 
-Current version: v1.3.0. Branch convention: feature branches off `develop` (the active integration line where merges land first). Promotion chain: `develop → 1.x` (`1.x` = stable release line). `main` is a frozen v1.0 fossil (2024) — not an active line. The canonical remote is `upstream` (denisakp/sentinel); `origin` is the working fork.
+Current version: v1.4.0. Branch convention: feature branches off `develop` (the active integration line where merges land first). Promotion chain: `develop → 1.x` (`1.x` = stable release line). `main` is a frozen v1.0 fossil (2024) — not an active line. The canonical remote is `upstream` (denisakp/sentinel); `origin` is the working fork.
 
 ## Build / Test / Run
 

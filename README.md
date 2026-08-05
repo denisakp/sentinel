@@ -3,7 +3,7 @@
 Sentinel is an open-source CLI tool for automated database backup, restore, and disaster recovery.
 It supports PostgreSQL, MySQL, MariaDB, and MongoDB — with cloud storage, scheduling, monitoring, and notifications built in.
 
-**Current version: v1.3.0**
+**Current version: v1.4.0**
 
 ---
 

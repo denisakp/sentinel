@@ -7,11 +7,25 @@ For full technical detail on any shipped change, see [`release-notes.md`](../../
 
 ## Shipped
 
-**Latest tagged release: v1.3.0** (August 3, 2026).
+**Latest tagged release: v1.4.0** (August 5, 2026).
+
+Since v1.3.0, Sentinel has shipped:
+
+- **Supply-chain signing** for released binaries: cosign keyless signing of
+  `checksums.txt`, and SLSA build provenance alongside it
+- **A guided re-encryption path** (`sentinel security reencrypt`) for
+  operators migrating backups off the legacy (pre-v2) encryption envelope or
+  rotating keys
+- **Optional at-rest encryption for DB-credential secrets files** (the
+  MySQL/MariaDB defaults file and the MongoDB secrets file), decrypted only
+  in memory at config-load time, plus the credential-source flexibility work
+  it builds on: my.cnf-based MySQL/MariaDB credentials, a Sentinel-native
+  MongoDB secrets file, and environment-variable indirection for both files'
+  paths (containerized/Kubernetes deployments)
 
 Since v1.1.1 (restore observability — real execution history for
-`sentinel restore history`, normalized status values), Sentinel has shipped
-substantial additional capability, including:
+`sentinel restore history`, normalized status values), Sentinel has also
+shipped:
 
 - Backup compression (gzip/zstd) across all supported engines
 - Grandfather-Father-Son (GFS) retention alongside flat keep-last/keep-days rules
@@ -35,14 +49,8 @@ current envelope format (v2) closes it.
 
 ## Next
 
-At a high level, upcoming work includes:
-
-- **Supply-chain signing** for released binaries (cosign/SLSA), building on
-  the current checksum-only release artifacts
-- **A guided re-encryption path** for operators who need to migrate backups
-  taken under the legacy (pre-v2) encryption envelope
-
-These are directional, not commitments with fixed dates or scope.
+No directional items are currently queued. Have something in mind? See
+"Propose something" below.
 
 ---
 
