@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 
@@ -30,25 +31,46 @@ func readMongoSecretsFile(path string) (mongoSecrets, os.FileMode, error) {
 		return mongoSecrets{}, 0, fmt.Errorf("cannot read mongo secrets file '%s': %w", path, err)
 	}
 
-	var secrets mongoSecrets
-	dec := yaml.NewDecoder(f)
-	if err := dec.Decode(&secrets); err != nil {
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return mongoSecrets{}, info.Mode(), fmt.Errorf("cannot read mongo secrets file '%s': %w", path, err)
+	}
+
+	secrets, err := parseMongoSecrets(data)
+	if err != nil {
 		return mongoSecrets{}, info.Mode(), fmt.Errorf("cannot parse mongo secrets file '%s': %w", path, err)
 	}
 	return secrets, info.Mode(), nil
+}
+
+// parseMongoSecrets decodes mongo secrets YAML bytes already read into memory
+// (e.g. after in-memory decryption of an encrypted secrets file).
+func parseMongoSecrets(data []byte) (mongoSecrets, error) {
+	var secrets mongoSecrets
+	if err := yaml.Unmarshal(data, &secrets); err != nil {
+		return mongoSecrets{}, err
+	}
+	return secrets, nil
 }
 
 // applyMongoSecrets reads job.MongoSecretsFile and composes its values into
 // job.URI (fallback-only, per-field precedence — contracts/uri-composition.md)
 // and job.TLS.mongoPEMPassphrase. Called only for mongodb jobs with a
 // non-empty MongoSecretsFile.
-func applyMongoSecrets(job *BackupJob) error {
-	secrets, mode, err := readMongoSecretsFile(job.MongoSecretsFile)
+func applyMongoSecrets(job *BackupJob, cfg *Configuration) error {
+	data, mode, encrypted, err := readSecretsFileMaybeDecrypt(job.MongoSecretsFile, cfg)
 	if err != nil {
 		return err
 	}
 
-	if mode.Perm()&0o044 != 0 {
+	secrets, err := parseMongoSecrets(data)
+	if err != nil {
+		return fmt.Errorf("cannot parse mongo secrets file '%s': %w", job.MongoSecretsFile, err)
+	}
+
+	// Permission warning applies only to plaintext files (encrypted content is
+	// ciphertext, not a credential exposure).
+	if !encrypted && mode.Perm()&0o044 != 0 {
 		fmt.Fprintf(os.Stderr,
 			"warning: mongo_secrets_file '%s' has permissions 0o%03o (group- or world-readable); recommend chmod 0600\n",
 			job.MongoSecretsFile, mode.Perm())

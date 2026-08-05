@@ -71,7 +71,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 	t.Run("password fills a username-bearing URI with no password", func(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "password: s3cr3t\n", 0o600)
 		job := BackupJob{Name: "mongo1", Type: "mongodb", URI: "mongodb://appuser@host:27017/", MongoSecretsFile: p}
-		if err := applyMongoSecrets(&job); err != nil {
+		if err := applyMongoSecrets(&job, &Configuration{}); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 		if job.URI != "mongodb://appuser:s3cr3t@host:27017/" {
@@ -82,7 +82,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 	t.Run("full uri used when job.URI empty", func(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "uri: mongodb://appuser:s3cr3t@host:27017/\n", 0o600)
 		job := BackupJob{Name: "mongo1", Type: "mongodb", MongoSecretsFile: p}
-		if err := applyMongoSecrets(&job); err != nil {
+		if err := applyMongoSecrets(&job, &Configuration{}); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 		if job.URI != "mongodb://appuser:s3cr3t@host:27017/" {
@@ -94,7 +94,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "ssl_pem_key_password: pempass\n", 0o600)
 		tls := &TLSConfig{}
 		job := BackupJob{Name: "mongo1", Type: "mongodb", URI: "mongodb://u@h/", MongoSecretsFile: p, TLS: tls}
-		if err := applyMongoSecrets(&job); err != nil {
+		if err := applyMongoSecrets(&job, &Configuration{}); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 		got, err := ResolveMongoTLSPassphrase(job.TLS)
@@ -106,7 +106,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 	t.Run("conflict: uri already has a password", func(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "password: fromfile\n", 0o600)
 		job := BackupJob{Name: "mongo1", Type: "mongodb", URI: "mongodb://u:existing@h/", MongoSecretsFile: p}
-		err := applyMongoSecrets(&job)
+		err := applyMongoSecrets(&job, &Configuration{})
 		if err == nil || !strings.Contains(err.Error(), "conflicting password sources") {
 			t.Fatalf("got err=%v", err)
 		}
@@ -115,7 +115,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 	t.Run("missing username: password with no uri at all", func(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "password: fromfile\n", 0o600)
 		job := BackupJob{Name: "mongo1", Type: "mongodb", MongoSecretsFile: p}
-		err := applyMongoSecrets(&job)
+		err := applyMongoSecrets(&job, &Configuration{})
 		if err == nil || !strings.Contains(err.Error(), "no username is known") {
 			t.Fatalf("got err=%v", err)
 		}
@@ -124,7 +124,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 	t.Run("uri unused when job.URI already set (no error)", func(t *testing.T) {
 		p := writeTestMongoSecretsFile(t, "uri: mongodb://other@h2/\n", 0o600)
 		job := BackupJob{Name: "mongo1", Type: "mongodb", URI: "mongodb://u:existing@h/", MongoSecretsFile: p}
-		if err := applyMongoSecrets(&job); err != nil {
+		if err := applyMongoSecrets(&job, &Configuration{}); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 		if job.URI != "mongodb://u:existing@h/" {
@@ -139,7 +139,7 @@ func TestApplyMongoSecrets(t *testing.T) {
 		oldStderr := os.Stderr
 		r, w, _ := os.Pipe()
 		os.Stderr = w
-		err := applyMongoSecrets(&job)
+		err := applyMongoSecrets(&job, &Configuration{})
 		w.Close()
 		os.Stderr = oldStderr
 		if err != nil {
@@ -166,7 +166,7 @@ func TestResolveMongoTLSPassphrase(t *testing.T) {
 		tls := &TLSConfig{ClientKeyPasswordEnv: "MONGO_PEM_TEST_VAR"}
 		p := writeTestMongoSecretsFile(t, "ssl_pem_key_password: fromfile\n", 0o600)
 		job := BackupJob{Name: "j", Type: "mongodb", URI: "mongodb://u@h/", MongoSecretsFile: p, TLS: tls}
-		if err := applyMongoSecrets(&job); err != nil {
+		if err := applyMongoSecrets(&job, &Configuration{}); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 		got, err := ResolveMongoTLSPassphrase(job.TLS)

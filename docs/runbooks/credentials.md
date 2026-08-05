@@ -113,6 +113,66 @@ databases:
     mongo_secrets_file_env: MONGO_SECRETS_FILE   # e.g. /run/secrets/mongo.yaml
 ```
 
+### 6. Encrypting a secrets file at rest — `security encrypt-secrets-file`
+
+A plaintext `defaults_file` or `mongo_secrets_file` holds live database passwords on disk — a standing exposure risk if the file is copied into a support bundle, a snapshot, a config-dir backup, or a mount with lax permissions. Both files can optionally be stored **encrypted at rest** and decrypted **in memory** at config-load time (spec 059 / PRD 47). This closes at-rest disclosure of the file; it does **not** protect against a live-process memory dump (plaintext credentials necessarily exist in memory while a backup runs).
+
+It reuses Sentinel's existing AES-256-GCM encryption — no new cipher or key format. A key from `sentinel security init-key` works directly.
+
+**1. Encrypt the plaintext file to a NEW path** (the command never modifies or deletes the input):
+
+```bash
+sentinel security init-key --output text        # or reuse an existing key
+sentinel security encrypt-secrets-file /etc/sentinel/db.cnf \
+  --out /etc/sentinel/db.cnf.enc \
+  --key-file /etc/sentinel/master.key            # or --key-env SENTINEL_MASTER_KEY
+```
+
+The same command encrypts a MongoDB secrets YAML — its content is opaque to the command:
+
+```bash
+sentinel security encrypt-secrets-file /run/secrets/mongo.yaml \
+  --out /run/secrets/mongo.yaml.enc --key-file /etc/sentinel/master.key
+```
+
+**2. Point the job at the encrypted file and declare the key** (global; a dedicated `secrets_key_*` with fallback to `encryption_key_*`):
+
+```yaml
+# global
+secrets_key_file: /etc/sentinel/master.key       # or secrets_key_env: SENTINEL_SECRETS_KEY
+#   (falls back to encryption_key_file / encryption_key_env when secrets_key_* is unset)
+
+databases:
+  mysql-prod:
+    type: mysql
+    defaults_file: /etc/sentinel/db.cnf.enc       # encrypted form — auto-detected
+  mongo-prod:
+    type: mongodb
+    uri: "mongodb://appuser@mongo:27017/?replicaSet=rs0"
+    mongo_secrets_file: /run/secrets/mongo.yaml.enc
+```
+
+Encryption is **auto-detected** from the file's content (a `SSEC` container header) — no config flag says "this file is encrypted". A plaintext file keeps working unchanged and needs no key.
+
+**3. Verify it loads, then remove the plaintext original:**
+
+```bash
+sentinel backup run --job mysql-prod --config sentinel.yaml   # decrypts in memory
+shred -u /etc/sentinel/db.cnf                                 # retire the plaintext
+```
+
+The decrypted credentials never touch disk. The encrypted file is self-contained — it carries its own decrypt material, so moving/copying it as a single file (no sidecar) never breaks decryption.
+
+**Failure is always a single clear config-load error naming the file** — a wrong/missing key, or a corrupt/truncated/unsupported file, fails before any database connection, never as a garbled parse:
+
+```
+error: backup 'mysql-prod': defaults_file: cannot decrypt secrets file '/etc/sentinel/db.cnf.enc': wrong key or corrupt data
+```
+
+The group/world-readable permission warning applies only to **plaintext** secrets files; an encrypted file is ciphertext, so no warning fires on it.
+
+> **Scope**: applies to MySQL/MariaDB `defaults_file` and MongoDB `mongo_secrets_file` on backup jobs only. PostgreSQL has no secrets file. This is unrelated to backup-artifact encryption (`encryption_key_env`, which encrypts the dump itself) — the two just share the same underlying cipher and key format.
+
 ## Precedence
 
 CLI flag > config `password_env` > `defaults_file` (MySQL/MariaDB only). The CLI-flag override is silent (no warning), enabling one-off drills:

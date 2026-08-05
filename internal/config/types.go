@@ -236,6 +236,17 @@ type Configuration struct {
 	// EncryptionKeyFile is an optional path to a file containing the base64-encoded master key.
 	// Encryption is enabled only when this or EncryptionKeyEnv is explicitly configured.
 	EncryptionKeyFile string `yaml:"encryption_key_file,omitempty"`
+
+	// SecretsKeyEnv is an optional env var name for the key that decrypts an
+	// encrypted DB-credentials secrets file (defaults_file / mongo_secrets_file).
+	// When unset, the secrets-file decrypt path falls back to EncryptionKeyEnv,
+	// so the two keys can rotate independently while simple setups need only one.
+	SecretsKeyEnv string `yaml:"secrets_key_env,omitempty"`
+
+	// SecretsKeyFile is an optional path to a file containing the base64-encoded
+	// secrets-file key. When unset, the secrets-file decrypt path falls back to
+	// EncryptionKeyFile.
+	SecretsKeyFile string `yaml:"secrets_key_file,omitempty"`
 }
 
 // GlobalDefaults contains default values applied to all backup jobs

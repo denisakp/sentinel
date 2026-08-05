@@ -61,6 +61,29 @@
   Reuses the existing, already-proven env-override resolution unchanged; no
   new machinery, no new port, zero behavior change for jobs that don't set
   either `_env` field. (spec 058 / PRD 46)
+- **Optional at-rest encryption for DB-credential secrets files**
+  (`security encrypt-secrets-file`): the MySQL/MariaDB `defaults_file` and the
+  MongoDB `mongo_secrets_file` can now be stored **encrypted at rest** and are
+  decrypted **in memory** at configuration-load time, closing the standing
+  "plaintext database passwords on disk" exposure (GitHub issue #30). A new
+  `sentinel security encrypt-secrets-file <path> --out <path>` command produces
+  the encrypted file, writing to a **new path** and never modifying or deleting
+  the plaintext input. Encryption is **auto-detected** from the file's content
+  (a self-contained `SSEC` container that embeds its own decrypt material — no
+  sidecar), so a plaintext file keeps working unchanged and needs no key. The
+  key is resolved from a dedicated `secrets_key_env`/`secrets_key_file`, falling
+  back to the backup-artifact `encryption_key_env`/`encryption_key_file`, so the
+  two keys can rotate independently. Reuses the shipped AES-256-GCM crypto
+  verbatim — no new cipher, key format, or generator; a key from
+  `security init-key` works directly. A wrong/missing key or a
+  corrupt/truncated/unsupported file fails at config-load time with a single
+  clear error naming the file — never a partial parse, never a silent fallback,
+  never a delayed failure during a live run. The decrypted plaintext never
+  touches disk. The group/world-readable permission warning now fires only on
+  **plaintext** secrets files (an encrypted file is ciphertext). Backup-side
+  only; unrelated to and does not alter backup-artifact encryption. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 059 / PRD 47)
 
 ### Security / Supply chain
 
