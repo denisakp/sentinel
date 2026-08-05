@@ -1,5 +1,165 @@
 # Sentinel Release Notes
 
+## [Unreleased]
+
+### Added
+
+- **MySQL/MariaDB credential loading from a my.cnf defaults file** (`defaults_file`):
+  a new per-job config field, valid only for `mysql`/`mariadb`, that seeds
+  `host`/`user`/`password`/`port` from a standard option file's `[client]`
+  section for the **entire** backup pipeline — the pre-backup connectivity
+  check, `database: "*"` auto-discovery, and the dump itself — not just the
+  dump subprocess (closing GitHub issue #28). Previously, the existing
+  `additional_args: "--defaults-extra-file=..."` passthrough only reached
+  `mysqldump`/`mariadb-dump` directly; Sentinel's own Go-side preflight and
+  discovery never saw those credentials, so `database: "*"` auto-discovery
+  was entirely blocked when credentials lived only in a my.cnf file.
+  Precedence: explicit job fields (`host`/`host_env`, `username`/
+  `username_env`, `password_env`) always win; `defaults_file` only fills
+  fields left unset. A missing, unreadable, or malformed `defaults_file`
+  fails at **configuration-load time**, never partway through a live backup
+  run. A group- or world-readable file emits the same permission warning as
+  the existing `--password-file` channel. Only the `[client]` section is
+  parsed (no `[mysqldump]`-style tool sections, no `!include`/`!includedir`
+  directives) — a documented v1 limitation, not a gap. Rejected by config
+  validation on any non-mysql/mariadb job. No new port; zero behavior change
+  for jobs that don't set `defaults_file`. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 056 / PRD 44)
+- **MongoDB credential loading from a secrets file** (`mongo_secrets_file`):
+  a new per-job config field, valid only for `mongodb`, supplying a password,
+  a full connection URI, and/or a TLS private-key passphrase from one small
+  Sentinel-native YAML file, composed into the job's connection string for
+  the **entire** pipeline — the pre-backup connectivity check, database
+  discovery, and the dump itself (closing GitHub issue #27). Precedence is
+  per-field: an explicit `uri`/`uri_env` always wins and the file's `uri` is
+  simply unused when present; the file's `password` only fills a URI that
+  has a username but no password — a URI that already has one, or no
+  resolvable username at all, is a **configuration-load-time error**, never
+  a silently-guessed connection. A missing, unreadable, or malformed file
+  fails at config-load time, never partway through a live backup run. Same
+  group/world-readable permission warning as the other credential-file
+  channels. Rejected by config validation on any non-mongodb job. The
+  `ssl_pem_key_password` field is resolved through the same mechanism as the
+  existing `tls.client_key_password_env` option, but — documented honestly —
+  neither currently reaches a live MongoDB TLS connection on the
+  config-driven backup path; that is a separate, pre-existing wiring gap,
+  unrelated to and not fixed by this change. No new port; zero behavior
+  change for jobs that don't set `mongo_secrets_file`. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 057 / PRD 45)
+- **Environment-variable indirection for secrets-file paths** (`defaults_file_env`,
+  `mongo_secrets_file_env`): the location of the MySQL/MariaDB defaults file
+  and the MongoDB secrets file can now be supplied via an environment
+  variable instead of a literal path in configuration — for containerized
+  and Kubernetes deployments where a secret's mount location is only known
+  at runtime, closing GitHub issue #29. Same precedence as every existing
+  `*_env` field: when set, the environment-resolved path overwrites the
+  literal one; an `_env` field referencing an unset or empty variable fails
+  immediately at configuration-load time, naming the job and the variable —
+  never a silent fallback or a delayed failure during a live backup run.
+  Reuses the existing, already-proven env-override resolution unchanged; no
+  new machinery, no new port, zero behavior change for jobs that don't set
+  either `_env` field. (spec 058 / PRD 46)
+- **Optional at-rest encryption for DB-credential secrets files**
+  (`security encrypt-secrets-file`): the MySQL/MariaDB `defaults_file` and the
+  MongoDB `mongo_secrets_file` can now be stored **encrypted at rest** and are
+  decrypted **in memory** at configuration-load time, closing the standing
+  "plaintext database passwords on disk" exposure (GitHub issue #30). A new
+  `sentinel security encrypt-secrets-file <path> --out <path>` command produces
+  the encrypted file, writing to a **new path** and never modifying or deleting
+  the plaintext input. Encryption is **auto-detected** from the file's content
+  (a self-contained `SSEC` container that embeds its own decrypt material — no
+  sidecar), so a plaintext file keeps working unchanged and needs no key. The
+  key is resolved from a dedicated `secrets_key_env`/`secrets_key_file`, falling
+  back to the backup-artifact `encryption_key_env`/`encryption_key_file`, so the
+  two keys can rotate independently. Reuses the shipped AES-256-GCM crypto
+  verbatim — no new cipher, key format, or generator; a key from
+  `security init-key` works directly. A wrong/missing key or a
+  corrupt/truncated/unsupported file fails at config-load time with a single
+  clear error naming the file — never a partial parse, never a silent fallback,
+  never a delayed failure during a live run. The decrypted plaintext never
+  touches disk. The group/world-readable permission warning now fires only on
+  **plaintext** secrets files (an encrypted file is ciphertext). Backup-side
+  only; unrelated to and does not alter backup-artifact encryption. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 059 / PRD 47)
+
+### Security / Supply chain
+
+- **signed release checksums (cosign keyless)**: each release now signs its
+  `checksums.txt` with [cosign](https://github.com/sigstore/cosign) keyless
+  signing (GitHub Actions OIDC → Fulcio short-lived cert, logged in Rekor) and
+  publishes a single sigstore bundle `checksums.txt.sigstore.json` alongside
+  the existing assets. Downloaders can now cryptographically verify a release
+  originated from Sentinel's release workflow — not merely that an archive
+  matches an otherwise-unsigned checksums list — with
+  `cosign verify-blob --certificate-identity-regexp '…/release.yml@refs/tags/.*' --certificate-oidc-issuer https://token.actions.githubusercontent.com --bundle checksums.txt.sigstore.json checksums.txt`
+  (full command in README → Installation → "Verify the release signature").
+  One signature over `checksums.txt` transitively covers every archive (verify
+  the bundle, then `sha256sum -c`). Signing is **fail-closed**: if signing
+  cannot complete, the release publishes nothing, and a post-publication CI
+  step re-verifies the bundle against the pinned workflow identity so a broken
+  config fails the run. The existing `checksums.txt` (SHA-256) and its
+  `sha256sum -c` path are **unchanged** and remain valid for users without
+  cosign; releases published **before** this change ship no bundle and stay
+  checksum-only. No product/`internal` code change — release pipeline + docs
+  only. (spec 053 / PRD 42)
+- **SLSA build provenance**: each release now also publishes a
+  [SLSA](https://slsa.dev) build-provenance attestation (`multiple.intoto.jsonl`),
+  complementary to (not a replacement for) the cosign signature above:
+  signing proves *who published* a release, provenance proves *how it was
+  built* — the exact source commit, repository, and build workflow, attested
+  by a process with its own identity, independent of the job that produced
+  the binaries, so a compromise of the build job alone cannot forge its own
+  attestation. Generated via the pinned `slsa-framework/slsa-github-generator`
+  reusable workflow as a **second, separate** release-pipeline job
+  (`needs: [goreleaser]`); the attested artifact set exactly mirrors
+  `checksums.txt` (verbatim base64 of the file — no independent re-hash).
+  Verify with
+  `slsa-verifier verify-artifact <archive> --provenance-path multiple.intoto.jsonl --source-uri github.com/denisakp/sentinel --source-tag v<version>`
+  (full walkthrough in README → Installation → "Verify build provenance").
+  **Fails closed**: a tampered artifact or an attestation claiming an
+  unexpected source repository/tag is rejected. If provenance generation
+  fails after the binaries/checksums/signature already published
+  successfully, those already-valid assets remain published unchanged — a
+  provenance-only failure is visibly flagged (a failed job on the run) but
+  never retroactively unpublishes anything. Existing release outputs
+  (binaries, `checksums.txt`, cosign signature) are byte-for-byte unchanged;
+  releases published **before** this change ship no attestation. No
+  product/`internal` code change — release pipeline + docs only.
+  (spec 055 / PRD 48)
+
+### Security
+
+- **`sentinel security reencrypt` (guided envelope migration + key rotation)**: a
+  new command that re-encrypts existing backups, closing the forward-reference
+  the v1.3.0 Envelope-v2 advisory opened ("a dedicated `sentinel security
+  reencrypt` helper is tracked under a separate PRD"). Two modes: **legacy → v2
+  migration** (`--mode legacy`, default) re-wraps a pre-v2 (legacy) artifact into
+  the current envelope so it restores/verifies under the default refuse-legacy
+  policy **without** `--allow-legacy-envelope` — for operators who cannot
+  re-backup from source (source DB gone, PITR window closed, artifact is the only
+  copy); and **key rotation** (`--mode rotate --new-key-env <VAR>`) re-encrypts a
+  current-format backup under a new master key (compromised/retired key), new key
+  read **env-only**, never from argv. Addressable by single `<backup-id>` or
+  `--all` (scoped by `--job` / `--since`); `--all` requires `--yes`; `--dry-run`
+  classifies (legacy / current / unencrypted / unmigratable) and mutates nothing;
+  `--output json` for automation. **Safety**: write-new → verify (decrypt-back +
+  SHA-256) → swap — the original artifact is never destroyed until a verified
+  replacement exists (`--keep-original` retains it), the operation is idempotent,
+  and a manifest-less backup is skipped with "cannot migrate — re-backup from
+  source" rather than corrupted. In `--all`, one backup's failure doesn't abort
+  the batch (exit `5` if any failed, `4` for invalid invocation, `0` otherwise).
+  Each success emits a `security.reencrypt` audit log event and updates the
+  monitor row. **Honest scope**: legacy migration fixes format/availability, it
+  does **NOT** remediate the legacy envelope's confidentiality weakness — a loud
+  caveat prints on every legacy run and re-backup-from-source remains the true
+  remediation. Pure composition of existing crypto/storage/manifest/monitor code
+  — no new port, no change to the backup/restore executors. Runbook:
+  [`docs/runbooks/recover-legacy-envelope.md`](docs/runbooks/recover-legacy-envelope.md).
+  (spec 054 / PRD 43)
+
 ## [v1.3.0] - August 3, 2026
 
 ### Performance

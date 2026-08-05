@@ -216,6 +216,16 @@ func applyEnvOverrides(cfg *Configuration) error {
 		if err := resolveEnvOverride(&job.URI, job.URIEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
+
+		if err := resolveEnvOverride(&job.MongoSecretsFile, job.MongoSecretsFileEnv); err != nil {
+			return fmt.Errorf("backup '%s': %w", name, err)
+		}
+		if job.MongoSecretsFile != "" && job.Type == "mongodb" {
+			if err := applyMongoSecrets(&job, cfg); err != nil {
+				return fmt.Errorf("backup '%s': %w", name, err)
+			}
+		}
+
 		if err := resolveEnvOverride(&job.Storage.S3AccessKeyID, job.Storage.S3AccessKeyIDEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
@@ -227,6 +237,15 @@ func applyEnvOverrides(cfg *Configuration) error {
 		}
 		if err := resolveEnvOverride(&job.Storage.AzureStorageKey, job.Storage.AzureStorageKeyEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
+		}
+
+		if err := resolveEnvOverride(&job.DefaultsFile, job.DefaultsFileEnv); err != nil {
+			return fmt.Errorf("backup '%s': %w", name, err)
+		}
+		if job.DefaultsFile != "" && (job.Type == "mysql" || job.Type == "mariadb") {
+			if err := applyDefaultsFile(&job, cfg); err != nil {
+				return fmt.Errorf("backup '%s': %w", name, err)
+			}
 		}
 
 		for i := range job.Notifications {
@@ -251,7 +270,7 @@ func applyEnvOverrides(cfg *Configuration) error {
 			}
 		}
 
-		if job.Type != "mongodb" {
+		if job.Type != "mongodb" && job.myCnfPassword == "" {
 			if err := requireEnvValue(job.PasswordEnv); err != nil {
 				return fmt.Errorf("backup '%s': %w", name, err)
 			}

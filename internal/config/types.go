@@ -25,6 +25,12 @@ type TLSConfig struct {
 	// for an encrypted ClientKey. The passphrase value itself is never stored in
 	// the config file or passed on the command line.
 	ClientKeyPasswordEnv string `yaml:"client_key_password_env,omitempty"`
+
+	// mongoPEMPassphrase caches the passphrase resolved from a mongodb job's
+	// MongoSecretsFile at config load time (internal/config/mongo_secrets_file.go).
+	// Not part of the YAML schema. Read only via ResolveMongoTLSPassphrase.
+	// ClientKeyPasswordEnv always takes precedence when set (spec 057 / PRD 45).
+	mongoPEMPassphrase string
 }
 
 // SchedulerConfig holds global scheduler and concurrency settings.
@@ -230,6 +236,17 @@ type Configuration struct {
 	// EncryptionKeyFile is an optional path to a file containing the base64-encoded master key.
 	// Encryption is enabled only when this or EncryptionKeyEnv is explicitly configured.
 	EncryptionKeyFile string `yaml:"encryption_key_file,omitempty"`
+
+	// SecretsKeyEnv is an optional env var name for the key that decrypts an
+	// encrypted DB-credentials secrets file (defaults_file / mongo_secrets_file).
+	// When unset, the secrets-file decrypt path falls back to EncryptionKeyEnv,
+	// so the two keys can rotate independently while simple setups need only one.
+	SecretsKeyEnv string `yaml:"secrets_key_env,omitempty"`
+
+	// SecretsKeyFile is an optional path to a file containing the base64-encoded
+	// secrets-file key. When unset, the secrets-file decrypt path falls back to
+	// EncryptionKeyFile.
+	SecretsKeyFile string `yaml:"secrets_key_file,omitempty"`
 }
 
 // GlobalDefaults contains default values applied to all backup jobs
@@ -275,9 +292,40 @@ type BackupJob struct {
 	// Password connection parameters (env-only, never inline)
 	PasswordEnv string `yaml:"password_env,omitempty"`
 
+	// DefaultsFile is a path to a MySQL/MariaDB option file (my.cnf). Its
+	// [client] section seeds host/user/password for BOTH the dump subprocess
+	// and Sentinel's own preflight/discovery when the corresponding field is
+	// not explicitly configured. Explicit fields always take precedence;
+	// valid only for mysql/mariadb (spec 056 / PRD 44).
+	DefaultsFile string `yaml:"defaults_file,omitempty"`
+
+	// DefaultsFileEnv names an environment variable holding the path for
+	// DefaultsFile — for deployments where the mount location is only known
+	// at runtime (e.g. Kubernetes secret mounts). When set, its resolved
+	// value overwrites DefaultsFile, same precedence as every other *_env
+	// field (spec 058 / PRD 46).
+	DefaultsFileEnv string `yaml:"defaults_file_env,omitempty"`
+
+	// myCnfPassword caches the password resolved from DefaultsFile at config
+	// load time (internal/config/loader.go). Not part of the YAML schema —
+	// mirrors Name's yaml:"-" pattern for a runtime-computed field. Read only
+	// via ResolveJobPassword to keep resolution centralized in one place.
+	myCnfPassword string
+
 	// MongoDB URI (env-only variant)
 	URI    string `yaml:"uri,omitempty"`
 	URIEnv string `yaml:"uri_env,omitempty"`
+
+	// MongoSecretsFile is a path to a secrets file supplying a MongoDB
+	// password, a full connection URI, and/or a TLS private-key passphrase.
+	// Values are composed into the resolved URI (and, for the passphrase,
+	// into TLS material) at load time when the corresponding explicit field
+	// is not already set. Valid only for mongodb (spec 057 / PRD 45).
+	MongoSecretsFile string `yaml:"mongo_secrets_file,omitempty"`
+
+	// MongoSecretsFileEnv names an environment variable holding the path for
+	// MongoSecretsFile. Same precedence as DefaultsFileEnv (spec 058 / PRD 46).
+	MongoSecretsFileEnv string `yaml:"mongo_secrets_file_env,omitempty"`
 
 	// Database selection: single name or "*" for auto-discovery
 	Database string `yaml:"database"`

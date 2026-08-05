@@ -124,4 +124,4 @@ For failed runs see [failed-backup-triage](./failed-backup-triage.md).
 ## References
 
 - `internal/cli/backup.go`
-- `pkg/backup/{pg,mysql,mariadb,mongo}_dump/args_builder.go`
+- `internal/adapters/dump/{pg,mysql,mariadb,mongo}/args_builder.go`

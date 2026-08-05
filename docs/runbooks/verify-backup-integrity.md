@@ -131,7 +131,7 @@ If verify fails, treat the artifact as untrusted:
 ## References
 
 - ADR 0005 — Manifest v1 format (`docs/adr/0005-manifest-format-v1.md`)
-- `internal/manifest/manifest.go`, `internal/manifest/types.go`
+- `internal/domain/manifest/lineage.go` (pure validator), `internal/adapters/manifest_store/store.go` (write/read/verify)
 - `internal/cli/backup_verify.go`
 - `internal/cli/backup_diff.go` — `backup diff <id1> <id2>` metadata comparison
 - `internal/domain/backup/executor.go::verifyAfterUpload`, `internal/cli/backup_factory.go::resolveVerifyAfterUpload` — `integrity.verify_after_upload` (PRD 40)

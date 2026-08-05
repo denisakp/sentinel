@@ -37,13 +37,42 @@ This emits a WARNING line to stderr and a `crypto.legacy_envelope_decrypt` log r
 
 ### Re-encrypt under the current envelope
 
-Treat the recovered plaintext as transient. Immediately:
+**Preferred remediation — re-backup from source.** Treat the recovered plaintext as transient. Immediately:
 
 1. Take a fresh dump from the source DB using the current Sentinel build (writes v2 envelope automatically).
 2. Or, restore the recovered artifact to a scratch DB and re-backup it.
 3. Delete the recovered plaintext.
 
-See [key-rotation](./key-rotation.md) if you also need a new key.
+This is the only remediation that restores the confidentiality guarantee — a fresh ciphertext under the v2 envelope with no nonce-reuse exposure.
+
+### Guided migration when you cannot re-backup from source — `sentinel security reencrypt`
+
+When the source DB state is gone, the PITR window has closed, or the legacy artifact is the only surviving copy, use the guided command to re-wrap it into the v2 envelope so it stops requiring `--allow-legacy-envelope`:
+
+```bash
+# Preview what would migrate (mutates nothing):
+sentinel security reencrypt --all --dry-run --config sentinel.yaml
+
+# Migrate one backup (single id needs no --yes):
+sentinel security reencrypt <backup-id> --config sentinel.yaml
+
+# Migrate all legacy backups (bulk needs --yes; scope with --job / --since):
+sentinel security reencrypt --all --yes --config sentinel.yaml
+```
+
+> ⚠ **Confidentiality limit.** `security reencrypt` migrates the artifact's
+> **format/availability** — it does **NOT** undo the legacy envelope's
+> confidentiality weakness. A pre-v2 ciphertext may already be compromised;
+> re-wrapping the same plaintext cannot change that. Re-backup from source
+> (above) wherever possible. Use `reencrypt` only when you can't, to get off the
+> `--allow-legacy-envelope` dependency. The command prints this caveat on every
+> legacy run.
+
+The command never destroys a recoverable artifact: it writes the new artifact, verifies it (decrypt-back + hash), and only then retires the original (`--keep-original` retains it for a manual cutover). It is idempotent — an already-v2 backup is skipped.
+
+### Rotating the key at the same time
+
+`security reencrypt --mode rotate --new-key-env <VAR>` re-encrypts **current-format** backups under a new master key (compromised/retired key). See [key-rotation](./key-rotation.md). Rotation has no confidentiality caveat — the v2 envelope is sound.
 
 ## Verification
 

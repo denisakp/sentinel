@@ -1,5 +1,5 @@
 name: Benchmark (small tier, report-only)
-# PRD 41 — reproducible performance harness. Manual-dispatch only: unlike
+# reproducible performance harness. Manual-dispatch only: unlike
 # lint.yml/integration.yml this job stands up a multi-container DB stack
 # (pg/mysql/mariadb/mongo) and moves ~4GB of generated seed data through
 # real dump/restore tools, which is a meaningfully heavier and slower job

@@ -632,7 +632,7 @@ func runScheduledRetention(cmd *cobra.Command, cfg *config.Configuration, job co
 func listDatabases(job config.BackupJob) ([]string, error) {
 	switch job.Type {
 	case "postgres", "mysql", "mariadb":
-		password, err := config.PasswordFromEnv(job.PasswordEnv)
+		password, err := config.ResolveJobPassword(job)
 		if err != nil {
 			return nil, err
 		}

@@ -8,9 +8,19 @@
 # Validate locally with: goreleaser release --snapshot --clean
 # (produces all 5 binaries + archives + checksums.txt under dist/).
 #
-# TODO(v2): supply-chain signing — cosign keyless (GitHub OIDC, `--yes`)
-# plus SLSA build provenance attestations. Deferred out of v1 per PRD 38
-# Q1 (checksums-only for v1; signing/provenance a fast-follow).
+# Supply-chain signing: checksums.txt is signed with cosign keyless (GitHub
+# OIDC + Fulcio/Rekor) via the `signs:` block below, producing a single
+# sigstore bundle (checksums.txt.sigstore.json). Verify a download with
+# `cosign verify-blob --bundle checksums.txt.sigstore.json checksums.txt`
+# (see README → Installation). (spec 053 / PRD 42)
+#
+# SLSA build provenance: GoReleaser itself does NOT participate in
+# generating it — this file only needs to keep producing checksums.txt in
+# its current sha256sum-line format, which the SLSA generator's
+# base64-subjects input consumes directly. The actual provenance generation
+# (a second, independently-identified job calling
+# slsa-framework/slsa-github-generator) lives entirely in
+# .github/workflows/release.yml. (spec 055 / PRD 48)
 version: 2
 
 project_name: sentinel
@@ -63,6 +73,26 @@ archives:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
+
+# Cosign keyless signing of the checksums file (spec 053 / PRD 42). One
+# signature over checksums.txt transitively covers every archive (verify the
+# bundle, then `sha256sum -c`). Keyless: no long-lived key — the CI job's
+# GitHub OIDC identity is exchanged for a short-lived Fulcio cert and logged
+# in Rekor. `--yes` is required non-interactively in CI. cosign v3 emits a
+# single self-contained bundle (signature + cert + inclusion proof), so no
+# separate .sig/.pem files and no COSIGN_EXPERIMENTAL. `artifacts: checksum`
+# signs ONLY checksums.txt; do not widen it. NOTE: `goreleaser --snapshot`
+# skips signing — the bundle is only produced on a real (tagged) release.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
 
 release:
   github:

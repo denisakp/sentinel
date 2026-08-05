@@ -1,7 +1,7 @@
 # Runbook — Key rotation
 
 - **Audience**: ops / SRE
-- **Last reviewed**: 2026-05-17
+- **Last reviewed**: 2026-08-05
 - **Related**: [enable-encryption](./enable-encryption.md), [key-loss-incident](./key-loss-incident.md), [recover-legacy-envelope](./recover-legacy-envelope.md), ADR 0006
 
 ## When to use
@@ -64,14 +64,43 @@ export SENTINEL_MASTER_KEY_OLD=<old-key>
 sentinel restore run legacy-restore --config <config>
 ```
 
-### 5. (Optional) Re-encrypt under the new key
+### 5. Re-encrypt existing artifacts under the new key (`security reencrypt`)
 
-For uniform key coverage:
+For uniform key coverage, `sentinel security reencrypt --mode rotate`
+re-wraps existing encrypted artifacts under the new key in place — no scratch
+DB, no restore/backup dance. It decrypts each artifact with the current key
+(`encryption_key_env`) and re-encrypts with the key named by `--new-key-env`.
 
-1. Restore the old artifact to a scratch DB.
-2. Take a fresh backup against that scratch DB (encrypted with the new key).
-3. Replace the old artifact with the new one in cold storage.
-4. Retire `SENTINEL_MASTER_KEY_OLD` once nothing references it.
+Preview first (never mutates), then bulk-apply (`--all` requires `--yes`):
+
+```bash
+export SENTINEL_MASTER_KEY=<old-key>          # current, from encryption_key_env
+export SENTINEL_MASTER_KEY_NEW=<new-key>
+
+# Dry run — shows what would be re-encrypted, changes nothing:
+sentinel security reencrypt --all --mode rotate \
+  --new-key-env SENTINEL_MASTER_KEY_NEW --dry-run --config <config>
+
+# Apply to a single artifact:
+sentinel security reencrypt <backup-id> --mode rotate \
+  --new-key-env SENTINEL_MASTER_KEY_NEW --config <config>
+
+# Apply to everything (optionally scoped by --job / --since), keeping originals:
+sentinel security reencrypt --all --mode rotate \
+  --new-key-env SENTINEL_MASTER_KEY_NEW --keep-original --yes --config <config>
+```
+
+Flags: `--all` (repo-wide; mutually exclusive with `[backup-id]`, needs `--yes`),
+`--job <name>` / `--since <30d|4w|720h>` (scope `--all`), `--new-key-env`
+(**required** in rotate mode, env-only — never a literal key), `--keep-original`
+(retain the pre-rotation artifact), `--dry-run`, `--output json|text`.
+
+Once every live artifact is re-encrypted and nothing references
+`SENTINEL_MASTER_KEY_OLD`, retire the old key.
+
+> `--mode legacy` re-wraps **legacy v1 envelopes** into the current format under
+> the *same* key (no `--new-key-env`); that path is covered in
+> [recover-legacy-envelope](./recover-legacy-envelope.md), not here.
 
 ### Legacy envelope (v1) interaction
 
@@ -93,4 +122,4 @@ If the new key is compromised mid-rotation, treat as [key-loss-incident](./key-l
 ## References
 
 - ADR 0006 — Encryption envelope v1 (`docs/adr/0006-encryption-envelope-v1.md`)
-- `internal/cli/security.go`, `internal/adapters/crypto/key.go`
+- `internal/cli/security.go`, `internal/cli/security_reencrypt.go`, `internal/adapters/crypto/key.go`

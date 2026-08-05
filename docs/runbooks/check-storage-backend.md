@@ -89,5 +89,6 @@ Not applicable — read-only operation.
 
 ## References
 
-- `internal/storage/storage.go`, `internal/storage/backend.go`
-- `internal/storage/{local,sentinel_s3,gcs,gdrive,azure}/`
+- `internal/ports/storage.go` — `StorageBackend` port + `StatusReporter`
+- `internal/adapters/storage/registry.go` — `NewBackend(...)` single factory
+- `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`
