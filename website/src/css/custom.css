@@ -72,6 +72,28 @@
   text-underline-offset: 0.15em;
 }
 
+/* The search bar's keyboard hint.
+ *
+ * The local-search theme styles the `ctrl` / `K` hint with
+ * `--ifm-navbar-search-input-placeholder-color`. Placeholder colours are
+ * deliberately muted, which is right for a placeholder and wrong here: the hint
+ * is real content, and it measured 1.51:1 against the input background.
+ *
+ * Because the search bar sits in the navbar, this single failure appeared on
+ * every page of the site, so the accessibility gate failed 87 of 87 URLs.
+ *
+ * Replacements measured against the input background: 7.28:1 in light mode,
+ * 8.32:1 in dark. Re-measure if you change them. */
+.searchHint,
+[class*='searchHint_'] {
+  color: #474d55;
+}
+
+[data-theme='dark'] .searchHint,
+[data-theme='dark'] [class*='searchHint_'] {
+  color: #c7cbd1;
+}
+
 /* The one WCAG AA failure left in the vsLight syntax theme.
  *
  * vsLight colours `attr-name` pure red, rgb(255, 0, 0), which is 4.00:1 on white
