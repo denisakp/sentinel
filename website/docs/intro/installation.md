@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Sentinel from a prebuilt binary, with go install, or from source — and verify that what you downloaded is genuine.
+description: Install Sentinel from a prebuilt binary, with go install, or from source; and verify that what you downloaded is genuine.
 sidebar_position: 2
 ---
 
@@ -62,7 +62,7 @@ replaced both files.
 
 Each recent release signs `checksums.txt` with [cosign](https://github.com/sigstore/cosign) keyless
 signing, publishing a `checksums.txt.sigstore.json` bundle alongside it. You need cosign v3 or later
-— no Go toolchain and no Sentinel install.
+no Go toolchain and no Sentinel install.
 
 ```bash
 BASE=https://github.com/denisakp/sentinel/releases/latest/download
@@ -87,7 +87,7 @@ Releases published before signing was introduced ship no signature bundle. If a 
 
 ## Verify build provenance
 
-The signature proves **who published** the release. This proves **how the binary was built** — from
+The signature proves **who published** the release. This proves **how the binary was built**: from
 which source commit, by which workflow, with no manual step in between. The two checks are
 independent; neither replaces the other, and you can use either or both.
 
@@ -128,7 +128,7 @@ go install github.com/denisakp/sentinel@latest
 :::warning `sentinel version` will report `dev`
 A `go install` build is compiled without the release build flags, so `sentinel version` reports the
 `dev / unknown / unknown` development fallback instead of a real version, commit, and build date.
-Use a prebuilt release binary if you need accurate version reporting — for example when
+Use a prebuilt release binary if you need accurate version reporting; for example when
 troubleshooting or filing an issue.
 :::
 

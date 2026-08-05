@@ -59,7 +59,7 @@ adding or moving code across package boundaries, read
 
 Feature-sized contributions (new commands, new adapters, new architectural
 surface) go through the project's Spec Kit workflow (spec → clarify → plan →
-tasks → analyze → implement) rather than landing as a single ad hoc PR —
+tasks → analyze → implement) rather than landing as a single ad hoc PR;
 maintainers can help scope this with you before you start writing code.
 
 ## Documentation
@@ -69,13 +69,13 @@ writing.
 
 | Location | What belongs there |
 |---|---|
-| **`website/`** | The documentation site — concepts, guides, tutorials, operations, and reference. This is what users read. |
+| **`website/`** | The documentation site: concepts, guides, tutorials, operations, and reference. This is what users read. |
 | **`docs/runbooks/`** | The operator runbook corpus. Preserved, and the source material many site pages derive from. |
 | **`README.md`** | The project's front door: what Sentinel is, how to install it, and a pointer onward. Not a place for depth. |
 
 Two directories are called `docs`, which is worth stating plainly:
 
-- **`website/docs/`** is the site's content root — site pages go here.
+- **`website/docs/`** is the site's content root: site pages go here.
 - **`docs/runbooks/`** at the repository root is *not* part of the site build.
 
 A site page derived from a runbook cites that runbook in the HTML comment at the end of the page.
@@ -85,7 +85,7 @@ is complete.
 
 ### Working on the site
 
-Everything you need is in [`website/CONTRIBUTING-DOCS.md`](website/CONTRIBUTING-DOCS.md) — the
+Everything you need is in [`website/CONTRIBUTING-DOCS.md`](website/CONTRIBUTING-DOCS.md); the
 authoring convention, the page templates for each section, front-matter rules, and the accessibility
 rules that are the author's responsibility rather than the theme's.
 
@@ -95,7 +95,7 @@ Two things to know before you start:
 cd website
 npm ci
 npm start          # dev server
-npm run build      # the real gate — broken links and anchors fail the build
+npm run build      # the real gate; broken links and anchors fail the build
 ```
 
 **Every command, flag, and configuration key you write must exist in the codebase.** Check against

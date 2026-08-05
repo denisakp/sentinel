@@ -13,10 +13,10 @@ const SENTINEL_RELEASE = 'v1.4.0';
 /**
  * Hosting target. The two supported targets serve the site from structurally
  * different paths, and Docusaurus bakes `baseUrl` into every generated link and
- * asset at build time — so this cannot be a constant.
+ * asset at build time: so this cannot be a constant.
  *
- *   ghpages (default) — https://denisakp.github.io/sentinel/
- *   custom            — https://sentinel.denisakp.me/docs/
+ *   ghpages (default): https://denisakp.github.io/sentinel/
+ *   custom           : https://sentinel.denisakp.me/docs/
  *
  * `ghpages` stays the default until DNS for sentinel.denisakp.me resolves.
  *
@@ -66,7 +66,7 @@ const config: Config = {
 
   markdown: {
     // `.md` is parsed as plain CommonMark, `.mdx` as MDX. Authors writing prose
-    // should not have to know MDX's parsing quirks — notably that a bare `<!-- -->`
+    // should not have to know MDX's parsing quirks; notably that a bare `<!-- -->`
     // comment or a stray `<` is a syntax error. A page that genuinely needs React
     // components (tabs, for instance) opts in by using the .mdx extension.
     format: 'detect',
@@ -88,7 +88,7 @@ const config: Config = {
       'classic',
       {
         docs: {
-          // The site is documentation only — docs are served at the site root
+          // The site is documentation only; docs are served at the site root
           // rather than under an extra /docs segment, because the baseUrl
           // already carries the path.
           routeBasePath: '/',
@@ -115,7 +115,7 @@ const config: Config = {
       {
         // Published URLs are permanent (FR-044). Every entry here must have a
         // matching row in website/redirects.md explaining why the page moved
-        // (FR-045). Redirect stubs are emitted by `npm run build` only — never
+        // (FR-045). Redirect stubs are emitted by `npm run build` only; never
         // by the dev server.
         redirects: [],
       },
@@ -180,12 +180,12 @@ const config: Config = {
       // bundled prism-react-renderer theme against WCAG AA (4.5:1, measured
       // against each theme's own background) gave:
       //
-      //   light — nothing passes outright. vsLight is closest, failing on exactly
-      //           one token (attr-name, pure red at 4.00:1), which src/css/custom.css
-      //           overrides. The previous default, github, failed 5 of 9 token
-      //           groups and produced 84 violations across just four pages.
-      //   dark  — oceanicNext passes with its worst token at 4.68:1. The previous
-      //           default, dracula, failed on comments at 3.03:1.
+      //   light: nothing passes outright. vsLight is closest, failing on exactly
+      //          one token (attr-name, pure red at 4.00:1), which src/css/custom.css
+      //          overrides. The previous default, github, failed 5 of 9 token
+      //          groups and produced 84 violations across just four pages.
+      //   dark:  oceanicNext passes with its worst token at 4.68:1. The previous
+      //          default, dracula, failed on comments at 3.03:1.
       //
       // Before changing either, re-run the audit. A pretty theme that fails AA is
       // not a trade this project makes.

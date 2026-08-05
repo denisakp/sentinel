@@ -5,7 +5,7 @@ The source of the Sentinel documentation site, built with [Docusaurus](https://d
 ```bash
 npm ci
 npm start          # dev server at http://localhost:3000
-npm run build      # production build — this is the gate, see below
+npm run build      # production build; this is the gate, see below
 npm run serve      # preview the production build
 npm run a11y       # accessibility audit (needs `npm run serve` running)
 ```
@@ -20,14 +20,14 @@ different people reading as one document.
 failures, not warnings. If it builds, the links resolve.
 
 **Redirects and the search index only exist in production builds.** A redirect that appears broken
-under `npm start` is not a bug — check it against `npm run build`.
+under `npm start` is not a bug; check it against `npm run build`.
 
 **Do not add `static/CNAME` or set a custom domain in the repository's Pages settings** until DNS for
 `sentinel.denisakp.me` actually resolves. Configuring a custom domain makes GitHub redirect the
 `github.io` URL to it; with DNS unresolved, the site becomes unreachable at *both* addresses.
 
 **The Pages publishing source must stay "GitHub Actions".** Never select "deploy from a branch
-`/docs` folder" — that would try to publish the repository's raw `docs/runbooks/` Markdown as the
+`/docs` folder"; that would try to publish the repository's raw `docs/runbooks/` Markdown as the
 website.
 
 ## Hosting targets
@@ -42,5 +42,5 @@ paths. `DEPLOY_TARGET` selects between them:
 
 ## Two directories named `docs`
 
-- `website/docs/` — this site's content.
-- `docs/runbooks/` at the repository root — the preserved operator runbooks. Not part of this build.
+- `website/docs/`: this site's content.
+- `docs/runbooks/` at the repository root: the preserved operator runbooks. Not part of this build.

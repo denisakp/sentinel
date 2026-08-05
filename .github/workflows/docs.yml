@@ -2,7 +2,7 @@ name: Documentation site
 
 # Builds and publishes the Sentinel documentation site (website/).
 #
-# On pull requests: build, link check, and accessibility audit — no deploy.
+# On pull requests: build, link check, and accessibility audit; no deploy.
 # On push to 1.x, or manual dispatch: the same gates, then deploy.
 #
 # Build and deploy are separate jobs on purpose. If the build fails, the deploy
@@ -62,8 +62,8 @@ jobs:
       # Serve and audit in one step: a background process started in one step is
       # not reliably still there in the next.
       #
-      # Automated auditing catches roughly half of WCAG 2.1 AA. The rest —
-      # meaningful alt text, descriptive link text, heading nesting — is covered
+      # Automated auditing catches roughly half of WCAG 2.1 AA. The rest;
+      # meaningful alt text, descriptive link text, heading nesting; is covered
       # by the authoring convention and by review, not by this step.
       - name: Accessibility audit (WCAG 2.1 AA)
         run: |

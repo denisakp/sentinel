@@ -19,12 +19,12 @@ npm start          # dev server, http://localhost:3000
 Before opening a pull request:
 
 ```bash
-npm run build      # the real gate — see below
+npm run build      # the real gate; see below
 npm run serve      # preview the production build, in one terminal
 npm run a11y       # accessibility audit, in another
 ```
 
-`npm run a11y` audits **every page in the sitemap**, so new pages are covered automatically — there
+`npm run a11y` audits **every page in the sitemap**, so new pages are covered automatically; there
 is no URL list to maintain. It needs `npm run serve` already running, because it audits the built
 site rather than the source.
 
@@ -45,8 +45,8 @@ The production build is not a formality. It enforces:
 
 Two things exist only in the production build and cannot be checked with `npm start`:
 
-- **Redirects** — stub pages are emitted at build time only.
-- **The search index** — built from compiled output.
+- **Redirects**: stub pages are emitted at build time only.
+- **The search index**: built from compiled output.
 
 ---
 
@@ -79,17 +79,17 @@ sidebar_position: 2
 
 | Field | Required | Rule |
 |---|---|---|
-| `title` | Yes | Sentence case. Unique across the site. Becomes the `<h1>` — **do not repeat it as a heading in the body**. |
+| `title` | Yes | Sentence case. Unique across the site. Becomes the `<h1>`: **do not repeat it as a heading in the body**. |
 | `description` | Yes | One sentence, ≤ 160 characters. Describes the page, not the product. |
 | `sidebar_position` | Yes | Integer ordering within the directory. |
 | `sidebar_label` | No | Only when `title` is too long for the sidebar. |
 
 ### Never set these
 
-- **`slug`** — the file path *is* the URL, permanently. A slug override decouples the two and makes
+- **`slug`**: the file path *is* the URL, permanently. A slug override decouples the two and makes
   URL permanence impossible to audit by reading the directory tree.
-- **`id`** — same reasoning.
-- **`draft` / `unlisted`** — a page is either finished and present, or absent. There is no
+- **`id`**: same reasoning.
+- **`draft` / `unlisted`**: a page is either finished and present, or absent. There is no
   half-published state; navigation must never point at content that is not there.
 
 ---
@@ -104,7 +104,7 @@ This is not bookkeeping. It is what makes the site auditable: a reviewer can go 
 the page to the code that backs it.
 
 - At least one path, repository-relative, and it must resolve.
-- If the page documents CLI flags or YAML keys, include the file that defines them —
+- If the page documents CLI flags or YAML keys, include the file that defines them;
   `internal/cli/*.go` or `internal/config/types.go`.
 
 ---
@@ -131,7 +131,7 @@ If you cannot find it, it does not exist. Do not document it.
 
 1. **No `<h1>` in the body.** The front-matter `title` supplies it.
 2. **Heading levels never skip.** `##` → `###` → `####`. This is an accessibility requirement, not a
-   style preference — screen reader users navigate by heading structure.
+   style preference; screen reader users navigate by heading structure.
 3. **Link text is descriptive.** Never "click here", "this page", or a bare URL. Someone browsing by
    link list must understand each destination out of context.
 4. **Images carry alt text** describing what the image *conveys*, not what it depicts. Decorative
@@ -139,7 +139,7 @@ If you cannot find it, it does not exist. Do not document it.
 5. **Never convey meaning by colour alone.** Pair it with a word, label, or icon.
 6. **Every command is real and copy-pasteable.** No pseudo-syntax.
 7. **No real credentials, ever.** Placeholders must be obviously fake, and must demonstrate
-   Sentinel's supported patterns — environment variables, secrets files — never a password on a
+   Sentinel's supported patterns, environment variables, secrets files, never a password on a
    command line. Readers copy examples into production.
 8. **Destructive steps carry a warning** and say how to verify or recover first:
 
@@ -162,7 +162,7 @@ If you cannot find it, it does not exist. Do not document it.
 
 ## Page templates
 
-### Concept pages — `concepts/`
+### Concept pages: `concepts/`
 
 Explain; do not walk through a task.
 
@@ -177,7 +177,7 @@ Explain; do not walk through a task.
 
 ## Per-engine behaviour
 [REQUIRED where behaviour differs across PostgreSQL / MySQL / MariaDB / MongoDB.
- Use a table. State engines with no support explicitly — never omit them silently.]
+ Use a table. State engines with no support explicitly; never omit them silently.]
 
 ## Configuration
 [The YAML keys that control it, with a real excerpt. Link to the configuration reference.]
@@ -192,7 +192,7 @@ Explain; do not walk through a task.
 [REQUIRED. Links to the relevant guide, tutorial, and reference pages.]
 ```
 
-### Guide pages — `guides/`
+### Guide pages: `guides/`
 
 Task-oriented. Assumes the concept is understood.
 
@@ -200,7 +200,7 @@ Task-oriented. Assumes the concept is understood.
 [One sentence: what this achieves.]
 
 ## When to use this
-[REQUIRED. The situation that brings a reader here — and when NOT to use it.]
+[REQUIRED. The situation that brings a reader here; and when NOT to use it.]
 
 ## Before you start
 [REQUIRED. Preconditions: access, configuration, running services, prior state.]
@@ -217,7 +217,7 @@ Task-oriented. Assumes the concept is understood.
 ## Related
 ```
 
-### Tutorial pages — `tutorials/`
+### Tutorial pages: `tutorials/`
 
 Sequential, one engine, assumes nothing.
 
@@ -225,10 +225,10 @@ Sequential, one engine, assumes nothing.
 [What the reader will have built by the end, and roughly how long it takes.]
 
 ## What you need
-[REQUIRED. Include a reproducible throwaway instance — reference
+[REQUIRED. Include a reproducible throwaway instance; reference
  infra/docker/docker-compose.yml. Never assume a pre-existing environment.]
 
-## Step N — [action]
+## Step N: [action]
 [The command, then "You should see:" with real expected output.
  The reader must be able to confirm success before continuing.]
 
@@ -247,7 +247,7 @@ MongoDB recovery granularity is bounded by the oplog window rather than an arbit
 :::
 ```
 
-### Operations pages — `operations/`
+### Operations pages: `operations/`
 
 Written for someone under pressure. Most likely resolution first; no theory before action.
 
@@ -255,7 +255,7 @@ Written for someone under pressure. Most likely resolution first; no theory befo
 [One sentence: the symptom this page addresses.]
 
 ## Symptoms
-[How the reader knows they are in the right place — exact error strings where possible.]
+[How the reader knows they are in the right place; exact error strings where possible.]
 
 ## Before you start
 [REQUIRED. Preconditions, and what to capture before changing anything.]
@@ -270,7 +270,7 @@ Written for someone under pressure. Most likely resolution first; no theory befo
 ## Related
 ```
 
-### Reference pages — `reference/`
+### Reference pages: `reference/`
 
 Exhaustive and scannable. No narrative.
 
@@ -283,7 +283,7 @@ Exhaustive and scannable. No narrative.
 [Table: name, purpose, link.]
 
 ## Flags
-[Table: flag, type, default, description. Every flag that exists — no curation.]
+[Table: flag, type, default, description. Every flag that exists; no curation.]
 
 ## Examples
 
@@ -312,8 +312,8 @@ Do not just rename the file:
 
 ## Two directories named `docs`
 
-- **`website/docs/`** — the site's content. Pages go here.
-- **`docs/runbooks/`** at the repository root — the preserved operator runbook corpus. **Not** part
+- **`website/docs/`**: the site's content. Pages go here.
+- **`docs/runbooks/`** at the repository root: the preserved operator runbook corpus. **Not** part
   of the site build.
 
 A site page derived from a runbook cites it in its sources comment. The runbook stays where it is.

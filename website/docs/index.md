@@ -6,7 +6,7 @@ sidebar_position: 1
 
 Sentinel is an open-source command-line tool for automated database backup, restore, and disaster
 recovery. You point it at a YAML file describing your databases, your storage, and your schedule,
-and it takes care of the rest — running dumps, uploading them, verifying their integrity, expiring
+and it takes care of the rest; running dumps, uploading them, verifying their integrity, expiring
 old ones, and telling you when something breaks.
 
 It is a single binary with no server, no agent, and no control plane. If it is running, it is
@@ -16,24 +16,24 @@ because cron or your scheduler started it.
 
 | Engine | Full backup | Incremental | Point-in-time recovery |
 |---|---|---|---|
-| PostgreSQL | Yes | Yes — write-ahead log, PostgreSQL 17+ | Yes |
-| MySQL | Yes | Yes — binary logs | Yes, to a target timestamp |
-| MariaDB | Yes | Yes — binary logs | Yes, to a target timestamp |
-| MongoDB | Yes | Yes — oplog | Bounded by the oplog window |
+| PostgreSQL | Yes | Yes: write-ahead log, PostgreSQL 17+ | Yes |
+| MySQL | Yes | Yes: binary logs | Yes, to a target timestamp |
+| MariaDB | Yes | Yes: binary logs | Yes, to a target timestamp |
+| MongoDB | Yes | Yes: oplog | Bounded by the oplog window |
 
 ## What it does
 
 - **Backup and restore** across all four engines, from a single configuration file.
-- **Storage anywhere** — a local directory, S3-compatible object storage, Google Cloud Storage,
+- **Storage anywhere**: a local directory, S3-compatible object storage, Google Cloud Storage,
   Google Drive, or Azure Blob Storage.
 - **Incremental backup** using each engine's own change log, so daily backups do not mean daily full
   dumps.
-- **Advanced restore** — PostgreSQL point-in-time recovery and incremental chain assembly.
-- **Scheduling** — a built-in cron loop that runs both backup and restore jobs.
-- **Retention** — automatic expiry by count, by age, or by grandfather-father-son tiers.
-- **Monitoring** — every execution recorded in a local SQLite history you can query and export.
-- **Notifications** — Slack, Discord, email, and generic webhooks.
-- **Integrity and encryption** — SHA-256 manifests on every artifact, and opt-in AES-256 encryption.
+- **Advanced restore**: PostgreSQL point-in-time recovery and incremental chain assembly.
+- **Scheduling**: a built-in cron loop that runs both backup and restore jobs.
+- **Retention**: automatic expiry by count, by age, or by grandfather-father-son tiers.
+- **Monitoring**: every execution recorded in a local SQLite history you can query and export.
+- **Notifications**: Slack, Discord, email, and generic webhooks.
+- **Integrity and encryption**: SHA-256 manifests on every artifact, and opt-in AES-256 encryption.
 
 ## What it deliberately does not do
 
@@ -52,9 +52,9 @@ Knowing the boundaries early saves you evaluating it for the wrong job.
 
 ## Where to go next
 
-- **[Installation](./intro/installation.md)** — get the binary and verify it is genuine.
-- **[Quickstart](./intro/quickstart.md)** — one backup and one verified restore, from nothing.
-- **[How Sentinel fits together](./intro/architecture-overview.md)** — the mental model, before you
+- **[Installation](./intro/installation.md)**: get the binary and verify it is genuine.
+- **[Quickstart](./intro/quickstart.md)**: one backup and one verified restore, from nothing.
+- **[How Sentinel fits together](./intro/architecture-overview.md)**: the mental model, before you
   go deeper.
 
 <!-- sources: README.md, release-notes.md, internal/cli/root.go -->
