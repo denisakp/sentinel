@@ -4,6 +4,10 @@ description: Reference for sentinel repair, the repository-wide state reconcilia
 sidebar_position: 11
 ---
 
+:::info Added in v1.3.0
+`sentinel repair` requires Sentinel v1.3.0 or later.
+:::
+
 Reconciles the three places Sentinel records state, monitor rows, manifest sidecars, and storage artifacts, plus the job lock directory, and on explicit opt-in applies the fixes that are safe to automate.
 
 ## Synopsis

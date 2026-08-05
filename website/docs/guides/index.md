@@ -76,9 +76,14 @@ Two guides are held back until the defects they depend on are resolved, because 
 would mean describing procedures that cannot be followed:
 
 - **Starting the scheduler**, which depends on `schedule stop`
-  ([#138](https://github.com/denisakp/sentinel/issues/138)).
+  ([#138](https://github.com/denisakp/sentinel/issues/138)). Until then, see the repository's
+  [start-scheduler runbook](https://github.com/denisakp/sentinel/blob/develop/docs/runbooks/start-scheduler.md),
+  bearing in mind that its claim about stale locks being reaped at startup is not true today
+  ([#142](https://github.com/denisakp/sentinel/issues/142)).
 - **Restore rehearsals**, which depend on `verify_after_restore`
-  ([#149](https://github.com/denisakp/sentinel/issues/149)).
+  ([#149](https://github.com/denisakp/sentinel/issues/149)). Until then, see the repository's
+  [restore-rehearsal runbook](https://github.com/denisakp/sentinel/blob/develop/docs/runbooks/restore-rehearsal.md),
+  and verify the result by querying the restored database rather than by setting that key.
 
 Until then, the [scheduler concept page](../concepts/schedule.md) covers running the cron loop, and
 the [restore concept page](../concepts/restore.md) covers rehearsing a restore by hand.

@@ -163,7 +163,7 @@ configuration loading fails with a clear message rather than guessing.
 :::note The TLS passphrase is captured but not yet delivered
 `ssl_pem_key_password` resolves through the same mechanism as `tls.client_key_password_env`, but
 neither value currently reaches a live MongoDB TLS connection on the configuration-driven backup
-path. That is a separate gap in how Mongo TLS material is wired. The value is parsed and available
+path. That is a separate gap in how MongoDB TLS material is wired. The value is parsed and available
 for when that wiring lands.
 :::
 

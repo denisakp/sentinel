@@ -4,6 +4,10 @@ description: Re-hash a single stored artifact against its manifest, read the exi
 sidebar_position: 15
 ---
 
+:::info Added in v1.3.0
+`verify_after_upload` and the `integrity:` configuration block require Sentinel v1.3.0 or later.
+:::
+
 Prove that one specific backup artifact still holds the bytes it held when it was written.
 
 ## When to use this

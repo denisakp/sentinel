@@ -107,7 +107,21 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 
 ## Docs
 - `README.md` — user-facing usage, config examples
-- `docs/runbooks/` — operational procedures (PITR, incremental chains, encryption, stale-lock recovery, etc.). See `docs/runbooks/README.md` for the index.
+- `website/` — the documentation site (Docusaurus, published to GitHub Pages). Content lives in
+  `website/docs/`, which is **not** the repository-root `docs/`. Before writing a page, read
+  `website/CONTRIBUTING-DOCS.md`: it holds the authoring convention, the page template for each
+  section, the punctuation rule, and the accessibility rules that belong to the author rather than
+  the theme. `npm run build` is the real gate, since broken links and stale heading anchors are
+  build failures.
+  - Site pages describe what the code **does**, not what it is meant to do. Where a defect affects a
+    reader, the page says so and names the issue in an admonition. Grepping `website/docs/` for an
+    issue number finds every page that must change when it is fixed.
+  - `baseUrl` is driven by `DEPLOY_TARGET`. Do not add `website/static/CNAME` or set a custom domain
+    in the Pages settings before DNS resolves: doing so makes the `github.io` URL redirect to a dead
+    target and the site becomes unreachable at both addresses.
+- `docs/runbooks/` — the preserved operator runbook corpus, and the source material the site was
+  built from. Kept, not maintained in parallel. Fifteen of them were found to describe behaviour the
+  code does not have; where the two disagree, the site is correct about current behaviour.
 - `release-notes.md`
 
 <!-- SPECKIT START -->

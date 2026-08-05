@@ -4,6 +4,10 @@ description: "Turn on pipeline compression for MySQL and MariaDB dumps, choose g
 sidebar_position: 17
 ---
 
+:::info Added in v1.3.0
+Pipeline compression (the `compression:` block) requires Sentinel v1.3.0 or later. Engine-native compression options predate it.
+:::
+
 Shrink backup artifacts on disk and in transit by inserting a streaming compression stage between the
 dump and the hash.
 
@@ -30,7 +34,7 @@ covered below.
 - Nothing to install. Both codecs are pure Go, so no `gzip` or `zstd` binary is needed.
 - An uncompressed baseline backup of the same database, if you want to measure the saving.
 - For PostgreSQL and MongoDB jobs, knowledge of whether `database_options` already asks the dump tool
-  to compress. Look for `compress`, `pg_compression_algo` or `pg_compression_level` on a Postgres job,
+  to compress. Look for `compress`, `pg_compression_algo` or `pg_compression_level` on a PostgreSQL job,
   and `gzip` on a MongoDB job.
 
 ## Steps

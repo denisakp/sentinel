@@ -4,6 +4,10 @@ description: "The two ways a Sentinel artifact gets smaller: the engine's own du
 sidebar_position: 13
 ---
 
+:::info Added in v1.3.0
+Pipeline compression (the `compression:` block) requires Sentinel v1.3.0 or later. Engine-native compression options predate it.
+:::
+
 A Sentinel artifact can be compressed in two entirely separate ways. The dump tool can compress its own
 output, which only PostgreSQL and MongoDB support. Or Sentinel can compress the finished artifact itself
 in a pipeline stage, which works the same way for all four engines. They are configured by different

@@ -4,6 +4,10 @@ description: Verify every recorded backup in one command, branch on the exit cod
 sidebar_position: 16
 ---
 
+:::info Added in v1.3.0
+`sentinel backup verify --all`, the repository-wide integrity sweep, requires Sentinel v1.3.0 or later. Earlier releases verify one backup at a time.
+:::
+
 Check every backup Sentinel has recorded against its manifest in one pass, and get a single exit code
 an alerting system can act on.
 

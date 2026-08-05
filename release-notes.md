@@ -1,5 +1,32 @@
 # Sentinel Release Notes
 
+## Unreleased
+
+### Added
+
+- **Documentation site** (`website/`, published to GitHub Pages): a structured documentation site
+  covering concepts, task guides, per-engine tutorials, incident procedures, and the complete CLI and
+  configuration reference. Built with Docusaurus; search is served from an index compiled into the
+  site, so no third-party service is contacted at runtime and no reader query leaves the page.
+  Accessibility targets WCAG 2.1 AA, enforced in CI. Broken internal links and stale heading anchors
+  fail the build rather than reaching a reader.
+
+  Every command, flag and configuration key on the site was checked against the shipped binary, and
+  the PostgreSQL tutorial track was written by executing it against a real container. The MySQL,
+  MariaDB and MongoDB tracks were derived from the source rather than executed, and the tutorials
+  index says which is which.
+
+  Writing it turned into an audit. Checking each documented identifier against the code surfaced a
+  substantial set of defects, indexed in the tracking issue for the batch. The recurring shape is a
+  feature that reports success while doing nothing: a safety flag that does not protect, a command
+  that prints "enabled" and persists nothing, an exit code of 0 on failure. Fifteen runbooks were
+  found to describe behaviour the code does not have, some stale and some documenting intent that was
+  never wired up.
+
+  The site therefore describes what the code **does**, not what it was meant to do, and names the
+  open issue wherever the difference matters to a reader. No Go code was changed by this work.
+  `docs/runbooks/` is preserved as the source material and is no longer maintained in parallel.
+
 ## [v1.4.0] - August 5, 2026
 
 ### Added
