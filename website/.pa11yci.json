@@ -5,6 +5,7 @@
     "timeout": 60000,
     "wait": 3000,
     "concurrency": 1,
+    "levelCapWhenNeedsReview": "warning",
     "chromeLaunchConfig": {
       "args": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
     }
