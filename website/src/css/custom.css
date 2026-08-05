@@ -83,14 +83,18 @@
  * every page of the site, so the accessibility gate failed 87 of 87 URLs.
  *
  * Replacements measured against the input background: 7.28:1 in light mode,
- * 8.32:1 in dark. Re-measure if you change them. */
-.searchHint,
-[class*='searchHint_'] {
+ * 8.32:1 in dark. Re-measure if you change them.
+ *
+ * Note on the selector: the theme's own rule is a single class, and its
+ * stylesheet is loaded after this file, so an equally specific selector loses on
+ * order. `kbd[class*=...]` adds an element to the attribute selector, which wins
+ * on specificity regardless of load order. A first attempt used a bare attribute
+ * selector and silently had no effect. */
+kbd[class*='searchHint_'] {
   color: #474d55;
 }
 
-[data-theme='dark'] .searchHint,
-[data-theme='dark'] [class*='searchHint_'] {
+[data-theme='dark'] kbd[class*='searchHint_'] {
   color: #c7cbd1;
 }
 
