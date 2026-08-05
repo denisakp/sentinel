@@ -94,20 +94,17 @@ jobs:
           # axe computed. The human-readable reporter names the offending element
           # but not the numbers, which is rarely enough to act on.
           if ! npm run a11y; then
-            echo "--- accessibility violations, with computed colours ---"
+            echo "--- re-running axe directly for the computed colours ---"
             npm run --silent a11y:json > a11y.json || true
-            node -e '
+            for u in $(node -e '
               const r = require("./a11y.json");
               for (const [url, res] of Object.entries(r.results ?? {})) {
-                for (const issue of res) {
-                  if (issue.type !== "error") continue;
-                  console.log("\n" + url);
-                  console.log("  " + issue.message);
-                  console.log("  selector: " + issue.selector);
-                  console.log("  context:  " + (issue.context ?? "").slice(0, 200));
-                }
+                if (res.some(i => i.type === "error")) console.log(url);
               }
-            ' || true
+            '); do
+              echo "### $u"
+              node scripts/a11y-explain.mjs "$u" || true
+            done
             exit 1
           fi
 
