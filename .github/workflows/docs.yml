@@ -12,6 +12,13 @@ on:
   push:
     branches:
       - 1.x
+      # TEMPORARY — remove before merging.
+      #
+      # workflow_dispatch only works once the workflow exists on the default
+      # branch (1.x), so the pipeline cannot be validated from a feature branch
+      # any other way. This mirrors the throwaway sigtest workflow used to
+      # validate release signing. Delete this line once the deploy is proven.
+      - 060-documentation-site
     paths:
       - 'website/**'
       - '.github/workflows/docs.yml'
@@ -39,9 +46,9 @@ jobs:
         working-directory: website
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -87,7 +94,7 @@ jobs:
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: website/build
 
@@ -110,4 +117,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
