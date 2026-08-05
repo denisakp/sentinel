@@ -181,6 +181,9 @@ func validateConnection(job BackupJob) error {
 	if job.DefaultsFile != "" && job.Type != "mysql" && job.Type != "mariadb" {
 		return fmt.Errorf("defaults_file is only valid for mysql or mariadb backup jobs")
 	}
+	if job.MongoSecretsFile != "" && job.Type != "mongodb" {
+		return fmt.Errorf("mongo_secrets_file is only valid for mongodb backup jobs")
+	}
 	if job.Type == "mongodb" {
 		if job.URI == "" && job.URIEnv == "" {
 			return fmt.Errorf("uri_env is required for mongodb backups")
