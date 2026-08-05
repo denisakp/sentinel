@@ -29,6 +29,10 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+  // Match pa11y's default viewport. Layout changes what overlaps what, and axe's
+  // contrast check resolves an element's background from what is painted behind
+  // it — so a mismatched viewport can hide or invent a failure.
+  await page.setViewport({width: 1280, height: 1024});
   await page.goto(url, {waitUntil: 'networkidle0'});
   await page.evaluate(axeSource);
 
