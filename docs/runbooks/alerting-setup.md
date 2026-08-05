@@ -114,5 +114,5 @@ Remove the `notifications:` block to disable. Per-job overrides (when present) w
 
 ## References
 
-- `internal/notifier/` — Slack, Discord, email, webhook implementations
+- `internal/adapters/notifier/` — Slack, Discord, email, webhook implementations (dispatcher + per-channel notifiers; context/config types in `internal/ports/notifier.go`)
 - [failed-backup-triage](./failed-backup-triage.md) for what to do when an alert fires

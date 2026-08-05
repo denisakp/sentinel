@@ -104,4 +104,4 @@ Restore is destructive on the target DB. Rollback means re-restoring from a know
 ## References
 
 - `internal/cli/restore.go`, `internal/scheduler/restore_executor.go`
-- `pkg/restore/{pg,mysql,mariadb,mongo}_restore/args_builder.go`
+- `internal/adapters/restore/{pg,mysql,mariadb,mongo}/args_builder.go`

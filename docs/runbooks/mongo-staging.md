@@ -1,7 +1,6 @@
 # Runbook: `.staging/` directory for Mongo remote backups
 
-When `sentinel backup --db-type mongo --storage s3|gcs|azure|google-drive` runs,
-`mongodump` is invoked in archive mode against a transient file under:
+When a MongoDB backup targets a **remote** backend — `sentinel backup --type mongodb --storage s3|gcs|gdrive` (or the equivalent config-file `storage:` block, including `azure`) — `mongodump` is invoked in archive mode against a transient file under:
 
 ```
 <backup_path>/.staging/<job-id>/dump.archive[.gz]
@@ -35,3 +34,9 @@ non-running job.
 
 Local backups still use `mongodump --out=<dir>` and do NOT create a `.staging/`
 directory. No behavioural change.
+
+## Related code
+
+- `internal/adapters/dump/mongo/` — archive-mode dump + staging file lifecycle
+- `internal/adapters/mongo_tls/` — Mongo PEM material (`Register`/`Unregister`/`SweepOrphanMaterial`), swept on the same cleanup path
+- `internal/ports/storage.go` — `StorageBackend.Upload` streaming target
