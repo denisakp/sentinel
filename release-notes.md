@@ -26,6 +26,28 @@
   for jobs that don't set `defaults_file`. Runbook:
   [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
   (spec 056 / PRD 44)
+- **MongoDB credential loading from a secrets file** (`mongo_secrets_file`):
+  a new per-job config field, valid only for `mongodb`, supplying a password,
+  a full connection URI, and/or a TLS private-key passphrase from one small
+  Sentinel-native YAML file, composed into the job's connection string for
+  the **entire** pipeline — the pre-backup connectivity check, database
+  discovery, and the dump itself (closing GitHub issue #27). Precedence is
+  per-field: an explicit `uri`/`uri_env` always wins and the file's `uri` is
+  simply unused when present; the file's `password` only fills a URI that
+  has a username but no password — a URI that already has one, or no
+  resolvable username at all, is a **configuration-load-time error**, never
+  a silently-guessed connection. A missing, unreadable, or malformed file
+  fails at config-load time, never partway through a live backup run. Same
+  group/world-readable permission warning as the other credential-file
+  channels. Rejected by config validation on any non-mongodb job. The
+  `ssl_pem_key_password` field is resolved through the same mechanism as the
+  existing `tls.client_key_password_env` option, but — documented honestly —
+  neither currently reaches a live MongoDB TLS connection on the
+  config-driven backup path; that is a separate, pre-existing wiring gap,
+  unrelated to and not fixed by this change. No new port; zero behavior
+  change for jobs that don't set `mongo_secrets_file`. Runbook:
+  [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
+  (spec 057 / PRD 45)
 
 ### Security / Supply chain
 

@@ -25,6 +25,12 @@ type TLSConfig struct {
 	// for an encrypted ClientKey. The passphrase value itself is never stored in
 	// the config file or passed on the command line.
 	ClientKeyPasswordEnv string `yaml:"client_key_password_env,omitempty"`
+
+	// mongoPEMPassphrase caches the passphrase resolved from a mongodb job's
+	// MongoSecretsFile at config load time (internal/config/mongo_secrets_file.go).
+	// Not part of the YAML schema. Read only via ResolveMongoTLSPassphrase.
+	// ClientKeyPasswordEnv always takes precedence when set (spec 057 / PRD 45).
+	mongoPEMPassphrase string
 }
 
 // SchedulerConfig holds global scheduler and concurrency settings.
@@ -291,6 +297,13 @@ type BackupJob struct {
 	// MongoDB URI (env-only variant)
 	URI    string `yaml:"uri,omitempty"`
 	URIEnv string `yaml:"uri_env,omitempty"`
+
+	// MongoSecretsFile is a path to a secrets file supplying a MongoDB
+	// password, a full connection URI, and/or a TLS private-key passphrase.
+	// Values are composed into the resolved URI (and, for the passphrase,
+	// into TLS material) at load time when the corresponding explicit field
+	// is not already set. Valid only for mongodb (spec 057 / PRD 45).
+	MongoSecretsFile string `yaml:"mongo_secrets_file,omitempty"`
 
 	// Database selection: single name or "*" for auto-discovery
 	Database string `yaml:"database"`

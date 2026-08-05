@@ -216,6 +216,13 @@ func applyEnvOverrides(cfg *Configuration) error {
 		if err := resolveEnvOverride(&job.URI, job.URIEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
+
+		if job.MongoSecretsFile != "" && job.Type == "mongodb" {
+			if err := applyMongoSecrets(&job); err != nil {
+				return fmt.Errorf("backup '%s': %w", name, err)
+			}
+		}
+
 		if err := resolveEnvOverride(&job.Storage.S3AccessKeyID, job.Storage.S3AccessKeyIDEnv); err != nil {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
