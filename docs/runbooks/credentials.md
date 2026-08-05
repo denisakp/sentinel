@@ -70,6 +70,16 @@ Only the `[client]` section is read; other sections (e.g. `[mysqldump]`) and `!i
 
 This is unrelated to (and can be combined with) `additional_args: "--defaults-extra-file=..."`, which forwards a raw flag to `mysqldump`/`mariadb-dump` directly — that dump-only passthrough still works exactly as before, but on its own it does not reach the Go-side connectivity check or discovery, which is exactly the gap `defaults_file` closes.
 
+For deployments where the file's mount location is only known at runtime (Kubernetes secret mounts, ephemeral CI paths), point at it via `defaults_file_env` instead of a literal path — same precedence as every other `*_env` field (env wins when set; unset-but-referenced is a config-load error) (spec 058 / PRD 46):
+
+```yaml
+databases:
+  mydb:
+    type: mysql
+    database: "*"
+    defaults_file_env: MYSQL_DEFAULTS_FILE   # e.g. /var/run/secrets/db/my.cnf
+```
+
 ### 5. MongoDB secrets file — `mongo_secrets_file`
 
 For MongoDB jobs only, `mongo_secrets_file` points at a small Sentinel-native YAML file supplying a password, a full connection URI, and/or a TLS private-key passphrase, composed into the job's connection string for the **whole** pipeline — the pre-backup connectivity check, database discovery, and the dump itself (spec 057 / PRD 45, closing GitHub issue #27).
@@ -92,6 +102,16 @@ password: "s3cr3t"
 Precedence is evaluated **per field**: an explicit `uri`/`uri_env` always wins and the file's `uri` is simply unused (not an error) when present; the file's `password` only fills a URI that has a username but no password — if the URI already has one, or no username is known anywhere, config loading fails immediately with a clear error rather than guessing. A missing, unreadable, or malformed `mongo_secrets_file` fails **at config-load time**, never partway through a backup run. Same group/world-readable permission warning as the channels above.
 
 > **Note on the TLS passphrase field**: `ssl_pem_key_password` is resolved through the same mechanism as the existing `tls.client_key_password_env` option, but as of this writing neither reaches a live MongoDB TLS connection on the config-driven backup path — that is a separate, pre-existing gap in how TLS material is wired for Mongo dumps, unrelated to and not fixed by this feature. The value is captured and available for the day that wiring lands.
+
+Like `defaults_file`, the file's location can be injected via `mongo_secrets_file_env` instead of a literal path, with the same precedence rule (spec 058 / PRD 46):
+
+```yaml
+databases:
+  mongo-prod:
+    type: mongodb
+    uri: "mongodb://appuser@mongo:27017/?replicaSet=rs0"
+    mongo_secrets_file_env: MONGO_SECRETS_FILE   # e.g. /run/secrets/mongo.yaml
+```
 
 ## Precedence
 
@@ -168,10 +188,10 @@ After the v1.x deprecation release, no Sentinel backup adapter writes the databa
 
 | Engine | Password channel | Source file |
 |--------|-----------------|-------------|
-| PostgreSQL | `PGPASSWORD` env | `pkg/backup/pg_dump/pg_dump.go` |
-| MySQL | `MYSQL_PWD` env | `pkg/backup/mysql_dump/mysql_dump.go` |
-| MariaDB | `MYSQL_PWD` env | `pkg/backup/mariadb_dump/mariadb_dump.go` |
-| MongoDB | URI userinfo | `pkg/backup/mongo_dump/` |
+| PostgreSQL | `PGPASSWORD` env | `internal/adapters/dump/pg/` |
+| MySQL | `MYSQL_PWD` env | `internal/adapters/dump/mysql/` |
+| MariaDB | `MYSQL_PWD` env | `internal/adapters/dump/mariadb/` |
+| MongoDB | URI userinfo | `internal/adapters/dump/mongo/` |
 
 You can verify with `ps -o args= -p $(pgrep -f mariadb-dump)` during a backup; it must contain no `--password` or `password=` token.
 

@@ -48,6 +48,19 @@
   change for jobs that don't set `mongo_secrets_file`. Runbook:
   [`docs/runbooks/credentials.md`](docs/runbooks/credentials.md).
   (spec 057 / PRD 45)
+- **Environment-variable indirection for secrets-file paths** (`defaults_file_env`,
+  `mongo_secrets_file_env`): the location of the MySQL/MariaDB defaults file
+  and the MongoDB secrets file can now be supplied via an environment
+  variable instead of a literal path in configuration — for containerized
+  and Kubernetes deployments where a secret's mount location is only known
+  at runtime, closing GitHub issue #29. Same precedence as every existing
+  `*_env` field: when set, the environment-resolved path overwrites the
+  literal one; an `_env` field referencing an unset or empty variable fails
+  immediately at configuration-load time, naming the job and the variable —
+  never a silent fallback or a delayed failure during a live backup run.
+  Reuses the existing, already-proven env-override resolution unchanged; no
+  new machinery, no new port, zero behavior change for jobs that don't set
+  either `_env` field. (spec 058 / PRD 46)
 
 ### Security / Supply chain
 

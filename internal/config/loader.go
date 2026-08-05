@@ -217,6 +217,9 @@ func applyEnvOverrides(cfg *Configuration) error {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
 
+		if err := resolveEnvOverride(&job.MongoSecretsFile, job.MongoSecretsFileEnv); err != nil {
+			return fmt.Errorf("backup '%s': %w", name, err)
+		}
 		if job.MongoSecretsFile != "" && job.Type == "mongodb" {
 			if err := applyMongoSecrets(&job); err != nil {
 				return fmt.Errorf("backup '%s': %w", name, err)
@@ -236,6 +239,9 @@ func applyEnvOverrides(cfg *Configuration) error {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
 
+		if err := resolveEnvOverride(&job.DefaultsFile, job.DefaultsFileEnv); err != nil {
+			return fmt.Errorf("backup '%s': %w", name, err)
+		}
 		if job.DefaultsFile != "" && (job.Type == "mysql" || job.Type == "mariadb") {
 			if err := applyDefaultsFile(&job); err != nil {
 				return fmt.Errorf("backup '%s': %w", name, err)
