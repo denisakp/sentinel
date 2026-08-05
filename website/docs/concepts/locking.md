@@ -295,5 +295,7 @@ checks and refuses foreign-host locks.
 - [`sentinel schedule` reference](../reference/cli/schedule.md): every flag on `schedule start`.
 - [`sentinel monitor` reference](../reference/cli/monitor.md): filtering history for skipped runs.
 - [Configuration reference](../reference/configuration.md): the full `scheduler:` block.
+- [Parallel restore](../guides/parallel-restore.md): the concurrency limits that sit alongside the lock.
+- [Inspect monitor history](../guides/inspect-monitor-history.md): seeing which runs were skipped and why.
 
 <!-- sources: internal/adapters/lock/lock.go, internal/adapters/lock/state.go, internal/adapters/lock/flock_unix.go, internal/adapters/lock/errors.go, internal/ports/lock.go, internal/scheduler/lock_integration.go, internal/scheduler/scheduler.go, internal/scheduler/executor.go, internal/scheduler/restore_executor.go, internal/domain/backup/executor.go, internal/domain/restore/executor.go, internal/adapters/restore/runtime/executor.go, internal/adapters/monitor/migrate.go, internal/cli/schedule.go, internal/cli/restore.go, internal/cli/repair.go, internal/cli/backup_factory.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/stale-lock-recovery.md, docs/runbooks/scheduler-crash-recovery.md, docs/adr/0007-lock-file-format.md, docs/adr/0008-scheduler-concurrency-model.md -->

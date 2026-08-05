@@ -359,5 +359,7 @@ logs.
 - [`sentinel repair` reference](../reference/cli/repair.md): repository-wide drift detection, including orphan manifests and broken chains.
 - [Configuration reference](../reference/configuration.md): every YAML key.
 - [Incremental backup with WAL](../tutorials/postgres/incremental-wal.md): chains and their lineage in practice.
+- [Verify backup integrity](../guides/verify-backup-integrity.md): checking one artifact.
+- [Integrity sweep](../guides/integrity-sweep.md): checking every artifact at once.
 
 <!-- sources: internal/domain/manifest/lineage.go, internal/adapters/manifest_store/store.go, internal/adapters/crypto/hash.go, internal/domain/backup/pipeline.go, internal/domain/backup/planner.go, internal/domain/backup/executor.go, internal/ports/manifest.go, internal/cli/backup_verify.go, internal/cli/exit_codes.go, internal/cli/backup_factory.go, internal/cli/restore.go, internal/cli/repair.go, internal/domain/restore/planner.go, internal/domain/restore/incremental/chain_resolver.go, internal/adapters/dump/pg/pg_dump.go, internal/adapters/dump/pg/output.go, internal/utils/default.go, internal/config/types.go, docs/runbooks/verify-backup-integrity.md, docs/runbooks/integrity-sweep.md -->

@@ -148,7 +148,7 @@ remain in storage.
 
 Artifact deletion goes through the job's configured storage backend, and is implemented for `local`,
 `s3`, `gcs`, and `azure`. A job stored on Google Drive fails with `retention delete not supported for
-storage type 'gdrive'` as soon as it has a candidate to delete.
+storage type 'google-drive'` as soon as it has a candidate to delete.
 
 ### Preview versus apply
 
@@ -276,7 +276,7 @@ prints `total deleted: 7 backups` while deleting nothing. Nothing was deleted; o
 form labels its output `retention preview for <job>`. Use `--job` when you want the mode to be
 unambiguous in the output.
 
-**`retention delete not supported for storage type 'gdrive'`.** Artifact deletion is implemented for
+**`retention delete not supported for storage type 'google-drive'`.** Artifact deletion is implemented for
 local, S3, GCS, and Azure storage. A job whose artifacts live on Google Drive computes candidates
 normally and then fails at the deletion step, leaving both the artifacts and the history rows in
 place. Prune those artifacts outside Sentinel.
@@ -324,5 +324,7 @@ job's own block.
   `apply`.
 - [Configuration reference](../reference/configuration.md): every YAML key, including the full
   `retention:` and `gfs:` blocks.
+- [Apply retention](../guides/apply-retention.md): previewing and applying a policy safely.
+- [Retention gfs](../guides/retention-gfs.md): calendar tiers, when count and age rules are not enough.
 
 <!-- sources: internal/domain/retention/policy.go, internal/domain/retention/gfs.go, internal/domain/retention/types.go, internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/adapters/monitor/retention.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/apply-retention.md, docs/runbooks/retention-gfs.md -->

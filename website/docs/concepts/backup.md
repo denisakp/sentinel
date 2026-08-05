@@ -231,5 +231,7 @@ exists and is usable. It does mean the artifact cannot be verified later, so it 
 - [Incremental backup with WAL](../tutorials/postgres/incremental-wal.md); chains in practice.
 - [`sentinel backup` reference](../reference/cli/backup.md): every flag and subcommand.
 - [Configuration reference](../reference/configuration.md): every YAML key.
+- [Run backup from config](../guides/run-backup-from-config.md): taking a real backup from a configuration file.
+- [Backup compression](../guides/backup-compression.md): reducing artifact size and transfer cost.
 
 <!-- sources: internal/domain/backup/executor.go, internal/domain/backup/planner.go, internal/domain/backup/pipeline.go, internal/domain/backup/source.go, internal/domain/backup/incremental/, internal/adapters/dump/, internal/config/types.go, internal/config/validator.go, internal/cli/backup.go, internal/cli/backup_factory.go -->

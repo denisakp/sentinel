@@ -292,5 +292,7 @@ accepted by the parser but is not what bounds the loop.
 - **[`sentinel schedule` reference](../reference/cli/schedule.md)**: every subcommand and flag.
 - **[Configuration reference](../reference/configuration.md)**: every YAML key, including the full
   `scheduler:` block.
+- [Run backup from config](../guides/run-backup-from-config.md): the single run a scheduled job repeats.
+- [Alerting setup](../guides/alerting-setup.md): hearing about a failed run rather than discovering it later.
 
 <!-- sources: internal/domain/schedule/types.go, internal/domain/schedule/next_run.go, internal/scheduler/scheduler.go, internal/scheduler/executor.go, internal/scheduler/backup_job_helpers.go, internal/scheduler/restore_executor.go, internal/scheduler/restore_integration.go, internal/cli/schedule.go, internal/cli/restore.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go -->

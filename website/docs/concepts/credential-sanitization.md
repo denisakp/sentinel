@@ -292,5 +292,7 @@ for the same reason.
   family.
 - [How Sentinel fits together](../intro/architecture-overview.md): where the sanitize and crypto
   adapters sit.
+- [Database credentials](../guides/database-credentials.md): choosing how Sentinel authenticates to each engine.
+- [Enable encryption](../guides/enable-encryption.md): encrypting the secrets files themselves.
 
 <!-- sources: internal/sanitize/sanitize.go, internal/adapters/dump/pg/pg_dump.go, internal/adapters/dump/mysql/mysql_dump.go, internal/adapters/dump/mariadb/mariadb_dump.go, internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/restore/pg/pg_restore.go, internal/adapters/restore/mysql/mysql_restore.go, internal/adapters/restore/mongo/mongo_restore.go, internal/adapters/restore/pg/args_builder.go, internal/adapters/mysqlargs/core.go, internal/adapters/mysqlargs/defaults_file.go, internal/config/types.go, internal/config/env.go, internal/config/loader.go, internal/config/validator.go, internal/config/password_source.go, internal/config/secrets_file_crypto.go, internal/config/defaults_file_resolve.go, internal/config/mongo_secrets_file.go, internal/adapters/crypto/secrets_envelope.go, internal/cli/backup.go, internal/cli/security.go, docs/runbooks/credentials.md -->

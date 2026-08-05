@@ -286,5 +286,7 @@ restore.
 - **[Configuration reference](../reference/configuration.md)**: every YAML key.
 - **[Restore a PostgreSQL backup](../tutorials/postgres/restore.md)**: a worked example end to end.
 - **[PostgreSQL point-in-time recovery](../tutorials/postgres/pitr.md)**: `pitr` mode in practice.
+- [Parallel restore](../guides/parallel-restore.md): restoring several jobs concurrently, and the disk budget that governs it.
+- [Restore from gcs](../guides/restore-from-gcs.md): restoring when the artifacts live in Google Cloud Storage.
 
 <!-- sources: internal/domain/restore/executor.go, internal/domain/restore/planner.go, internal/domain/restore/plan_types.go, internal/domain/restore/job.go, internal/adapters/restore/runtime/executor.go, internal/adapters/restore/runtime/staging.go, internal/adapters/restore/runtime/preflight.go, internal/adapters/restore/pg/pg_restore.go, internal/adapters/restore/mysql/mysql_restore.go, internal/adapters/restore/mariadb/mariadb_restore.go, internal/adapters/restore/mongo/mongo_restore.go, internal/adapters/restore/mongo/oplog_replay.go, internal/adapters/restore/incremental/mysqlbinlog/replay.go, internal/adapters/restore/incremental/pgcombine/combinebackup.go, internal/config/restore_types.go, internal/config/types.go, internal/config/loader.go, internal/config/marshal.go, internal/cli/restore.go -->

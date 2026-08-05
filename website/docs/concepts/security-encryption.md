@@ -73,9 +73,16 @@ artifact unreadable; losing the master key costs you everything encrypted under 
 Restore reverses the sequence: verify the manifest hash, read the salt and IV back out of the
 manifest, re-derive the same key from the master key, and stream the plaintext into the engine's
 restore tool. Artifacts written before envelope v2 carry no `SENC` header. Sentinel refuses them by
-default and needs `--allow-legacy-envelope` on `sentinel restore` or `sentinel backup verify` to
-proceed, because the pre-v2 nonce scheme was flawed and any such ciphertext should be treated as
-potentially compromised.
+default and needs `--allow-legacy-envelope` on `sentinel restore` to proceed, because the pre-v2
+nonce scheme was flawed and any such ciphertext should be treated as potentially compromised.
+
+:::caution `backup verify` never decrypts, so its `--allow-legacy-envelope` flag does nothing
+The flag is registered on `sentinel backup verify`, but `verifyExecution` discards its options
+parameter (`internal/cli/backup_verify.go:178` takes it as `_`) and only hashes the stored bytes.
+Verification therefore confirms that an encrypted artifact is byte-for-byte intact; it cannot tell
+you whether the artifact is decryptable with the key you hold. A verified backup and a restorable
+backup are not the same claim here. Tracked in [#164](https://github.com/denisakp/sentinel/issues/164).
+:::
 
 ### The secrets file container: `SSEC`
 
@@ -307,5 +314,8 @@ suppressed for `SSEC` files, since a readable ciphertext is not a credential exp
 - [Manifest](./manifest.md): the sidecar that carries the salt, IV, and envelope version.
 - [`sentinel security` reference](../reference/cli/security.md): every subcommand and flag.
 - [Configuration reference](../reference/configuration.md): every YAML key.
+- [Enable encryption](../guides/enable-encryption.md): turning encryption on for an existing repository.
+- [Key rotation](../guides/key-rotation.md): replacing a key without losing access to existing artifacts.
+- [Database credentials](../guides/database-credentials.md): the credential side, which uses a separate key.
 
 <!-- sources: internal/adapters/crypto/key.go, internal/adapters/crypto/encrypt.go, internal/adapters/crypto/decrypt.go, internal/adapters/crypto/envelope.go, internal/adapters/crypto/secrets_envelope.go, internal/adapters/crypto/hash.go, internal/cli/security.go, internal/cli/security_reencrypt.go, internal/cli/security_secrets.go, internal/cli/legacy_envelope.go, internal/cli/backup_factory.go, internal/config/types.go, internal/config/secrets_file_crypto.go, internal/config/defaults_file_resolve.go, internal/config/mongo_secrets_file.go, internal/ports/encryption.go, internal/ports/manifest.go, internal/adapters/restore/runtime/preflight.go, docs/runbooks/enable-encryption.md, docs/runbooks/key-rotation.md, docs/runbooks/key-loss-incident.md, docs/runbooks/recover-legacy-envelope.md -->

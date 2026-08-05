@@ -78,14 +78,20 @@ This is the single most important thing to know before choosing a destination.
 | Azure Blob | `azure` | Partially | **No** | Config-file only, and not advertised by `--storage`; see below |
 
 :::warning Backups on Google Drive and Azure Blob cannot be restored by a restore job
-`RestoreBackupSource` parses `gdrive_folder_id`, `gdrive_sa_file`, `azure_storage_account`,
-`azure_storage_key` and `azure_container`, so a configuration using them validates and loads
-cleanly. The staging code never reads those fields: its switch has three cases. A restore job
-pointed at Google Drive or Azure Blob fails at run time with `unsupported restore source`, not at
-validation time. Tracked as
-[issue #145](https://github.com/denisakp/sentinel/issues/145). Until it is closed, treat
-`google-drive` and `azure` as archival destinations only, and keep a copy on `local`, `s3` or `gcs`
-if you intend to restore from it.
+A restore reads from `local`, `s3` and `gcs` only. Setting `backup_source.type` to anything else is
+rejected when the configuration loads:
+
+```
+unsupported backup_source.type: google-drive
+```
+
+That failure is clean and early, which is the right behaviour. The gap is that
+`RestoreBackupSource` still carries `gdrive_folder_id`, `gdrive_sa_file`, `azure_storage_account`,
+`azure_storage_key` and `azure_container` fields, so the schema suggests a capability that does not
+exist. Tracked as [issue #145](https://github.com/denisakp/sentinel/issues/145).
+
+The practical consequence stands: treat `google-drive` and `azure` as archival destinations only.
+If you intend to restore from a backup, keep a copy on `local`, `s3` or `gcs`.
 :::
 
 :::warning Azure Blob is reachable from a config file, but not fully wired
@@ -246,5 +252,7 @@ is unavailable it is skipped rather than treated as a failure.
 - [Configuration reference](../reference/configuration.md): every storage key.
 - [Your first PostgreSQL backup](../tutorials/postgres/first-backup.md): the local backend, end to
   end.
+- [Check storage backend](../guides/check-storage-backend.md): confirming Sentinel can reach where it writes.
+- [Migrate storage backend](../guides/migrate-storage-backend.md): moving artifacts between backends, and the restore-support caveat.
 
 <!-- sources: internal/ports/storage.go, internal/adapters/storage/registry.go, internal/adapters/storage/validation.go, internal/adapters/storage/local/backend.go, internal/adapters/storage/s3/backend.go, internal/adapters/storage/gcs/backend.go, internal/adapters/storage/gdrive/backend.go, internal/adapters/storage/azure/azure.go, internal/adapters/storage/azure/auth.go, internal/adapters/restore/runtime/staging.go, internal/cli/storage_cmd.go, internal/cli/backup.go, internal/cli/backup_factory.go, internal/config/types.go, internal/config/restore_types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/check-storage-backend.md, docs/runbooks/migrate-storage-backend.md, docs/runbooks/restore-from-gcs.md -->
