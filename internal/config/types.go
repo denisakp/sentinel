@@ -288,6 +288,13 @@ type BackupJob struct {
 	// valid only for mysql/mariadb (spec 056 / PRD 44).
 	DefaultsFile string `yaml:"defaults_file,omitempty"`
 
+	// DefaultsFileEnv names an environment variable holding the path for
+	// DefaultsFile — for deployments where the mount location is only known
+	// at runtime (e.g. Kubernetes secret mounts). When set, its resolved
+	// value overwrites DefaultsFile, same precedence as every other *_env
+	// field (spec 058 / PRD 46).
+	DefaultsFileEnv string `yaml:"defaults_file_env,omitempty"`
+
 	// myCnfPassword caches the password resolved from DefaultsFile at config
 	// load time (internal/config/loader.go). Not part of the YAML schema —
 	// mirrors Name's yaml:"-" pattern for a runtime-computed field. Read only
@@ -304,6 +311,10 @@ type BackupJob struct {
 	// into TLS material) at load time when the corresponding explicit field
 	// is not already set. Valid only for mongodb (spec 057 / PRD 45).
 	MongoSecretsFile string `yaml:"mongo_secrets_file,omitempty"`
+
+	// MongoSecretsFileEnv names an environment variable holding the path for
+	// MongoSecretsFile. Same precedence as DefaultsFileEnv (spec 058 / PRD 46).
+	MongoSecretsFileEnv string `yaml:"mongo_secrets_file_env,omitempty"`
 
 	// Database selection: single name or "*" for auto-discovery
 	Database string `yaml:"database"`
