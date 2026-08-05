@@ -12,13 +12,6 @@ on:
   push:
     branches:
       - 1.x
-      # TEMPORARY — remove before merging.
-      #
-      # workflow_dispatch only works once the workflow exists on the default
-      # branch (1.x), so the pipeline cannot be validated from a feature branch
-      # any other way. This mirrors the throwaway sigtest workflow used to
-      # validate release signing. Delete this line once the deploy is proven.
-      - 060-documentation-site
     paths:
       - 'website/**'
       - '.github/workflows/docs.yml'
