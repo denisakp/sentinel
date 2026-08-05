@@ -90,7 +90,26 @@ jobs:
           curl -sSf -o /dev/null http://localhost:3000/sentinel/ \
             || { echo "site did not come up within 60s" >&2; exit 1; }
 
-          npm run a11y
+          # On failure, re-run with the JSON reporter and print the exact colours
+          # axe computed. The human-readable reporter names the offending element
+          # but not the numbers, which is rarely enough to act on.
+          if ! npm run a11y; then
+            echo "--- accessibility violations, with computed colours ---"
+            npm run --silent a11y:json > a11y.json || true
+            node -e '
+              const r = require("./a11y.json");
+              for (const [url, res] of Object.entries(r.results ?? {})) {
+                for (const issue of res) {
+                  if (issue.type !== "error") continue;
+                  console.log("\n" + url);
+                  console.log("  " + issue.message);
+                  console.log("  selector: " + issue.selector);
+                  console.log("  context:  " + (issue.context ?? "").slice(0, 200));
+                }
+              }
+            ' || true
+            exit 1
+          fi
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
