@@ -1,5 +1,10 @@
 # Runbook — Failed backup triage
 
+> **Superseded by the documentation site: [operations/failed-backup-triage](https://denisakp.github.io/sentinel/operations/failed-backup-triage).**
+>
+> This runbook lists statuses and error strings that the code never emits. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [inspect-monitor-history](./inspect-monitor-history.md), [troubleshooting](./troubleshooting.md), [stale-lock-recovery](./stale-lock-recovery.md), [check-storage-backend](./check-storage-backend.md), [enable-encryption](./enable-encryption.md)

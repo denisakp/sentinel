@@ -1,5 +1,10 @@
 # Runbook — Inspect monitor history
 
+> **Superseded by the documentation site: [guides/inspect-monitor-history](https://denisakp.github.io/sentinel/guides/inspect-monitor-history).**
+>
+> This runbook wrong columns, and its example demonstrates a silent all-time window bug. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [failed-backup-triage](./failed-backup-triage.md), [db-migration-status](./db-migration-status.md)

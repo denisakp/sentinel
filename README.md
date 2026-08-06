@@ -299,6 +299,17 @@ databases:
 
 Inspect and manage chains:
 
+> **These three subcommands cannot currently be invoked.** They require `--config` but never register
+> the flag, and the one on `sentinel backup` is local rather than persistent, so they fail whether you
+> pass it or not. Tracked in
+> [#136](https://github.com/denisakp/sentinel/issues/136). The usage shown below is what they are
+> meant to accept once that is fixed.
+>
+> Until then, use `sentinel monitor list` and `sentinel monitor show` to inspect chain state, and
+> `sentinel restore validate-chain <job>` to check a chain. See
+> [Incremental backup and PITR](https://denisakp.github.io/sentinel/concepts/incremental-pitr) for
+> what does work today.
+
 ```bash
 sentinel backup chain-status --config sentinel.yaml
 sentinel backup chain-list --config sentinel.yaml

@@ -1,5 +1,10 @@
 # Runbook — Enable encryption
 
+> **Superseded by the documentation site: [guides/enable-encryption](https://denisakp.github.io/sentinel/guides/enable-encryption).**
+>
+> This runbook shows `security init-key` output that the command no longer prints. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-08-02
 - **Related**: ADR 0006 (envelope v1), spec 047 (remote-artifact security), [key-rotation](./key-rotation.md), [key-loss-incident](./key-loss-incident.md), [verify-backup-integrity](./verify-backup-integrity.md), [recover-legacy-envelope](./recover-legacy-envelope.md), [check-storage-backend](./check-storage-backend.md)

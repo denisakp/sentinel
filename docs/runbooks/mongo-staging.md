@@ -1,5 +1,10 @@
 # Runbook: `.staging/` directory for Mongo remote backups
 
+> **Superseded by the documentation site: [reference/mongo-staging](https://denisakp.github.io/sentinel/reference/mongo-staging).**
+>
+> This runbook describes the wrong staging directory for config-driven remote backups. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 When a MongoDB backup targets a **remote** backend — `sentinel backup --type mongodb --storage s3|gcs|gdrive` (or the equivalent config-file `storage:` block, including `azure`) — `mongodump` is invoked in archive mode against a transient file under:
 
 ```

@@ -1,5 +1,10 @@
 # Runbook — Key rotation
 
+> **Superseded by the documentation site: [guides/key-rotation](https://denisakp.github.io/sentinel/guides/key-rotation).**
+>
+> This runbook shows `encryption_key_env` nested under a `restores:` job, which is not a field that exists. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-08-05
 - **Related**: [enable-encryption](./enable-encryption.md), [key-loss-incident](./key-loss-incident.md), [recover-legacy-envelope](./recover-legacy-envelope.md), ADR 0006

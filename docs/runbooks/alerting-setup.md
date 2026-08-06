@@ -1,5 +1,10 @@
 # Runbook — Alerting setup
 
+> **Superseded by the documentation site: [guides/alerting-setup](https://denisakp.github.io/sentinel/guides/alerting-setup).**
+>
+> This runbook its email example does not load: the keys are `from_address_env` and `to_addresses`. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [failed-backup-triage](./failed-backup-triage.md), [restore-from-backup](./restore-from-backup.md), [start-scheduler](./start-scheduler.md)

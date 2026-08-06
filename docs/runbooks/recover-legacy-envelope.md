@@ -1,5 +1,10 @@
 # Runbook — Recover legacy envelope (pre-v2)
 
+> **Superseded by the documentation site: [operations/recover-legacy-envelope](https://denisakp.github.io/sentinel/operations/recover-legacy-envelope).**
+>
+> This runbook its default-deny claim is false for `backup verify`. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: ADR 0006 (envelope v1/v2), [enable-encryption](./enable-encryption.md), [key-rotation](./key-rotation.md)

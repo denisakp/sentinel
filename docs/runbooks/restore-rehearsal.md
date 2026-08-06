@@ -1,5 +1,10 @@
 # Runbook — Restore rehearsal (DR drill)
 
+> **Superseded by the documentation site: [guides/index](https://denisakp.github.io/sentinel/guides/index).**
+>
+> This runbook the site page is held pending #149; verify a rehearsal by querying the restored database, not with `verify_after_restore`. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [restore-from-backup](./restore-from-backup.md), [restore-pitr-and-incremental](./restore-pitr-and-incremental.md), [verify-backup-integrity](./verify-backup-integrity.md)

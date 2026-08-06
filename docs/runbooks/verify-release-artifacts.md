@@ -1,5 +1,10 @@
 # Runbook — Verify release artifacts (cosign signature + SLSA provenance)
 
+> **Superseded by the documentation site: [operations/verify-release-artifacts](https://denisakp.github.io/sentinel/operations/verify-release-artifacts).**
+>
+> This runbook pins a version while fetching from `latest/download`, so the download can be a 404 page. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE / anyone installing a prebuilt binary
 - **Related**: [upgrade-sentinel-binary](./upgrade-sentinel-binary.md), README "Installation" section
 

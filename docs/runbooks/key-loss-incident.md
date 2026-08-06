@@ -1,5 +1,10 @@
 # Runbook — Key loss incident
 
+> **Superseded by the documentation site: [operations/key-loss-incident](https://denisakp.github.io/sentinel/operations/key-loss-incident).**
+>
+> This runbook presents `backup verify` as proof a key still works; verification never decrypts, so a wrong-key artifact passes. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [enable-encryption](./enable-encryption.md), [key-rotation](./key-rotation.md), ADR 0006 (envelope v1)

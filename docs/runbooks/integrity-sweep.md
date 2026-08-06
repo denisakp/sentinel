@@ -1,5 +1,10 @@
 # Runbook — Repository-wide integrity sweep (`backup verify --all` + scheduled)
 
+> **Superseded by the documentation site: [guides/integrity-sweep](https://denisakp.github.io/sentinel/guides/integrity-sweep).**
+>
+> This runbook incomplete JSON field list and a trigger value that is never written. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-08-03
 - **Related**: [verify-backup-integrity](./verify-backup-integrity.md), [failed-backup-triage](./failed-backup-triage.md), [enable-encryption](./enable-encryption.md)
