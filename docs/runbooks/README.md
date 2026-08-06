@@ -2,6 +2,20 @@
 
 Operational procedures for running, recovering, and maintaining Sentinel in production.
 
+> **Most of this material now lives on the [documentation site](https://denisakp.github.io/sentinel/),
+> rewritten and expanded.** The site's [guides](https://denisakp.github.io/sentinel/guides/) cover
+> setup and daily operations, and its
+> [operations section](https://denisakp.github.io/sentinel/operations/) covers incidents.
+>
+> **Prefer the site.** Porting these runbooks to it involved checking every command, flag and
+> configuration key against the source, and fifteen of the runbooks below were found to describe
+> behaviour the code does not have. Some are stale; others document intended behaviour that was never
+> wired up. Where the two disagree, the site describes what the code actually does today and links to
+> the open issue.
+>
+> These files are kept because they are the source material the site was built from, and because a
+> few of them are correct where the code is not. They are not maintained in parallel.
+
 ## Daily operations
 - [Run backup from config](./run-backup-from-config.md)
 - [Start the scheduler](./start-scheduler.md)
