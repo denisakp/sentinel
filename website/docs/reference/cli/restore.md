@@ -212,4 +212,4 @@ A `SECURITY WARNING` is written to the logs and to stderr. For encrypted artifac
 - [Point-in-time recovery on PostgreSQL](../../tutorials/postgres/pitr.md)
 - [Incremental WAL backups on PostgreSQL](../../tutorials/postgres/incremental-wal.md)
 
-<!-- sources: internal/cli/restore.go, internal/cli/config_resolver.go, internal/cli/legacy_envelope.go, internal/config/restore_types.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, internal/adapters/restore/runtime/executor.go, internal/adapters/restore/runtime/preflight.go, internal/domain/restore/executor.go -->
+{/* sources: internal/cli/restore.go, internal/cli/config_resolver.go, internal/cli/legacy_envelope.go, internal/config/restore_types.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, internal/adapters/restore/runtime/executor.go, internal/adapters/restore/runtime/preflight.go, internal/domain/restore/executor.go */}

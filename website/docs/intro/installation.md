@@ -148,4 +148,4 @@ go build -o sentinel ./...
 
 With a working binary, go to the **[Quickstart](./quickstart.md)** and take a real backup.
 
-<!-- sources: README.md §Installation, §Verify the release signature, §Verify build provenance, internal/cli/version.go, internal/version/ -->
+{/* sources: README.md §Installation, §Verify the release signature, §Verify build provenance, internal/cli/version.go, internal/version/ */}

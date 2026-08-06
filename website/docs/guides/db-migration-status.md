@@ -181,4 +181,4 @@ nothing loses your execution history but no backup artifacts.
   holds.
 - [Configuration reference](../reference/configuration.md): `history_db_path` and its default.
 
-<!-- sources: internal/cli/db.go, internal/cli/config_resolver.go, internal/cli/forward_incompat.go, internal/adapters/monitor/init.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/version.go, internal/adapters/monitor/schema.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/migrations/, internal/config/loader.go, docs/runbooks/db-migration-status.md -->
+{/* sources: internal/cli/db.go, internal/cli/config_resolver.go, internal/cli/forward_incompat.go, internal/adapters/monitor/init.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/version.go, internal/adapters/monitor/schema.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/migrations/, internal/config/loader.go, docs/runbooks/db-migration-status.md */}

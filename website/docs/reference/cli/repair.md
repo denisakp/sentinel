@@ -168,4 +168,4 @@ sentinel repair --config sentinel.yaml --purge-orphans --yes
 - [Configuration reference](../configuration.md)
 - [CLI reference index](./index.md)
 
-<!-- sources: internal/cli/repair.go, internal/cli/exit_codes.go, internal/cli/monitor_doctor.go, internal/adapters/monitor/doctor.go, internal/adapters/lock/lock.go, internal/adapters/lock/state.go, internal/domain/retention/policy.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/state-repair.md, docs/runbooks/stale-lock-recovery.md, docs/runbooks/chain-corruption-recovery.md -->
+{/* sources: internal/cli/repair.go, internal/cli/exit_codes.go, internal/cli/monitor_doctor.go, internal/adapters/monitor/doctor.go, internal/adapters/lock/lock.go, internal/adapters/lock/state.go, internal/domain/retention/policy.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/state-repair.md, docs/runbooks/stale-lock-recovery.md, docs/runbooks/chain-corruption-recovery.md */}

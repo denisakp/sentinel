@@ -203,4 +203,4 @@ compose project you care about.
   environment is built for.
 - [Configuration reference](../reference/configuration.md): every YAML key used above.
 
-<!-- sources: infra/docker/docker-compose.yml, infra/docker/Dockerfile.dev, Makefile, internal/config/types.go, internal/cli/version.go, internal/cli/config.go, docs/runbooks/environment-setup.md -->
+{/* sources: infra/docker/docker-compose.yml, infra/docker/Dockerfile.dev, Makefile, internal/config/types.go, internal/cli/version.go, internal/cli/config.go, docs/runbooks/environment-setup.md */}

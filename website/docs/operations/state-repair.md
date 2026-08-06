@@ -317,4 +317,4 @@ skips every other host's findings.
 - [Incremental backup and point-in-time recovery](../concepts/incremental-pitr.md): what a chain is
   and why a break blocks restores.
 
-<!-- sources: internal/cli/repair.go, internal/cli/exit_codes.go, internal/cli/monitor.go, internal/cli/backup_factory.go, internal/adapters/lock/lock.go, internal/adapters/lock/state.go, internal/adapters/monitor/init.go, internal/adapters/monitor/recorder.go, internal/adapters/monitor/queries.go, internal/domain/restore/incremental/chain_resolver.go, internal/domain/retention/policy.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/state-repair.md -->
+{/* sources: internal/cli/repair.go, internal/cli/exit_codes.go, internal/cli/monitor.go, internal/cli/backup_factory.go, internal/adapters/lock/lock.go, internal/adapters/lock/state.go, internal/adapters/monitor/init.go, internal/adapters/monitor/recorder.go, internal/adapters/monitor/queries.go, internal/domain/restore/incremental/chain_resolver.go, internal/domain/retention/policy.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/state-repair.md */}

@@ -43,4 +43,4 @@ brings up an instance of every supported engine if you prefer that to a single c
 You will also need Sentinel installed, see [Installation](../intro/installation.md), and the client
 tools for your engine on your `PATH`.
 
-<!-- sources: infra/docker/docker-compose.yml, scripts/e2e.sh -->
+{/* sources: infra/docker/docker-compose.yml, scripts/e2e.sh */}

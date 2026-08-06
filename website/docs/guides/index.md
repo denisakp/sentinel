@@ -92,4 +92,4 @@ For incident procedures, the
 [runbooks in the repository](https://github.com/denisakp/sentinel/tree/develop/docs/runbooks) remain
 the reference until the operations section is published.
 
-<!-- sources: docs/runbooks/, internal/cli/ -->
+{/* sources: docs/runbooks/, internal/cli/ */}

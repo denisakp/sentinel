@@ -156,4 +156,4 @@ Add `version: "1.0"` at the top level and re-run.
 - [CLI reference index](./index.md)
 - [Installing Sentinel](../../intro/installation.md)
 
-<!-- sources: internal/cli/config.go, internal/cli/config_resolver.go, internal/config/loader.go, internal/config/validator.go, internal/config/restore_types.go -->
+{/* sources: internal/cli/config.go, internal/cli/config_resolver.go, internal/config/loader.go, internal/config/validator.go, internal/config/restore_types.go */}

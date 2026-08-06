@@ -218,4 +218,4 @@ backup. `sentinel backup --config` never triggers it. Apply the policy by hand w
 - [`sentinel backup` reference](../reference/cli/backup.md): every flag and subcommand.
 - [Configuration reference](../reference/configuration.md): every YAML key.
 
-<!-- sources: internal/cli/backup.go, internal/cli/backup_factory.go, internal/cli/config.go, internal/config/loader.go, internal/config/env.go, internal/config/types.go, internal/utils/default.go, internal/utils/scheduled_output.go, internal/adapters/dump/pg/output.go, internal/domain/backup/executor.go, docs/runbooks/run-backup-from-config.md -->
+{/* sources: internal/cli/backup.go, internal/cli/backup_factory.go, internal/cli/config.go, internal/config/loader.go, internal/config/env.go, internal/config/types.go, internal/utils/default.go, internal/utils/scheduled_output.go, internal/adapters/dump/pg/output.go, internal/domain/backup/executor.go, docs/runbooks/run-backup-from-config.md */}

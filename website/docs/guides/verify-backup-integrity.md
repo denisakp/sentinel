@@ -199,4 +199,4 @@ through `SENTINEL_ALLOW_LEGACY_ENVELOPE`. The flag is live on `sentinel restore`
 - [`sentinel repair` reference](../reference/cli/repair.md): repository-wide drift, including orphan manifests.
 - [Configuration reference](../reference/configuration.md): `output:`, `integrity.verify_after_upload`, and `log_format`.
 
-<!-- sources: internal/cli/backup_verify.go, internal/cli/backup_diff.go, internal/cli/exit_codes.go, internal/cli/legacy_envelope.go, internal/cli/backup_factory.go, internal/adapters/manifest_store/store.go, internal/domain/backup/executor.go, internal/domain/backup/pipeline.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/verify-backup-integrity.md -->
+{/* sources: internal/cli/backup_verify.go, internal/cli/backup_diff.go, internal/cli/exit_codes.go, internal/cli/legacy_envelope.go, internal/cli/backup_factory.go, internal/adapters/manifest_store/store.go, internal/domain/backup/executor.go, internal/domain/backup/pipeline.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/verify-backup-integrity.md */}

@@ -193,4 +193,4 @@ Emits the report as JSON with `applied_this_run` listing the migrations that ran
 - [Backups: what Sentinel captures and how](../../concepts/backup.md)
 - [CLI reference index](./index.md)
 
-<!-- sources: internal/cli/monitor.go, internal/cli/monitor_doctor.go, internal/cli/exit_codes.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/stats.go, internal/adapters/monitor/export.go, internal/config/types.go, docs/runbooks/inspect-monitor-history.md, docs/runbooks/monitor-schema-migration.md -->
+{/* sources: internal/cli/monitor.go, internal/cli/monitor_doctor.go, internal/cli/exit_codes.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/stats.go, internal/adapters/monitor/export.go, internal/config/types.go, docs/runbooks/inspect-monitor-history.md, docs/runbooks/monitor-schema-migration.md */}

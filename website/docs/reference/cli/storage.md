@@ -139,4 +139,4 @@ Moving an inline `storage:` block into `storages:` and referencing it by name is
 - [`sentinel repair`](./repair.md)
 - [CLI reference index](./index.md)
 
-<!-- sources: internal/cli/storage_cmd.go, internal/cli/config_resolver.go, internal/adapters/storage/registry.go, internal/adapters/storage/azure/auth.go, internal/adapters/storage/azure/config.go, internal/config/validator.go, internal/config/loader.go, internal/config/types.go -->
+{/* sources: internal/cli/storage_cmd.go, internal/cli/config_resolver.go, internal/adapters/storage/registry.go, internal/adapters/storage/azure/auth.go, internal/adapters/storage/azure/config.go, internal/config/validator.go, internal/config/loader.go, internal/config/types.go */}

@@ -98,4 +98,4 @@ Point-in-time recovery is refused earlier still, at configuration validation. Th
 [PITR page](./pitr.md) is short and explains both walls: the MongoDB-specific one and the
 engine-independent one that also blocks PostgreSQL.
 
-<!-- sources: internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/restore/mongo/mongo_restore.go, internal/adapters/db_probe/mongo.go, internal/config/types.go, internal/config/validator.go, internal/domain/restore/planner.go, internal/adapters/storage/local/backend.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/restore/mongo/mongo_restore.go, internal/adapters/db_probe/mongo.go, internal/config/types.go, internal/config/validator.go, internal/domain/restore/planner.go, internal/adapters/storage/local/backend.go, infra/docker/docker-compose.yml */}

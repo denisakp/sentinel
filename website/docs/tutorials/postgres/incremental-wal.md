@@ -346,4 +346,4 @@ row and the artifact's manifest, and the restore planner reads it back from the 
 - **[Point-in-time recovery](./pitr.md)**: the third restore mode, its configuration, and an honest
   account of how far it gets in v1.4.0.
 
-<!-- sources: internal/config/types.go, internal/config/validator.go, internal/cli/backup.go, internal/cli/monitor.go, internal/cli/restore.go, internal/domain/backup/planner.go, internal/domain/backup/incremental/chain.go, internal/domain/backup/incremental/prerequisites.go, internal/domain/backup/pipeline.go, internal/domain/restore/planner.go, internal/domain/restore/source.go, internal/ports/manifest.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/config/types.go, internal/config/validator.go, internal/cli/backup.go, internal/cli/monitor.go, internal/cli/restore.go, internal/domain/backup/planner.go, internal/domain/backup/incremental/chain.go, internal/domain/backup/incremental/prerequisites.go, internal/domain/backup/pipeline.go, internal/domain/restore/planner.go, internal/domain/restore/source.go, internal/ports/manifest.go, infra/docker/docker-compose.yml */}

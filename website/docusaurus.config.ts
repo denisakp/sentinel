@@ -50,7 +50,21 @@ const config: Config = {
   favicon: 'img/favicon.ico',
 
   future: {
-    v4: true,
+    // OFF deliberately, and it must stay off until this is retested.
+    //
+    // The scaffold enables it. With `v4: true` on Docusaurus 3.10.2, every
+    // admonition on this site renders as literal text: `:::warning` and its
+    // content appear as an ordinary paragraph, closing `:::` and all. Setting
+    // `markdown.format: 'mdx'` explicitly does not help; only turning this off
+    // does. Measured, not inferred:
+    //
+    //   v4: true   ->   0 rendered, 442 literal ::: across 87 pages
+    //   v4: false  -> 448 rendered,   0 literal
+    //
+    // The cost of leaving it off is being less prepared for a v4 upgrade. The
+    // cost of leaving it on was shipping every defect warning on this site as
+    // unreadable noise, which is what happened until a reader reported it.
+    v4: false,
   },
 
   url: hosting.url,

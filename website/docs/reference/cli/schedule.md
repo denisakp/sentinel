@@ -189,4 +189,4 @@ Error: invalid config "sentinel.yaml": backup 'prod-postgres': invalid cron expr
 - [`sentinel restore`](./restore.md): the command the scheduler invokes for `restores:` jobs.
 - [CLI reference index](./index.md): every Sentinel command.
 
-<!-- sources: internal/cli/schedule.go, internal/scheduler/scheduler.go, internal/scheduler/executor.go, internal/domain/schedule/types.go, internal/domain/schedule/next_run.go, internal/config/types.go, internal/config/loader.go, internal/cli/config_resolver.go -->
+{/* sources: internal/cli/schedule.go, internal/scheduler/scheduler.go, internal/scheduler/executor.go, internal/domain/schedule/types.go, internal/domain/schedule/next_run.go, internal/config/types.go, internal/config/loader.go, internal/cli/config_resolver.go */}

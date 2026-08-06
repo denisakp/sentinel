@@ -182,4 +182,4 @@ idea. Each entry links to the page that explains it in depth.
   server-side on PostgreSQL 17 and later. See
   [Incremental and PITR](../concepts/incremental-pitr.md).
 
-<!-- sources: website/docs/concepts/, internal/config/types.go, internal/domain/restore/planner.go -->
+{/* sources: website/docs/concepts/, internal/config/types.go, internal/domain/restore/planner.go */}

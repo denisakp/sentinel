@@ -216,4 +216,4 @@ deployment is configuration, not mechanism:
 - **[How Sentinel fits together](./architecture-overview.md)**: the mental model behind what you
   just ran.
 
-<!-- sources: README.md §Quick start, internal/config/types.go, internal/config/restore_types.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/config.go, internal/utils/default.go, docs/runbooks/run-backup-from-config.md -->
+{/* sources: README.md §Quick start, internal/config/types.go, internal/config/restore_types.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/config.go, internal/utils/default.go, docs/runbooks/run-backup-from-config.md */}

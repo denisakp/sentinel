@@ -211,4 +211,4 @@ migration file.
 - [Locking](../concepts/locking.md): what a per-job lock protects and when one goes stale.
 - [Configuration reference](../reference/configuration.md): `history_db_path` and the scheduler keys.
 
-<!-- sources: internal/cli/version.go, internal/version/metadata.go, internal/version/tools.go, internal/cli/schedule.go, internal/cli/monitor_doctor.go, internal/cli/db.go, internal/cli/repair.go, internal/cli/exit_codes.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/doctor.go, internal/scheduler/scheduler.go, internal/config/loader.go, docs/runbooks/upgrade-sentinel-binary.md -->
+{/* sources: internal/cli/version.go, internal/version/metadata.go, internal/version/tools.go, internal/cli/schedule.go, internal/cli/monitor_doctor.go, internal/cli/db.go, internal/cli/repair.go, internal/cli/exit_codes.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/doctor.go, internal/scheduler/scheduler.go, internal/config/loader.go, docs/runbooks/upgrade-sentinel-binary.md */}

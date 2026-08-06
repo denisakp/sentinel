@@ -58,4 +58,4 @@ step works.
 Incremental **backup** works and is covered in full. Incremental **restore** currently fails while
 staging its baseline, which the chain page states where you would meet it.
 
-<!-- sources: internal/domain/backup/pipeline.go, internal/domain/backup/incremental/, internal/adapters/restore/chain_assembler/, internal/config/types.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/domain/backup/pipeline.go, internal/domain/backup/incremental/, internal/adapters/restore/chain_assembler/, internal/config/types.go, infra/docker/docker-compose.yml */}

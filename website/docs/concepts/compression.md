@@ -219,4 +219,4 @@ artifact, not as metadata that can be regenerated.
 - [`additional_args` parsing](../reference/additional-args.md): passing dump-tool flags Sentinel does not
   model.
 
-<!-- sources: internal/config/types.go, internal/config/validator.go, internal/config/loader.go, internal/config/marshal.go, internal/adapters/compress/compress.go, internal/domain/backup/pipeline.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/adapters/dump/pg/args_builder.go, internal/adapters/dump/pg/output.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/restore/runtime/executor.go, internal/ports/manifest.go -->
+{/* sources: internal/config/types.go, internal/config/validator.go, internal/config/loader.go, internal/config/marshal.go, internal/adapters/compress/compress.go, internal/domain/backup/pipeline.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/adapters/dump/pg/args_builder.go, internal/adapters/dump/pg/output.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/restore/runtime/executor.go, internal/ports/manifest.go */}

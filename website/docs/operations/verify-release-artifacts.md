@@ -206,4 +206,4 @@ something to be compared against.
 - [Troubleshooting](./troubleshooting.md): symptom index across all operations pages.
 - [Documentation home](../index.md): everything else.
 
-<!-- sources: .github/workflows/release.yml, .goreleaser.yaml, release-notes.md, internal/cli/version.go, docs/runbooks/verify-release-artifacts.md -->
+{/* sources: .github/workflows/release.yml, .goreleaser.yaml, release-notes.md, internal/cli/version.go, docs/runbooks/verify-release-artifacts.md */}
