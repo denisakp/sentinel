@@ -25,7 +25,7 @@ const SENTINEL_RELEASE = 'v1.4.0';
  * makes GitHub redirect the github.io URL to it; with DNS unresolved the site
  * becomes unreachable at BOTH addresses.
  */
-const DEPLOY_TARGET = process.env.DEPLOY_TARGET ?? 'ghpages';
+const DEPLOY_TARGET = process.env.DEPLOY_TARGET ?? 'custom';
 
 const HOSTING = {
   ghpages: {url: 'https://denisakp.github.io', baseUrl: '/sentinel/'},

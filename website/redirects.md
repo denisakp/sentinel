@@ -24,8 +24,24 @@ appears not to work in the dev server is not a bug. Check it against the product
 
 ## Entries
 
-_None yet. The site has not moved a published page._
+No individual page has moved. The whole site did, once.
 
 | From | To | Reason | Increment |
 |------|----|--------|-----------|
-| n/a    |; | n/a      |; |
+| `denisakp.github.io/sentinel/*` | `sentinel.denisakp.me/docs/*` | The custom domain came online, and the domain root is reserved for a future landing page | 5 |
+
+These stubs are **not** in `docusaurus.config.ts`, and that is not an oversight. The client-redirects
+plugin can only write files under `baseUrl`, which is now `/docs/`. The stubs have to live at
+`/sentinel/*`, outside it, so they are generated in `.github/workflows/docs.yml` by mirroring the
+built tree, one per page.
+
+Two facts behind that, both established by testing rather than by reading:
+
+- **Docusaurus does not nest its output under `baseUrl`.** With `baseUrl: '/docs/'` the files still
+  land at the root of `build/`. That went unnoticed while this was a Pages project site, because
+  Pages serves the artifact root at `/<repo>/`, which happened to match `baseUrl: '/sentinel/'`. On a
+  custom domain the artifact root is the domain root, so the workflow nests the artifact one level.
+- **GitHub redirects the old origin to the new one, preserving the path.** A request to
+  `denisakp.github.io/sentinel/concepts/backup` lands on
+  `sentinel.denisakp.me/sentinel/concepts/backup`. Without these stubs, every URL published before
+  the cutover would 404.
