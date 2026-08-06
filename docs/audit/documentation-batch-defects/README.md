@@ -155,6 +155,16 @@ Each of these is a required task in the PRD's own definition of done, not a nice
    security calls: implement-vs-remove, or a behaviour change with a blast radius on existing
    configs. Raise them, do not default them.
 
+## Resolved decisions
+
+| Date | Subject | Resolution |
+|---|---|---|
+| 2026-08-06 | **#148 — PITR** | **Implement. PITR is a required feature and is not to be withdrawn.** Rejecting `restore_mode: pitr` at config load, or removing it from the README, are off the table. If the recoverable-window plumbing outgrows I09, it gets its own spec — it does not get descoped. |
+| 2026-08-06 | **#149 — restore verification** | **Implement**, by consequence of the above. `domain/restore/executor.go:320-323` sets `requiresVerification` for `RestoreMode == "pitr"`, so a working PITR restore cannot exist without a real verification handler. The "reject the flag" option is unavailable. |
+| 2026-08-06 | **I00 item 2 — the `t.Skip` scaffolds** | Make them **fail loudly** with a message naming I09, rather than deleting them or implementing them now. Removes the false coverage signal without discarding the skeleton; they convert to real assertions when I09 lands its fixtures. |
+
+Ten decisions remain open. None of them block the first slice (I00 + I01).
+
 ## Live reproduction status
 
 Every verdict in this plan was settled **statically or against the reference binary, without

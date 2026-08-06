@@ -71,9 +71,11 @@ require no new fixtures and cover the widest defect class.
 1. **Make the integration suite run.** Either have `test_unit` also run
    `go test -tags integration ./tests/integration/...`, or document explicitly why it stays in a
    separate workflow — and then ensure that workflow is a required check.
-2. **Un-skip or delete the five `t.Skip` scaffolds** in `tests/integration/incremental/`. Dead code
-   that reads as coverage is worse than an acknowledged gap. If they cannot be implemented now,
-   they must fail loudly or be removed.
+2. **Make the five `t.Skip` scaffolds in `tests/integration/incremental/` fail loudly.**
+   *RESOLVED 2026-08-06.* Implementing them needs the real PITR/incremental fixtures, which belong
+   to I09. Rather than deleting the scaffolding or leaving it as a false signal, each one fails with
+   a message pointing at I09. That removes the "grep finds coverage" illusion without discarding the
+   skeleton work. They convert to real assertions when I09 lands its fixtures.
 3. **Add `assert_rejected`** — the mirror of `assert_exit_ok`: requires non-zero exit **and** a
    `grep` match on stderr. Every command that validates and rejects input gets one. This is what
    catches the "validated then discarded" class (#172, #168, #170.x).
@@ -102,7 +104,8 @@ So that each later PRD adds an assertion in a few lines rather than building its
 
 - `make e2e` executes the integration-tagged tests, or a required CI check does and the split is
   documented in `scripts/e2e.sh`.
-- `grep -c "t.Skip" tests/integration/incremental/` is 0.
+- `grep -c "t.Skip" tests/integration/incremental/` is 0 — each scenario now fails with a message
+  naming I09, or is a real assertion.
 - The four scaffold helpers exist and are used by at least one test each.
 - A PITR fixture exists that is produced by a real `sentinel backup` invocation.
 - `go vet -tags=integration ./...` passes (integration files compile).

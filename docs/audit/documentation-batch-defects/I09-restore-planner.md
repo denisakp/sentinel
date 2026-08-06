@@ -94,28 +94,37 @@ shares the symptom class: a restore misleads *after* real work has already lande
 ## Fix order
 
 1. **#148** — populate `"pitr"` in `Capabilities` and set `RecoverableWindowStartUTC`/`EndUTC` when
-   the engine and config support it. **Or** drop the advertised feature. Not both halves silent.
+   the engine and config support it. This is the required path; see the resolved decision below.
 2. **#150** — store and resolve the baseline id relative to the same root the restore listing uses,
    and exclude `*.manifest.json` from candidate matching in `ResolveChainObject`.
 3. **#186** — restrict the validator's incremental whitelist to postgres, matching the pitr branch.
 4. **#152** — have dry-run invoke the same planner path as run and print the plan status and reason
    code. Do this **after** 1-3, so dry-run starts telling the truth about a system that works.
-5. **#149** — wire a real verification handler in `runtime`, **or** reject `verify_after_restore`
-   (and pitr/incremental modes) at validation time until one exists.
+5. **#149** — wire a real verification handler in `runtime`. Not optional: #148's acceptance test
+   cannot pass without one.
 6. **#185** — probe real server state (`log_bin`, replica-set membership, oplog window) before
    accepting `incremental_backup` config, or remove the dead keys and functions.
 7. **#190** — query `SHOW VARIABLES LIKE 'log_bin_basename'` (or read the binlog index) instead of
    guessing. Independent, can land at any point.
 
-## DECISION REQUIRED
+## Decisions
 
-- **#148: implement PITR, or withdraw it.** It is in the README, the tutorials and the glossary. If
-  the recoverable-window plumbing is more than this PRD can carry, the honest interim is to reject
-  `restore_mode: pitr` at config load with a clear "not implemented" message and to remove the
-  feature from the README. Silence is the one option that is not acceptable.
-- **#149: implement verification, or reject the flag.** Same shape.
-- **#185: probe, or remove the keys.** `wal_summary_check` and `binlog_check` currently read as
-  supported safety features.
+Two resolved, one still open.
+
+- **#148 — RESOLVED 2026-08-06: implement.** PITR is a required feature and is not to be withdrawn
+  under any circumstance. Withdrawing it, rejecting `restore_mode: pitr` at config load, or removing
+  it from the README are all off the table. `Capabilities` must be populated with `"pitr"` and the
+  recoverable-window fields must be set. If the plumbing outgrows this PRD, it gets its own spec —
+  it does not get descoped.
+- **#149 — RESOLVED by consequence: implement.** This was "implement verification, or reject the
+  flag". The reject option is now unavailable: `internal/domain/restore/executor.go:320-323` sets
+  `requiresVerification` for `RestoreMode == "pitr"` as well as for the flag, so **a working PITR
+  restore cannot exist without a verification handler**. A real handler must be wired in
+  `internal/adapters/restore/runtime/`. Sequence it before or with #148's acceptance test, since
+  that test cannot pass otherwise.
+- **#185 — DECISION REQUIRED: probe, or remove the keys.** `wal_summary_check` and `binlog_check`
+  currently read as supported safety features and perform no check. Pairs with #155 in I12 (the same
+  dead prerequisite functions) — decide both together.
 
 ## Definition of done
 
