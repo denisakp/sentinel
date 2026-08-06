@@ -1,5 +1,10 @@
 # Runbook — Start the scheduler
 
+> **Superseded by the documentation site: [concepts/schedule](https://denisakp.github.io/sentinel/concepts/schedule).**
+>
+> This runbook the site page is held pending #138; its stale-lock claim is also untrue. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: ADR 0008 (scheduler concurrency), [scheduler-crash-recovery](./scheduler-crash-recovery.md), [stale-lock-recovery](./stale-lock-recovery.md)

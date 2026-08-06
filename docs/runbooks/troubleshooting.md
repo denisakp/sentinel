@@ -1,5 +1,10 @@
 # Runbook — Troubleshooting
 
+> **Superseded by the documentation site: [operations/troubleshooting](https://denisakp.github.io/sentinel/operations/troubleshooting).**
+>
+> This runbook several error strings are wrong, and the `log_format` advice does not do what it says. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [failed-backup-triage](./failed-backup-triage.md), [stale-lock-recovery](./stale-lock-recovery.md), [environment-setup](./environment-setup.md)

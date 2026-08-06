@@ -1,5 +1,10 @@
 # Runbook — Restore from backup
 
+> **Superseded by the documentation site: [tutorials/postgres/restore](https://denisakp.github.io/sentinel/tutorials/postgres/restore).**
+>
+> This runbook superseded by the per-engine tutorial tracks. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [restore-pitr-and-incremental](./restore-pitr-and-incremental.md), [restore-from-gcs](./restore-from-gcs.md), [restore-rehearsal](./restore-rehearsal.md), [verify-backup-integrity](./verify-backup-integrity.md)

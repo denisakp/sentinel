@@ -1,5 +1,10 @@
 # Runbook — `additional_args` quoting reference
 
+> **Superseded by the documentation site: [reference/additional-args](https://denisakp.github.io/sentinel/reference/additional-args).**
+>
+> This runbook documents `restore_options.additional_args` as working; it is validated then discarded. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 Sentinel forwards the operator-supplied `additional_args` string to the
 underlying dump or restore tool (`pg_dump`, `mysqldump`, `mariadb-dump`,
 `mongodump`, and their restore counterparts) as command-line arguments.

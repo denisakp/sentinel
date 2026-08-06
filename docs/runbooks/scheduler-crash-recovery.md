@@ -1,5 +1,10 @@
 # Runbook — Scheduler crash recovery
 
+> **Superseded by the documentation site: [operations/scheduler-crash-recovery](https://denisakp.github.io/sentinel/operations/scheduler-crash-recovery).**
+>
+> This runbook same startup reap claim, and `monitor list --status skipped` can never return a row. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: ADR 0008 (scheduler concurrency), ADR 0007 (lock file format), [start-scheduler](./start-scheduler.md), [stale-lock-recovery](./stale-lock-recovery.md)

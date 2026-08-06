@@ -1,5 +1,10 @@
 # Runbook — DB migration status
 
+> **Superseded by the documentation site: [guides/db-migration-status](https://denisakp.github.io/sentinel/guides/db-migration-status).**
+>
+> This runbook wrong output format, and lists three of the five migrations. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [upgrade-sentinel-binary](./upgrade-sentinel-binary.md), [inspect-monitor-history](./inspect-monitor-history.md)

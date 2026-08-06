@@ -1,5 +1,10 @@
 # Grandfather-Father-Son (GFS) Retention
 
+> **Superseded by the documentation site: [guides/retention-gfs](https://denisakp.github.io/sentinel/guides/retention-gfs).**
+>
+> This runbook claims the flat rules union, and overstates baseline protection. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 Long-horizon, calendar-tiered retention that keeps one representative backup per
 day / week / month / year — so you can satisfy multi-year compliance or DR
 mandates without hoarding every backup.

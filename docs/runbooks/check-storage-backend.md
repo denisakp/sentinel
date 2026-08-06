@@ -1,5 +1,10 @@
 # Runbook — Check storage backend
 
+> **Superseded by the documentation site: [guides/check-storage-backend](https://denisakp.github.io/sentinel/guides/check-storage-backend).**
+>
+> This runbook refers to a `file_path` column that `monitor list` does not have. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [migrate-storage-backend](./migrate-storage-backend.md), [apply-retention](./apply-retention.md), [restore-from-gcs](./restore-from-gcs.md)

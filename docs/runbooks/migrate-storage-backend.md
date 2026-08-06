@@ -1,5 +1,10 @@
 # Runbook — Migrate storage backend
 
+> **Superseded by the documentation site: [guides/migrate-storage-backend](https://denisakp.github.io/sentinel/guides/migrate-storage-backend).**
+>
+> This runbook same column problem, and claims retention runs cleanly after a migration. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [check-storage-backend](./check-storage-backend.md), [apply-retention](./apply-retention.md), [run-backup-from-config](./run-backup-from-config.md)

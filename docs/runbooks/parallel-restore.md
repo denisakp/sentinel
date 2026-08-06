@@ -1,5 +1,10 @@
 # Parallel Multi-Job Restore
 
+> **Superseded by the documentation site: [guides/parallel-restore](https://denisakp.github.io/sentinel/guides/parallel-restore).**
+>
+> This runbook its example omits `enabled` and `schedule`, so no job in it would run. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 `sentinel restore run --all` runs every **enabled** configured restore job at once, bounded by a concurrency limit. It turns a disaster-recovery drill across N services (one restore job per service) from a serial sum-of-times into a parallel run.
 
 > Scope: this parallelises **jobs** (the job axis). It does not restore multiple databases within a single job — a restore job targets exactly one database.
