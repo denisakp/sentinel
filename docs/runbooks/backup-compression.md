@@ -1,5 +1,10 @@
 # Runbook — Backup compression (gzip / zstd)
 
+> **Superseded by the documentation site: [guides/backup-compression](https://denisakp.github.io/sentinel/guides/backup-compression).**
+>
+> This runbook superseded; verified against the code. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-08-02
 - **Related**: PRD 33 / spec 049 (pipeline compression), [enable-encryption](./enable-encryption.md), [verify-backup-integrity](./verify-backup-integrity.md), [restore-from-backup](./restore-from-backup.md), [check-storage-backend](./check-storage-backend.md)

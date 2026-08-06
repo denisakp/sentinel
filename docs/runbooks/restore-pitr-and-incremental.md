@@ -1,5 +1,10 @@
 # Runbook — PITR and incremental restore
 
+> **Superseded by the documentation site: [concepts/incremental-pitr](https://denisakp.github.io/sentinel/concepts/incremental-pitr).**
+>
+> This runbook PITR cannot currently be planned for any engine; see #148. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [restore-from-backup](./restore-from-backup.md), [chain-corruption-recovery](./chain-corruption-recovery.md), [verify-backup-integrity](./verify-backup-integrity.md)

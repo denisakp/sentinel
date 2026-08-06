@@ -15,17 +15,19 @@ const SENTINEL_RELEASE = 'v1.4.0';
  * different paths, and Docusaurus bakes `baseUrl` into every generated link and
  * asset at build time: so this cannot be a constant.
  *
- *   ghpages (default): https://denisakp.github.io/sentinel/
- *   custom           : https://sentinel.denisakp.me/docs/
+ *   custom (default): https://sentinel.denisakp.me/docs/
+ *   ghpages         : https://denisakp.github.io/sentinel/
  *
- * `ghpages` stays the default until DNS for sentinel.denisakp.me resolves.
+ * `custom` became the default once DNS resolved. `ghpages` is kept as a way back
+ * if the domain ever has to be given up.
  *
- * WARNING: do not add static/CNAME or set a custom domain in the repository's
- * Pages settings before that DNS record exists. Configuring a custom domain
- * makes GitHub redirect the github.io URL to it; with DNS unresolved the site
- * becomes unreachable at BOTH addresses.
+ * One thing baseUrl does NOT do: nest the build output. With `/docs/` the files
+ * still land at the root of `build/`. That matched the old project-site layout by
+ * accident, because Pages serves the artifact root at /<repo>/. On a custom domain
+ * the artifact root is the domain root, so `.github/workflows/docs.yml` nests the
+ * artifact one level to make the paths line up again.
  */
-const DEPLOY_TARGET = process.env.DEPLOY_TARGET ?? 'ghpages';
+const DEPLOY_TARGET = process.env.DEPLOY_TARGET ?? 'custom';
 
 const HOSTING = {
   ghpages: {url: 'https://denisakp.github.io', baseUrl: '/sentinel/'},

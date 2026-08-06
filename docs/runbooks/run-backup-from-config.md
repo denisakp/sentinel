@@ -1,5 +1,10 @@
 # Runbook — Run backup from config
 
+> **Superseded by the documentation site: [guides/run-backup-from-config](https://denisakp.github.io/sentinel/guides/run-backup-from-config).**
+>
+> This runbook uses `sentinel backup --job`, which does not exist. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [environment-setup](./environment-setup.md), [start-scheduler](./start-scheduler.md), [inspect-monitor-history](./inspect-monitor-history.md), [verify-backup-integrity](./verify-backup-integrity.md)

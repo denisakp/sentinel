@@ -1,5 +1,10 @@
 # Runbook — Stale lock recovery
 
+> **Superseded by the documentation site: [operations/stale-lock-recovery](https://denisakp.github.io/sentinel/operations/stale-lock-recovery).**
+>
+> This runbook describes a stale-lock reap at scheduler startup that does not happen. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: ADR 0007 (lock file format), [scheduler-crash-recovery](./scheduler-crash-recovery.md), [troubleshooting](./troubleshooting.md)

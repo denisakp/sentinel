@@ -1,5 +1,10 @@
 # Runbook — Apply retention
 
+> **Superseded by the documentation site: [guides/apply-retention](https://denisakp.github.io/sentinel/guides/apply-retention).**
+>
+> This runbook claims `keep_last` and `keep_days` union; they intersect. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [run-backup-from-config](./run-backup-from-config.md), [check-storage-backend](./check-storage-backend.md)

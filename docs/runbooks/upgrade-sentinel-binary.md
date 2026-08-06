@@ -1,5 +1,10 @@
 # Runbook — Upgrade Sentinel binary
 
+> **Superseded by the documentation site: [guides/upgrade-sentinel-binary](https://denisakp.github.io/sentinel/guides/upgrade-sentinel-binary).**
+>
+> This runbook claims migrations apply automatically and that startup reaps stale locks; neither happens. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [db-migration-status](./db-migration-status.md), [start-scheduler](./start-scheduler.md), [scheduler-crash-recovery](./scheduler-crash-recovery.md)

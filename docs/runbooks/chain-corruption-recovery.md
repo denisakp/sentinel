@@ -1,5 +1,10 @@
 # Runbook — Chain corruption recovery
 
+> **Superseded by the documentation site: [operations/chain-corruption-recovery](https://denisakp.github.io/sentinel/operations/chain-corruption-recovery).**
+>
+> This runbook centres on three subcommands that cannot be invoked at all. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [restore-pitr-and-incremental](./restore-pitr-and-incremental.md), [apply-retention](./apply-retention.md), [verify-backup-integrity](./verify-backup-integrity.md)

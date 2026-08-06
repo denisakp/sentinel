@@ -1,5 +1,10 @@
 # Runbook — Verify backup integrity
 
+> **Superseded by the documentation site: [guides/verify-backup-integrity](https://denisakp.github.io/sentinel/guides/verify-backup-integrity).**
+>
+> This runbook shows a PASS string the command never prints, and misstates an exit code. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: ADR 0005 (manifest v1), [enable-encryption](./enable-encryption.md), [recover-legacy-envelope](./recover-legacy-envelope.md), [failed-backup-triage](./failed-backup-triage.md)

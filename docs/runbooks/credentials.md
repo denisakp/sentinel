@@ -1,5 +1,10 @@
 # Database credentials
 
+> **Superseded by the documentation site: [guides/database-credentials](https://denisakp.github.io/sentinel/guides/database-credentials).**
+>
+> This runbook uses `sentinel backup run --job`, which does not exist, and its argv claim is false for MongoDB. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 Sentinel never accepts passwords on the command line in supported channels. Use one of three safe sources; conflicts among the CLI flags are hard errors before any database I/O.
 
 ## Three safe channels

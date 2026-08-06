@@ -1,5 +1,10 @@
 # Runbook — Repository state repair (`sentinel repair`)
 
+> **Superseded by the documentation site: [operations/state-repair](https://denisakp.github.io/sentinel/operations/state-repair).**
+>
+> This runbook `--fix` does not mark broken chains, and the sample output header is wrong. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-08-03
 - **Related**: [stale-lock-recovery](./stale-lock-recovery.md), [scheduler-crash-recovery](./scheduler-crash-recovery.md), [chain-corruption-recovery](./chain-corruption-recovery.md), [integrity-sweep](./integrity-sweep.md), [monitor-schema-migration](./monitor-schema-migration.md)

@@ -1,5 +1,10 @@
 # Runbook — Environment setup
 
+> **Superseded by the documentation site: [guides/environment-setup](https://denisakp.github.io/sentinel/guides/environment-setup).**
+>
+> This runbook wrong PostgreSQL version, and references a dataset file that is not in the repository. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 - **Audience**: ops / SRE
 - **Last reviewed**: 2026-05-17
 - **Related**: [run-backup-from-config](./run-backup-from-config.md), [troubleshooting](./troubleshooting.md)

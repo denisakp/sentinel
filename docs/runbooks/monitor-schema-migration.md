@@ -1,5 +1,10 @@
 # Monitor Schema Migration
 
+> **Superseded by the documentation site: [guides/monitor-schema-migration](https://denisakp.github.io/sentinel/guides/monitor-schema-migration).**
+>
+> This runbook the "same transaction" claim is false and the lock file name is wrong. The site page was checked against the source and describes current
+> behaviour. Prefer it. This file is kept as source material and is not maintained in parallel.
+
 How Sentinel manages the schema of its monitor (history) SQLite database, and how operators inspect or repair it.
 
 ## What `schema_version` is
