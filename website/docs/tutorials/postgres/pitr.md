@@ -243,4 +243,4 @@ cd .. && rm -rf sentinel-postgres-tutorial
   [scheduling](../../concepts/schedule.md) turns these one-off commands into a running system.
 - **[Tutorials](../index.md)**: the other engine tracks, as they land.
 
-<!-- sources: internal/config/restore_types.go, internal/config/validator.go, internal/config/marshal.go, internal/cli/restore.go, internal/domain/restore/planner.go, internal/domain/restore/plan_types.go, internal/domain/backup/pipeline.go, internal/ports/manifest.go, docs/runbooks/restore-pitr-and-incremental.md -->
+{/* sources: internal/config/restore_types.go, internal/config/validator.go, internal/config/marshal.go, internal/cli/restore.go, internal/domain/restore/planner.go, internal/domain/restore/plan_types.go, internal/domain/backup/pipeline.go, internal/ports/manifest.go, docs/runbooks/restore-pitr-and-incremental.md */}

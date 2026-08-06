@@ -220,4 +220,4 @@ that flag governs only `--all` and the scheduler
 - [`sentinel restore`](../reference/cli/restore.md): every subcommand and flag.
 - [Configuration reference](../reference/configuration.md): every `backup_source` key.
 
-<!-- sources: internal/adapters/restore/runtime/staging.go, internal/adapters/restore/runtime/executor.go, internal/adapters/storage/gcs/backend.go, internal/cli/restore.go, internal/config/restore_types.go, internal/config/types.go, internal/config/validator.go, internal/domain/restore/executor.go, docs/runbooks/restore-from-gcs.md -->
+{/* sources: internal/adapters/restore/runtime/staging.go, internal/adapters/restore/runtime/executor.go, internal/adapters/storage/gcs/backend.go, internal/cli/restore.go, internal/config/restore_types.go, internal/config/types.go, internal/config/validator.go, internal/domain/restore/executor.go, docs/runbooks/restore-from-gcs.md */}

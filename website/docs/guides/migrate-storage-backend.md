@@ -259,4 +259,4 @@ caveats in reverse.
 - [`sentinel backup`](../reference/cli/backup.md): the `--storage` flag and its per-backend
   companions.
 
-<!-- sources: internal/adapters/storage/registry.go, internal/adapters/restore/runtime/staging.go, internal/config/restore_types.go, internal/config/loader.go, internal/config/validator.go, internal/config/types.go, internal/cli/retention_cleaner.go, internal/cli/retention_helpers.go, internal/cli/backup_verify.go, internal/cli/backup.go, internal/cli/repair.go, internal/cli/storage_cmd.go, internal/domain/backup/pipeline.go, internal/adapters/restore/runtime/executor.go, docs/runbooks/migrate-storage-backend.md -->
+{/* sources: internal/adapters/storage/registry.go, internal/adapters/restore/runtime/staging.go, internal/config/restore_types.go, internal/config/loader.go, internal/config/validator.go, internal/config/types.go, internal/cli/retention_cleaner.go, internal/cli/retention_helpers.go, internal/cli/backup_verify.go, internal/cli/backup.go, internal/cli/repair.go, internal/cli/storage_cmd.go, internal/domain/backup/pipeline.go, internal/adapters/restore/runtime/executor.go, docs/runbooks/migrate-storage-backend.md */}

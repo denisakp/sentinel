@@ -236,4 +236,4 @@ rather than a friendly message. Copy the ID from `list` rather than retyping it.
 - [Manifests and integrity](../concepts/manifest.md): what the recorded hash means.
 - [Configuration reference](../reference/configuration.md): `history_db_path` and the rest of the schema.
 
-<!-- sources: internal/cli/monitor.go, internal/cli/monitor_doctor.go, internal/cli/exit_codes.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/stats.go, internal/adapters/monitor/export.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/recorder.go, internal/domain/backup/executor.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/inspect-monitor-history.md -->
+{/* sources: internal/cli/monitor.go, internal/cli/monitor_doctor.go, internal/cli/exit_codes.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/stats.go, internal/adapters/monitor/export.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/recorder.go, internal/domain/backup/executor.go, internal/config/types.go, internal/config/loader.go, docs/runbooks/inspect-monitor-history.md */}

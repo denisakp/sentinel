@@ -213,4 +213,4 @@ of the lock file.
   holds.
 - [Locking](../concepts/locking.md): the file-lock mechanism the migration path reuses.
 
-<!-- sources: internal/adapters/monitor/doctor.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/version.go, internal/adapters/monitor/init.go, internal/adapters/monitor/schema.go, internal/cli/monitor_doctor.go, internal/cli/monitor.go, internal/cli/exit_codes.go, internal/cli/config_resolver.go, internal/config/loader.go, docs/runbooks/monitor-schema-migration.md -->
+{/* sources: internal/adapters/monitor/doctor.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/version.go, internal/adapters/monitor/init.go, internal/adapters/monitor/schema.go, internal/cli/monitor_doctor.go, internal/cli/monitor.go, internal/cli/exit_codes.go, internal/cli/config_resolver.go, internal/config/loader.go, docs/runbooks/monitor-schema-migration.md */}

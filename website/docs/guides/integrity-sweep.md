@@ -266,4 +266,4 @@ and stagger the crons. Parallelism is not available in this release.
 - [`sentinel schedule` reference](../reference/cli/schedule.md): the scheduler that runs the reserved job.
 - [Configuration reference](../reference/configuration.md): the full `integrity:` block.
 
-<!-- sources: internal/cli/backup_verify.go, internal/cli/integrity_scheduled.go, internal/cli/schedule.go, internal/cli/verify_since.go, internal/cli/exit_codes.go, internal/config/since.go, internal/config/types.go, internal/config/validator.go, internal/adapters/monitor/recorder.go, internal/adapters/monitor/migrations/005_add_integrity_checks.sql, internal/domain/schedule/next_run.go, docs/runbooks/integrity-sweep.md -->
+{/* sources: internal/cli/backup_verify.go, internal/cli/integrity_scheduled.go, internal/cli/schedule.go, internal/cli/verify_since.go, internal/cli/exit_codes.go, internal/config/since.go, internal/config/types.go, internal/config/validator.go, internal/adapters/monitor/recorder.go, internal/adapters/monitor/migrations/005_add_integrity_checks.sql, internal/domain/schedule/next_run.go, docs/runbooks/integrity-sweep.md */}

@@ -327,4 +327,4 @@ job's own block.
 - [Apply retention](../guides/apply-retention.md): previewing and applying a policy safely.
 - [Retention gfs](../guides/retention-gfs.md): calendar tiers, when count and age rules are not enough.
 
-<!-- sources: internal/domain/retention/policy.go, internal/domain/retention/gfs.go, internal/domain/retention/types.go, internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/adapters/monitor/retention.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/apply-retention.md, docs/runbooks/retention-gfs.md -->
+{/* sources: internal/domain/retention/policy.go, internal/domain/retention/gfs.go, internal/domain/retention/types.go, internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/adapters/monitor/retention.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/apply-retention.md, docs/runbooks/retention-gfs.md */}

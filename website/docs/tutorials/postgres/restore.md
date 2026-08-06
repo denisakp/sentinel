@@ -258,4 +258,4 @@ See [Restore](../../concepts/restore.md) for the model, and
 - **[Incremental backup chains](./incremental-wal.md)**: stop taking a full dump every time, and
   learn what Sentinel's chain metadata does and does not give you on PostgreSQL.
 
-<!-- sources: internal/cli/restore.go, internal/config/restore_types.go, internal/config/validator.go, internal/config/loader.go, internal/domain/restore/executor.go, internal/domain/restore/planner.go, internal/adapters/restore/runtime/executor.go, internal/adapters/restore/pg/pg_restore.go, docs/runbooks/restore-from-backup.md, docs/runbooks/restore-rehearsal.md -->
+{/* sources: internal/cli/restore.go, internal/config/restore_types.go, internal/config/validator.go, internal/config/loader.go, internal/domain/restore/executor.go, internal/domain/restore/planner.go, internal/adapters/restore/runtime/executor.go, internal/adapters/restore/pg/pg_restore.go, docs/runbooks/restore-from-backup.md, docs/runbooks/restore-rehearsal.md */}

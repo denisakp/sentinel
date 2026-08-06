@@ -215,4 +215,4 @@ artifacts stay restorable, because each one carries its own manifest describing 
 - [Configuration reference](../reference/configuration.md): the `compression` keys.
 - [`sentinel backup`](../reference/cli/backup.md): `--compress` and the `--pg-compression-*` flags.
 
-<!-- sources: internal/config/types.go, internal/config/loader.go, internal/config/validator.go, internal/adapters/compress/compress.go, internal/domain/backup/pipeline.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/adapters/restore/runtime/executor.go, internal/ports/manifest.go, docs/runbooks/backup-compression.md -->
+{/* sources: internal/config/types.go, internal/config/loader.go, internal/config/validator.go, internal/adapters/compress/compress.go, internal/domain/backup/pipeline.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/adapters/restore/runtime/executor.go, internal/ports/manifest.go, docs/runbooks/backup-compression.md */}

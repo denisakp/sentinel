@@ -208,4 +208,4 @@ does not queue it; the job is recorded as skipped.
 - [Verifying backup integrity](./verify-backup-integrity.md): confirming an artifact before you
   restore it.
 
-<!-- sources: internal/cli/restore.go, internal/config/loader.go, internal/config/validator.go, internal/config/types.go, internal/config/restore_types.go, internal/cli/schedule.go, internal/adapters/restore/runtime/staging.go, internal/domain/restore/executor.go, docs/runbooks/parallel-restore.md -->
+{/* sources: internal/cli/restore.go, internal/config/loader.go, internal/config/validator.go, internal/config/types.go, internal/config/restore_types.go, internal/cli/schedule.go, internal/adapters/restore/runtime/staging.go, internal/domain/restore/executor.go, docs/runbooks/parallel-restore.md */}

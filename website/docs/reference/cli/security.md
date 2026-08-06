@@ -195,4 +195,4 @@ Run one backup to confirm the file decrypts, then destroy the plaintext original
 - [`sentinel monitor`](./monitor.md) for the history rows `reencrypt` updates
 - [CLI reference index](./index.md)
 
-<!-- sources: internal/cli/security.go, internal/cli/security_reencrypt.go, internal/cli/security_secrets.go, internal/cli/exit_codes.go, internal/adapters/crypto/key.go, internal/adapters/crypto/secrets_envelope.go, internal/config/secrets_file_crypto.go, internal/config/types.go, release-notes.md -->
+{/* sources: internal/cli/security.go, internal/cli/security_reencrypt.go, internal/cli/security_secrets.go, internal/cli/exit_codes.go, internal/adapters/crypto/key.go, internal/adapters/crypto/secrets_envelope.go, internal/config/secrets_file_crypto.go, internal/config/types.go, release-notes.md */}

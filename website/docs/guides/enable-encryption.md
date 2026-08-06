@@ -208,4 +208,4 @@ need the original key, so keep it for as long as any of them are within your ret
 - [`sentinel security` reference](../reference/cli/security.md): every subcommand and flag.
 - [Configuration reference](../reference/configuration.md): every YAML key.
 
-<!-- sources: internal/cli/security.go, internal/adapters/crypto/key.go, internal/adapters/crypto/encrypt.go, internal/adapters/crypto/envelope.go, internal/cli/backup_factory.go, internal/cli/backup_verify.go, internal/cli/config.go, internal/config/types.go, internal/ports/encryption.go, docs/runbooks/enable-encryption.md -->
+{/* sources: internal/cli/security.go, internal/adapters/crypto/key.go, internal/adapters/crypto/encrypt.go, internal/adapters/crypto/envelope.go, internal/cli/backup_factory.go, internal/cli/backup_verify.go, internal/cli/config.go, internal/config/types.go, internal/ports/encryption.go, docs/runbooks/enable-encryption.md */}

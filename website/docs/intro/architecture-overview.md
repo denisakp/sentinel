@@ -85,4 +85,4 @@ belongs to the database, not to Sentinel.
 
 - **[Quickstart](./quickstart.md)**: see the sequence above happen for real.
 
-<!-- sources: CLAUDE.md §Architecture, internal/domain/backup/executor.go, internal/domain/restore/executor.go, internal/adapters/lock/, internal/sanitize/, internal/adapters/crypto/, internal/cli/backup.go -->
+{/* sources: CLAUDE.md §Architecture, internal/domain/backup/executor.go, internal/domain/restore/executor.go, internal/adapters/lock/, internal/sanitize/, internal/adapters/crypto/, internal/cli/backup.go */}

@@ -205,4 +205,4 @@ sentinel version --tools --format json \
 - [CLI reference index](./index.md)
 - [Architecture overview](../../intro/architecture-overview.md)
 
-<!-- sources: internal/cli/version.go, internal/cli/root.go, internal/version/metadata.go, internal/version/format.go, internal/version/tools.go, .goreleaser.yaml -->
+{/* sources: internal/cli/version.go, internal/cli/root.go, internal/version/metadata.go, internal/version/format.go, internal/version/tools.go, .goreleaser.yaml */}

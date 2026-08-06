@@ -174,4 +174,4 @@ Exit 0 with `Up-to-date ✓` means the upgraded binary and the history database 
 - [CLI reference index](./index.md)
 - [Architecture overview](../../intro/architecture-overview.md)
 
-<!-- sources: internal/cli/db.go, internal/cli/config_resolver.go, internal/cli/forward_incompat.go, internal/cli/root.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/migrations/ -->
+{/* sources: internal/cli/db.go, internal/cli/config_resolver.go, internal/cli/forward_incompat.go, internal/cli/root.go, internal/adapters/monitor/version.go, internal/adapters/monitor/migrate.go, internal/adapters/monitor/doctor.go, internal/adapters/monitor/queries.go, internal/adapters/monitor/migrations/ */}

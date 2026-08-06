@@ -163,4 +163,4 @@ cd .. && rm -rf sentinel-mariadb-tutorial
 - **[The MySQL track](../mysql/index.md)**: the same ground on the other engine in this family. Most
   of it transfers directly; the differences are marked on both sides.
 
-<!-- sources: internal/config/restore_types.go, internal/config/validator.go, internal/config/marshal.go, internal/cli/restore.go, internal/domain/restore/planner.go, internal/domain/restore/executor.go, internal/domain/backup/pipeline.go, internal/adapters/restore/incremental/mysqlbinlog/replay.go, internal/ports/manifest.go, docs/runbooks/restore-pitr-and-incremental.md -->
+{/* sources: internal/config/restore_types.go, internal/config/validator.go, internal/config/marshal.go, internal/cli/restore.go, internal/domain/restore/planner.go, internal/domain/restore/executor.go, internal/domain/backup/pipeline.go, internal/adapters/restore/incremental/mysqlbinlog/replay.go, internal/ports/manifest.go, docs/runbooks/restore-pitr-and-incremental.md */}

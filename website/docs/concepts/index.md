@@ -55,4 +55,4 @@ the page says so and links to the open issue rather than describing the intended
 Several pages carry warnings of that kind. They are the most useful part of the page: read them
 before you rely on the feature.
 
-<!-- sources: internal/domain/, internal/adapters/ -->
+{/* sources: internal/domain/, internal/adapters/ */}

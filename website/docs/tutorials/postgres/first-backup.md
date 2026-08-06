@@ -353,4 +353,4 @@ uploaded anywhere; those are configuration, not different code. See
 - **[Restoring into a second database](./restore.md)**: prove the artifact is usable, which is the
   only test of a backup that counts.
 
-<!-- sources: internal/cli/backup.go, internal/cli/backup_verify.go, internal/cli/monitor.go, internal/cli/config.go, internal/config/types.go, internal/config/loader.go, internal/domain/backup/pipeline.go, internal/domain/backup/executor.go, internal/adapters/manifest_store/store.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/cli/backup.go, internal/cli/backup_verify.go, internal/cli/monitor.go, internal/cli/config.go, internal/config/types.go, internal/config/loader.go, internal/domain/backup/pipeline.go, internal/domain/backup/executor.go, internal/adapters/manifest_store/store.go, infra/docker/docker-compose.yml */}

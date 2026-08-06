@@ -170,4 +170,4 @@ cd .. && rm -rf sentinel-mongodb-tutorial
 - **[PostgreSQL](../postgres/index.md)**: the track that was executed end to end against a live
   server, if you want to see the same machinery with captured output.
 
-<!-- sources: internal/config/validator.go, internal/config/restore_types.go, internal/config/marshal.go, internal/domain/restore/planner.go, internal/domain/restore/plan_types.go, internal/domain/backup/pipeline.go, internal/ports/manifest.go, internal/cli/restore.go, docs/runbooks/restore-pitr-and-incremental.md -->
+{/* sources: internal/config/validator.go, internal/config/restore_types.go, internal/config/marshal.go, internal/domain/restore/planner.go, internal/domain/restore/plan_types.go, internal/domain/backup/pipeline.go, internal/ports/manifest.go, internal/cli/restore.go, docs/runbooks/restore-pitr-and-incremental.md */}

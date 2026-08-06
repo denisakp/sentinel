@@ -58,4 +58,4 @@ remain as source material. They are no longer maintained in parallel, and fiftee
 to describe behaviour the code does not have. Where the two disagree, these pages are the ones checked
 against the code.
 
-<!-- sources: docs/runbooks/, internal/adapters/lock/, internal/scheduler/, internal/cli/repair.go, internal/cli/backup_verify.go -->
+{/* sources: docs/runbooks/, internal/adapters/lock/, internal/scheduler/, internal/cli/repair.go, internal/cli/backup_verify.go */}
