@@ -1,0 +1,112 @@
+/**
+ * Global styles for the Sentinel documentation site.
+ *
+ * Deliberately minimal — the classic theme's Infima defaults are good, and every
+ * override is a thing that can drift or break contrast. Only the palette and a
+ * couple of readability adjustments are customised.
+ *
+ * ACCESSIBILITY: the site targets WCAG 2.1 Level AA. The primary colour is used
+ * for link text, so any replacement must keep a contrast ratio of at least 4.5:1
+ * against the page background — in BOTH light and dark mode. Do not pick a new
+ * colour without checking it.
+ */
+
+/* Light mode. A deep, sober blue: this documents a backup and disaster-recovery
+   tool, and the default template green reads as generic. */
+:root {
+  --ifm-color-primary: #1a5fb4;
+  --ifm-color-primary-dark: #185798;
+  --ifm-color-primary-darker: #16528e;
+  --ifm-color-primary-darkest: #124375;
+  --ifm-color-primary-light: #2069c4;
+  --ifm-color-primary-lighter: #2a72cd;
+  --ifm-color-primary-lightest: #3d82d8;
+
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+/* Dark mode needs a lighter tint of the same hue — the light-mode blue does not
+   have enough contrast against a dark background. */
+[data-theme='dark'] {
+  --ifm-color-primary: #7fb0e8;
+  --ifm-color-primary-dark: #6aa3e4;
+  --ifm-color-primary-darker: #5f9ce2;
+  --ifm-color-primary-darkest: #4187d9;
+  --ifm-color-primary-light: #94bdec;
+  --ifm-color-primary-lighter: #9fc4ee;
+  --ifm-color-primary-lightest: #c0d9f5;
+
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* This documentation leans on tables for per-engine differences and for flag and
+   configuration-key references. Let them use the full column width rather than
+   shrinking to their content. */
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+/* Long command lines and file paths are common here; wrapping them beats a
+   horizontal scrollbar inside every code block. */
+.markdown table code {
+  overflow-wrap: anywhere;
+}
+
+/* Underline links inside prose.
+ *
+ * WCAG 1.4.1: a link in a block of text must be distinguishable from the
+ * surrounding text by something other than colour alone — otherwise readers who
+ * cannot distinguish the hues cannot see there is a link at all. The theme's
+ * default relies on colour, and the accessibility audit flagged it.
+ *
+ * Scoped to prose (paragraphs, list items, tables, admonitions). Navigation,
+ * sidebar, and footer links sit in link-only contexts where the rule does not
+ * apply and an underline would just be noise. */
+.markdown p a,
+.markdown li a,
+.markdown td a,
+.markdown .alert a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* The search bar's keyboard hint.
+ *
+ * The local-search theme styles the `ctrl` / `K` hint with
+ * `--ifm-navbar-search-input-placeholder-color`. Placeholder colours are
+ * deliberately muted, which is right for a placeholder and wrong here: the hint
+ * is real content, and it measured 1.51:1 against the input background.
+ *
+ * Because the search bar sits in the navbar, this single failure appeared on
+ * every page of the site, so the accessibility gate failed 87 of 87 URLs.
+ *
+ * Replacements measured against the input background: 7.28:1 in light mode,
+ * 8.32:1 in dark. Re-measure if you change them.
+ *
+ * Note on the selector: the theme's own rule is a single class, and its
+ * stylesheet is loaded after this file, so an equally specific selector loses on
+ * order. `kbd[class*=...]` adds an element to the attribute selector, which wins
+ * on specificity regardless of load order. A first attempt used a bare attribute
+ * selector and silently had no effect. */
+kbd[class*='searchHint_'] {
+  color: #474d55;
+}
+
+[data-theme='dark'] kbd[class*='searchHint_'] {
+  color: #c7cbd1;
+}
+
+/* The one WCAG AA failure left in the vsLight syntax theme.
+ *
+ * vsLight colours `attr-name` pure red, rgb(255, 0, 0), which is 4.00:1 on white
+ * — under the 4.5:1 floor. #c40000 keeps the red reading as red at 6.27:1.
+ *
+ * !important is required, not sloppiness: Prism emits its colours as inline
+ * `style` attributes on each token span, and an inline style beats a class rule.
+ *
+ * Light mode only — the dark theme (oceanicNext) passes AA unaided. */
+html:not([data-theme='dark']) .token.attr-name {
+  color: #c40000 !important;
+}
