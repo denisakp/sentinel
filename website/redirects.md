@@ -41,7 +41,18 @@ Two facts behind that, both established by testing rather than by reading:
   land at the root of `build/`. That went unnoticed while this was a Pages project site, because
   Pages serves the artifact root at `/<repo>/`, which happened to match `baseUrl: '/sentinel/'`. On a
   custom domain the artifact root is the domain root, so the workflow nests the artifact one level.
-- **GitHub redirects the old origin to the new one, preserving the path.** A request to
-  `denisakp.github.io/sentinel/concepts/backup` lands on
-  `sentinel.denisakp.me/sentinel/concepts/backup`. Without these stubs, every URL published before
-  the cutover would 404.
+- **GitHub redirects the old origin to the new one and strips the project prefix.** This is the part
+  that is easy to get wrong, and it was got wrong the first time:
+
+  ```
+  denisakp.github.io/sentinel/concepts/backup
+    -> 301 sentinel.denisakp.me/concepts/backup      (no /sentinel/)
+  ```
+
+  The stubs therefore belong at the **domain root**, mirroring the docs tree. A first attempt put
+  them under `/sentinel/` on the assumption that the path was preserved, and every URL published
+  before the cutover returned 404 in production until it was corrected. Copies under `/sentinel/` are
+  kept as well, since they cost nothing and cover anyone holding that literal path.
+
+  `404.html` is excluded from stub generation: a redirecting root 404 page would send every unknown
+  path to `/docs/404` instead of showing the not-found page.
