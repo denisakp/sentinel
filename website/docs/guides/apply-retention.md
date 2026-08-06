@@ -218,4 +218,4 @@ positive retention key on the job stops `defaults.retention` being inherited at 
   `apply`.
 - [Configuration reference](../reference/configuration.md): the full `retention:` block.
 
-<!-- sources: internal/domain/retention/policy.go, internal/domain/retention/types.go, internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/adapters/monitor/retention.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/apply-retention.md -->
+{/* sources: internal/domain/retention/policy.go, internal/domain/retention/types.go, internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/adapters/monitor/retention.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/apply-retention.md */}

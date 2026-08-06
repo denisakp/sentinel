@@ -57,4 +57,4 @@ Knowing the boundaries early saves you evaluating it for the wrong job.
 - **[How Sentinel fits together](./intro/architecture-overview.md)**: the mental model, before you
   go deeper.
 
-<!-- sources: README.md, release-notes.md, internal/cli/root.go -->
+{/* sources: README.md, release-notes.md, internal/cli/root.go */}

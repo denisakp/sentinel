@@ -90,4 +90,4 @@ configuration-validation time for every engine except PostgreSQL, and the binary
 only take effect inside the incremental restore path that is itself unreachable. The
 [PITR page](./pitr.md) shows both walls.
 
-<!-- sources: internal/config/validator.go, internal/domain/restore/planner.go, internal/domain/backup/pipeline.go, internal/adapters/dump/mariadb/mariadb_dump.go, internal/adapters/restore/mariadb/mariadb_restore.go, internal/adapters/restore/incremental/mysqlbinlog/archive.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/config/validator.go, internal/domain/restore/planner.go, internal/domain/backup/pipeline.go, internal/adapters/dump/mariadb/mariadb_dump.go, internal/adapters/restore/mariadb/mariadb_restore.go, internal/adapters/restore/incremental/mysqlbinlog/archive.go, infra/docker/docker-compose.yml */}

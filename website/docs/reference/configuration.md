@@ -661,4 +661,4 @@ restores:
 - [`sentinel restore` command reference](./cli/restore.md)
 - [`sentinel schedule` command reference](./cli/schedule.md)
 
-<!-- sources: internal/config/types.go, internal/config/restore_types.go, internal/config/loader.go, internal/config/validator.go, internal/config/env.go, internal/config/since.go, internal/config/marshal.go, internal/config/defaults_file_resolve.go, internal/config/mongo_secrets_file.go, internal/config/secrets_file_crypto.go, internal/adapters/storage/validation.go, internal/ports/tls.go, internal/domain/backup/validator.go, release-notes.md -->
+{/* sources: internal/config/types.go, internal/config/restore_types.go, internal/config/loader.go, internal/config/validator.go, internal/config/env.go, internal/config/since.go, internal/config/marshal.go, internal/config/defaults_file_resolve.go, internal/config/mongo_secrets_file.go, internal/config/secrets_file_crypto.go, internal/adapters/storage/validation.go, internal/ports/tls.go, internal/domain/backup/validator.go, release-notes.md */}

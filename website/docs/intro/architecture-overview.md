@@ -48,23 +48,19 @@ its hash, decrypt if needed, then feed it to `pg_restore`, `mysql`, `mariadb`, o
 
 | Part | What it is | Read more |
 |---|---|---|
-| **Backup** | Producing an artifact from a live database | Concepts (increment 2) |
-| **Restore** | Turning an artifact back into a database | Concepts (increment 2) |
-| **Schedule** | The cron loop that runs backup and restore jobs | Concepts (increment 2) |
-| **Storage backend** | Where artifacts live: local, S3, GCS, Google Drive, Azure | Concepts (increment 3) |
-| **Manifest** | The SHA-256 record proving an artifact is intact and where it sits in a chain | Concepts (increment 3) |
-| **Retention** | Deciding which old artifacts to delete | Concepts (increment 3) |
-| **Encryption** | Opt-in AES-256 protection of artifacts at rest | Concepts (increment 3) |
-| **Locking** | Preventing two runs of the same job from colliding | Concepts (increment 3) |
-| **Monitor** | The local SQLite history of every execution | Concepts (increment 4) |
-| **Notifications** | Slack, Discord, email, webhook | Concepts (increment 4) |
-
-:::note This documentation is still being written
-Concept, guide, tutorial, and reference sections are being published incrementally. Sections not yet
-listed in the sidebar have not been written yet; they are not missing links, just future work. In
-the meantime, the [runbooks in the repository](https://github.com/denisakp/sentinel/tree/develop/docs/runbooks)
-cover operational procedures in depth.
-:::
+| **Backup** | Producing an artifact from a live database | [Backup](../concepts/backup.md) |
+| **Restore** | Turning an artifact back into a database | [Restore](../concepts/restore.md) |
+| **Schedule** | The cron loop that runs backup and restore jobs | [Schedule](../concepts/schedule.md) |
+| **Storage backend** | Where artifacts live: local, S3, GCS, Google Drive, Azure | [Storage backends](../concepts/storage-backends.md) |
+| **Manifest** | The SHA-256 record proving an artifact is intact and where it sits in a chain | [Manifests and integrity](../concepts/manifest.md) |
+| **Retention** | Deciding which old artifacts to delete | [Retention](../concepts/retention.md) |
+| **Encryption** | Opt-in AES-256 protection of artifacts at rest | [Security and encryption](../concepts/security-encryption.md) |
+| **Credential handling** | Keeping passwords out of process arguments and logs | [Credential handling](../concepts/credential-sanitization.md) |
+| **Locking** | Preventing two runs of the same job from colliding | [Locking and concurrency](../concepts/locking.md) |
+| **Incremental and PITR** | Backing up only what changed, and recovering to a point in time | [Incremental and PITR](../concepts/incremental-pitr.md) |
+| **Compression** | Reducing artifact size, in the pipeline or natively | [Compression](../concepts/compression.md) |
+| **Monitor** | The local SQLite history of every execution | [Monitoring and history](../concepts/monitoring-history.md) |
+| **Notifications** | Slack, Discord, email, webhook | [Notifications](../concepts/notifications.md) |
 
 ## Three ideas worth internalising early
 
@@ -89,4 +85,4 @@ belongs to the database, not to Sentinel.
 
 - **[Quickstart](./quickstart.md)**: see the sequence above happen for real.
 
-<!-- sources: CLAUDE.md §Architecture, internal/domain/backup/executor.go, internal/domain/restore/executor.go, internal/adapters/lock/, internal/sanitize/, internal/adapters/crypto/, internal/cli/backup.go -->
+{/* sources: CLAUDE.md §Architecture, internal/domain/backup/executor.go, internal/domain/restore/executor.go, internal/adapters/lock/, internal/sanitize/, internal/adapters/crypto/, internal/cli/backup.go */}

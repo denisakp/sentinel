@@ -130,4 +130,4 @@ When `mongodump` exits non-zero and writes nothing to stdout or stderr, Sentinel
 - [Credential sanitization](../concepts/credential-sanitization.md)
 - [Backups: what Sentinel captures and how](../concepts/backup.md)
 
-<!-- sources: internal/domain/backup/args.go, internal/config/restore_types.go, internal/config/marshal.go, internal/config/validator.go, internal/cli/backup.go, internal/adapters/dump/pg/args_builder.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/mysqlargs/core.go, internal/adapters/restore/pg/args_factory.go, internal/sanitize/sanitize.go, docs/runbooks/additional-args.md -->
+{/* sources: internal/domain/backup/args.go, internal/config/restore_types.go, internal/config/marshal.go, internal/config/validator.go, internal/cli/backup.go, internal/adapters/dump/pg/args_builder.go, internal/adapters/dump/mongo/args_builder.go, internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/mysqlargs/core.go, internal/adapters/restore/pg/args_factory.go, internal/sanitize/sanitize.go, docs/runbooks/additional-args.md */}

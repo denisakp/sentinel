@@ -99,4 +99,4 @@ Files orphaned by a `SIGKILL` are handled separately: every Sentinel CLI invocat
 - [`sentinel backup`](./cli/backup.md)
 - [`sentinel storage`](./cli/storage.md)
 
-<!-- sources: internal/adapters/dump/mongo/staging.go, internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/dump/mongo/builder.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/cli/root.go, internal/domain/backup/executor.go, internal/adapters/storage/local/folder.go, internal/adapters/mongo_tls/material.go, internal/adapters/mongo_tls/sweep.go, docs/runbooks/mongo-staging.md -->
+{/* sources: internal/adapters/dump/mongo/staging.go, internal/adapters/dump/mongo/mongo_dump.go, internal/adapters/dump/mongo/builder.go, internal/cli/backup_factory.go, internal/cli/backup.go, internal/cli/root.go, internal/domain/backup/executor.go, internal/adapters/storage/local/folder.go, internal/adapters/mongo_tls/material.go, internal/adapters/mongo_tls/sweep.go, docs/runbooks/mongo-staging.md */}

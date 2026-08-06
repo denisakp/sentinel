@@ -48,4 +48,4 @@ not register a `--config` flag, and the one on `sentinel backup` is not inherite
 the flag is passed or not. See [`sentinel backup`](./backup.md) for detail.
 :::
 
-<!-- sources: internal/cli/root.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/schedule.go -->
+{/* sources: internal/cli/root.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/schedule.go */}

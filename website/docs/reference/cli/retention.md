@@ -157,4 +157,4 @@ A backup is kept when it is newer than 30 days, or when it anchors one of the la
 - [`sentinel repair`](./repair.md) for the inconsistencies orphaned sidecars create
 - [CLI reference index](./index.md)
 
-<!-- sources: internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/domain/retention/policy.go, internal/domain/retention/gfs.go, internal/domain/retention/types.go, internal/config/types.go, internal/cli/config_resolver.go -->
+{/* sources: internal/cli/retention.go, internal/cli/retention_helpers.go, internal/cli/retention_cleaner.go, internal/cli/backup.go, internal/domain/retention/policy.go, internal/domain/retention/gfs.go, internal/domain/retention/types.go, internal/config/types.go, internal/cli/config_resolver.go */}

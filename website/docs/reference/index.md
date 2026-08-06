@@ -33,4 +33,4 @@ A `--password` flag does still exist. It is deprecated, hidden from `--help`, pr
 used, and is slated for removal in the next minor release. It is not documented here because it
 should not be used.
 
-<!-- sources: internal/cli/root.go, internal/config/types.go, internal/config/restore_types.go -->
+{/* sources: internal/cli/root.go, internal/config/types.go, internal/config/restore_types.go */}

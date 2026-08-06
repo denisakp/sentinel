@@ -224,4 +224,4 @@ from the live source under the new key.
 - [`sentinel security` reference](../reference/cli/security.md): every flag on `reencrypt`.
 - [`sentinel restore` reference](../reference/cli/restore.md): the restore commands used above.
 
-<!-- sources: internal/cli/security.go, internal/cli/security_reencrypt.go, internal/adapters/crypto/key.go, internal/adapters/crypto/envelope.go, internal/adapters/restore/runtime/executor.go, internal/scheduler/restore_integration.go, internal/config/types.go, internal/config/restore_types.go, internal/config/loader.go, docs/runbooks/key-rotation.md -->
+{/* sources: internal/cli/security.go, internal/cli/security_reencrypt.go, internal/adapters/crypto/key.go, internal/adapters/crypto/envelope.go, internal/adapters/restore/runtime/executor.go, internal/scheduler/restore_integration.go, internal/config/types.go, internal/config/restore_types.go, internal/config/loader.go, docs/runbooks/key-rotation.md */}

@@ -257,4 +257,4 @@ schedules; a second key that nobody rotates is a second key that can be lost.
 - [Failed backup triage](./failed-backup-triage.md): when the failure is not encryption-related.
 - [Troubleshooting](./troubleshooting.md): symptom index across all operations pages.
 
-<!-- sources: internal/adapters/crypto/key.go, internal/adapters/crypto/decrypt.go, internal/adapters/crypto/envelope.go, internal/cli/security.go, internal/cli/security_reencrypt.go, internal/cli/security_secrets.go, internal/cli/backup_verify.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/crypto_errors.go, internal/config/secrets_file_crypto.go, internal/ports/encryption.go, docs/runbooks/key-loss-incident.md -->
+{/* sources: internal/adapters/crypto/key.go, internal/adapters/crypto/decrypt.go, internal/adapters/crypto/envelope.go, internal/cli/security.go, internal/cli/security_reencrypt.go, internal/cli/security_secrets.go, internal/cli/backup_verify.go, internal/cli/backup.go, internal/cli/restore.go, internal/cli/crypto_errors.go, internal/config/secrets_file_crypto.go, internal/ports/encryption.go, docs/runbooks/key-loss-incident.md */}

@@ -237,4 +237,4 @@ its envelope version.
 - [`sentinel security` reference](../reference/cli/security.md): every subcommand and flag.
 - [Troubleshooting](./troubleshooting.md): symptom index across all operations pages.
 
-<!-- sources: internal/adapters/crypto/envelope.go, internal/adapters/crypto/decrypt.go, internal/adapters/crypto/log.go, internal/cli/legacy_envelope.go, internal/cli/restore.go, internal/cli/security_reencrypt.go, internal/cli/backup_verify.go, internal/adapters/restore/runtime/preflight.go, internal/ports/encryption.go, docs/runbooks/recover-legacy-envelope.md -->
+{/* sources: internal/adapters/crypto/envelope.go, internal/adapters/crypto/decrypt.go, internal/adapters/crypto/log.go, internal/cli/legacy_envelope.go, internal/cli/restore.go, internal/cli/security_reencrypt.go, internal/cli/backup_verify.go, internal/adapters/restore/runtime/preflight.go, internal/ports/encryption.go, docs/runbooks/recover-legacy-envelope.md */}

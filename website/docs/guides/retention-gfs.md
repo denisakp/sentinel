@@ -230,4 +230,4 @@ it depends on. For jobs using `incremental_backup:`, keep a `keep_last` comforta
   `apply`.
 - [Configuration reference](../reference/configuration.md): the full `retention:` and `gfs:` blocks.
 
-<!-- sources: internal/domain/retention/gfs.go, internal/domain/retention/policy.go, internal/domain/retention/types.go, internal/cli/retention_helpers.go, internal/cli/backup.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/retention-gfs.md -->
+{/* sources: internal/domain/retention/gfs.go, internal/domain/retention/policy.go, internal/domain/retention/types.go, internal/cli/retention_helpers.go, internal/cli/backup.go, internal/config/types.go, internal/config/loader.go, internal/config/validator.go, docs/runbooks/retention-gfs.md */}

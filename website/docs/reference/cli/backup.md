@@ -187,4 +187,4 @@ Prints a table of differing fields. A non-zero exit means encryption or hashing 
 - [CLI reference index](./index.md)
 - [Your first PostgreSQL backup](../../tutorials/postgres/first-backup.md)
 
-<!-- sources: internal/cli/backup.go, internal/cli/backup_verify.go, internal/cli/backup_diff.go, internal/cli/exit_codes.go, internal/cli/legacy_envelope.go, internal/config/since.go, internal/adapters/storage/validation.go -->
+{/* sources: internal/cli/backup.go, internal/cli/backup_verify.go, internal/cli/backup_diff.go, internal/cli/exit_codes.go, internal/cli/legacy_envelope.go, internal/config/since.go, internal/adapters/storage/validation.go */}

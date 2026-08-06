@@ -82,4 +82,4 @@ configuration-validation time for every engine except PostgreSQL, and MySQL's ow
 (`mysql.binlog_target_time`, `mysql.binlog_target_position`) only take effect inside the incremental
 restore path that is itself unreachable. The [PITR page](./pitr.md) shows both walls.
 
-<!-- sources: internal/config/validator.go, internal/domain/restore/planner.go, internal/domain/backup/pipeline.go, internal/adapters/dump/mysql/, internal/adapters/restore/mysql/, internal/adapters/restore/incremental/mysqlbinlog/archive.go, infra/docker/docker-compose.yml -->
+{/* sources: internal/config/validator.go, internal/domain/restore/planner.go, internal/domain/backup/pipeline.go, internal/adapters/dump/mysql/, internal/adapters/restore/mysql/, internal/adapters/restore/incremental/mysqlbinlog/archive.go, infra/docker/docker-compose.yml */}
