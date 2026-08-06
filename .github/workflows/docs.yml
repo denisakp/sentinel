@@ -61,6 +61,24 @@ jobs:
         env:
           DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET || 'custom' }}
 
+      # The build succeeds whether or not admonitions render, and the
+      # accessibility audit reads rendered text, so ":::warning ..." looks like
+      # ordinary prose to it. Nothing caught 442 unrendered admonitions shipping
+      # to production; a reader did. This is that missing assertion.
+      - name: Admonitions must render, not leak as text
+        run: |
+          set -euo pipefail
+          leaked=$(grep -rl ':::' build --include='*.html' | grep -v '404.html' || true)
+          if [ -n "$leaked" ]; then
+            echo "Literal ':::' reached the built HTML, so admonitions are not rendering." >&2
+            echo "$leaked" | head -10 >&2
+            echo "Check markdown.format and future.v4 in docusaurus.config.ts." >&2
+            exit 1
+          fi
+          rendered=$(grep -rho 'theme-admonition' build --include='*.html' | wc -l | tr -d ' ')
+          echo "admonitions rendered: $rendered"
+          [ "$rendered" -gt 0 ] || { echo "no admonitions rendered at all" >&2; exit 1; }
+
       # Serve and audit in one step: a background process started in one step is
       # not reliably still there in the next.
       #
