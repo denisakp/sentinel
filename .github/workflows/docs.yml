@@ -58,6 +58,8 @@ jobs:
       # or a stale heading anchor fails here rather than reaching a reader.
       - name: Build
         run: npm run build
+        env:
+          DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET || 'custom' }}
 
       # Serve and audit in one step: a background process started in one step is
       # not reliably still there in the next.
@@ -66,6 +68,9 @@ jobs:
       # meaningful alt text, descriptive link text, heading nesting; is covered
       # by the authoring convention and by review, not by this step.
       - name: Accessibility audit (WCAG 2.1 AA)
+        env:
+          DOCS_BASE: /docs/
+          DOCS_ORIGIN: https://sentinel.denisakp.me
         run: |
           set -euo pipefail
           npm run serve -- --no-open --port 3000 &
@@ -73,14 +78,14 @@ jobs:
           trap 'kill "$SERVE_PID" 2>/dev/null || true' EXIT
 
           for _ in $(seq 1 30); do
-            if curl -sSf -o /dev/null http://localhost:3000/sentinel/; then
+            if curl -sSf -o /dev/null "http://localhost:3000${DOCS_BASE}"; then
               echo "site is up"
               break
             fi
             sleep 2
           done
 
-          curl -sSf -o /dev/null http://localhost:3000/sentinel/ \
+          curl -sSf -o /dev/null "http://localhost:3000${DOCS_BASE}" \
             || { echo "site did not come up within 60s" >&2; exit 1; }
 
           # On failure, re-run with the JSON reporter and print the exact colours
@@ -101,11 +106,66 @@ jobs:
             exit 1
           fi
 
+      # Docusaurus does NOT nest its output under baseUrl: with baseUrl '/docs/'
+      # the files still land at the root of build/. That was invisible while the
+      # site was a GitHub Pages project site, because Pages serves the artifact
+      # root at /<repo>/, which happened to match baseUrl '/sentinel/'.
+      #
+      # With a custom domain the artifact root IS the domain root, so the files
+      # would sit at / while every generated link points at /docs/. Nesting the
+      # artifact one level restores the match.
+      - name: Nest the artifact under /docs
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifact/docs
+          mv build/* ../artifact/docs/
+          # A CNAME file has to sit at the artifact root, not inside /docs.
+          if [ -f ../artifact/docs/CNAME ]; then
+            mv ../artifact/docs/CNAME ../artifact/CNAME
+          fi
+          # Anything hitting the domain root goes to the documentation for now.
+          # Replace this with a real landing page when there is one.
+          cat > ../artifact/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Sentinel</title>
+          <meta http-equiv="refresh" content="0; url=/docs/">
+          <link rel="canonical" href="/docs/">
+          <p><a href="/docs/">Sentinel documentation</a></p>
+          HTML
+
+      # Published URLs are permanent (FR-044). The site was live at
+      # denisakp.github.io/sentinel/... before the custom domain existed. With the
+      # domain configured, GitHub redirects those requests to
+      # sentinel.denisakp.me/sentinel/..., preserving the path, so the old prefix
+      # has to keep resolving on the new origin.
+      #
+      # Docusaurus cannot emit these: its client-redirects plugin only writes
+      # under baseUrl. So they are generated here, mirroring every page.
+      - name: Keep the previously published /sentinel/ URLs resolving
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          cd ../artifact
+          count=0
+          while IFS= read -r page; do
+            rel="${page#docs/}"
+            dest="/docs/${rel%.html}"
+            out="sentinel/${rel}"
+            mkdir -p "$(dirname "$out")"
+            printf '<!doctype html>\n<meta charset="utf-8">\n<meta http-equiv="refresh" content="0; url=%s">\n<link rel="canonical" href="%s">\n<p>This page moved to <a href="%s">%s</a>.</p>\n' \
+              "$dest" "$dest" "$dest" "$dest" > "$out"
+            count=$((count + 1))
+          done < <(find docs -name '*.html' -type f)
+          printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=/docs/">\n' > sentinel/index.html
+          echo "generated $count redirect stubs for the previous URL prefix"
+
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: website/build
+          path: artifact
 
   deploy:
     name: Deploy to GitHub Pages

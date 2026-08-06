@@ -13,8 +13,8 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
-    "a11y": "pa11y-ci --config .pa11yci.json --sitemap http://localhost:3000/sentinel/sitemap.xml --sitemap-find https://denisakp.github.io --sitemap-replace http://localhost:3000",
-    "a11y:json": "pa11y-ci --json --config .pa11yci.json --sitemap http://localhost:3000/sentinel/sitemap.xml --sitemap-find https://denisakp.github.io --sitemap-replace http://localhost:3000"
+    "a11y": "pa11y-ci --config .pa11yci.json --sitemap http://localhost:3000${DOCS_BASE:-/docs/}sitemap.xml --sitemap-find ${DOCS_ORIGIN:-https://sentinel.denisakp.me} --sitemap-replace http://localhost:3000",
+    "a11y:json": "pa11y-ci --json --config .pa11yci.json --sitemap http://localhost:3000${DOCS_BASE:-/docs/}sitemap.xml --sitemap-find ${DOCS_ORIGIN:-https://sentinel.denisakp.me} --sitemap-replace http://localhost:3000"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",
