@@ -136,14 +136,22 @@ jobs:
           HTML
 
       # Published URLs are permanent (FR-044). The site was live at
-      # denisakp.github.io/sentinel/... before the custom domain existed. With the
-      # domain configured, GitHub redirects those requests to
-      # sentinel.denisakp.me/sentinel/..., preserving the path, so the old prefix
-      # has to keep resolving on the new origin.
+      # denisakp.github.io/sentinel/... before the custom domain existed.
       #
-      # Docusaurus cannot emit these: its client-redirects plugin only writes
-      # under baseUrl. So they are generated here, mirroring every page.
-      - name: Keep the previously published /sentinel/ URLs resolving
+      # GitHub redirects the old origin to the new one and STRIPS the project
+      # prefix, which is the part that is easy to get wrong:
+      #
+      #   denisakp.github.io/sentinel/concepts/backup
+      #     -> 301 sentinel.denisakp.me/concepts/backup      (no /sentinel/)
+      #
+      # So the stubs belong at the domain root, mirroring the docs tree, not
+      # under /sentinel/. A first attempt put them under /sentinel/ and every
+      # previously published URL 404'd. The /sentinel/ copies are kept as well,
+      # cheap insurance for anyone holding that literal path.
+      #
+      # Docusaurus cannot emit any of this: its client-redirects plugin only
+      # writes under baseUrl.
+      - name: Keep previously published URLs resolving
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
@@ -152,14 +160,23 @@ jobs:
           while IFS= read -r page; do
             rel="${page#docs/}"
             dest="/docs/${rel%.html}"
-            out="sentinel/${rel}"
-            mkdir -p "$(dirname "$out")"
-            printf '<!doctype html>\n<meta charset="utf-8">\n<meta http-equiv="refresh" content="0; url=%s">\n<link rel="canonical" href="%s">\n<p>This page moved to <a href="%s">%s</a>.</p>\n' \
-              "$dest" "$dest" "$dest" "$dest" > "$out"
+            stub=$(printf '<!doctype html>\n<meta charset="utf-8">\n<meta http-equiv="refresh" content="0; url=%s">\n<link rel="canonical" href="%s">\n<p>This page moved to <a href="%s">%s</a>.</p>\n' \
+              "$dest" "$dest" "$dest" "$dest")
+            # where the github.io redirect actually lands
+            mkdir -p "$(dirname "$rel")"
+            printf '%s' "$stub" > "$rel"
+            # and the literal old path, in case anyone holds it
+            mkdir -p "$(dirname "sentinel/$rel")"
+            printf '%s' "$stub" > "sentinel/$rel"
             count=$((count + 1))
-          done < <(find docs -name '*.html' -type f)
+          done < <(find docs -name '*.html' -type f ! -name '404.html')
           printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=/docs/">\n' > sentinel/index.html
-          echo "generated $count redirect stubs for the previous URL prefix"
+          # The root landing redirect is written above and must survive the loop.
+          printf '<!doctype html>\n<meta charset="utf-8">\n<title>Sentinel</title>\n<meta http-equiv="refresh" content="0; url=/docs/">\n<link rel="canonical" href="/docs/">\n<p><a href="/docs/">Sentinel documentation</a></p>\n' > index.html
+          echo "generated $count redirect stubs at the root and $count under /sentinel/"
+
+          test -f concepts/backup.html || { echo "root stub missing" >&2; exit 1; }
+          test -f docs/concepts/backup.html || { echo "real page missing" >&2; exit 1; }
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
