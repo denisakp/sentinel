@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -11,8 +12,26 @@ import (
 )
 
 // NewDispatcherFromConfig creates a dispatcher and adds notifiers from config.
+// NewDispatcherFromConfig builds a dispatcher from the configured channels.
+//
+// Channels are built INDEPENDENTLY. A channel whose secret cannot be resolved,
+// or whose type is unsupported, is skipped and its error collected; every other
+// channel still notifies. The returned dispatcher is always non-nil and holds
+// whatever resolved, and the error, when non-nil, describes only what did not.
+//
+// This used to abort on the first failure and return no dispatcher at all, so
+// one unresolvable secret silenced every channel on the job (#187). A typical
+// setup has Slack for immediate notice and email as the durable record; rotating
+// the Slack webhook, or deploying where that one variable is unset, took email
+// down with it. Backups then failed with nobody told, and the only signal was an
+// absence of messages, which looks exactly like everything working. That is the
+// failure alerting exists to prevent, applied to alerting itself.
+//
+// Callers MUST use the returned dispatcher even when the error is non-nil, and
+// surface the error as a warning. Discarding it on error reinstates the bug.
 func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispatcher, error) {
 	dispatcher := NewDispatcher(nil)
+	var channelErrs []error
 
 	for i, notifCfg := range notifications {
 		enabled := true
@@ -24,7 +43,9 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 		case "slack", "discord", "webhook":
 			webhookURL, err := resolveEnvVar(notifCfg.WebhookURLEnv)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve webhook_url_env for channel %d - %w", i, err)
+				channelErrs = append(channelErrs,
+					fmt.Errorf("channel %d (%s) skipped: failed to resolve webhook_url_env - %w", i, notifCfg.Type, err))
+				continue
 			}
 			webhookConfig := &ports.WebhookNotificationConfig{
 				Type:           notifCfg.Type,
@@ -35,23 +56,31 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 				Enabled:        enabled,
 			}
 			if err := dispatcher.AddWebhookNotifier(webhookConfig); err != nil {
-				return nil, fmt.Errorf("failed to add webhook notifier for channel %d - %w", i, err)
+				channelErrs = append(channelErrs,
+					fmt.Errorf("channel %d (%s) skipped: %w", i, notifCfg.Type, err))
+				continue
 			}
 		case "email":
 			smtpPassword, err := resolveEnvVar(notifCfg.SMTPPasswordEnv)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve smtp_password_env for channel %d - %w", i, err)
+				channelErrs = append(channelErrs,
+					fmt.Errorf("channel %d (email) skipped: failed to resolve smtp_password_env - %w", i, err))
+				continue
 			}
 			fromAddress, err := resolveEnvVar(notifCfg.FromAddressEnv)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve from_address_env for channel %d - %w", i, err)
+				channelErrs = append(channelErrs,
+					fmt.Errorf("channel %d (email) skipped: failed to resolve from_address_env - %w", i, err))
+				continue
 			}
 
 			smtpUsername := ""
 			if notifCfg.SMTPUsernameEnv != "" {
 				smtpUsername, err = resolveEnvVar(notifCfg.SMTPUsernameEnv)
 				if err != nil {
-					return nil, fmt.Errorf("failed to resolve smtp_username_env for channel %d - %w", i, err)
+					channelErrs = append(channelErrs,
+						fmt.Errorf("channel %d (email) skipped: failed to resolve smtp_username_env - %w", i, err))
+					continue
 				}
 			}
 
@@ -81,13 +110,25 @@ func NewDispatcherFromConfig(notifications []config.NotificationChannel) (*Dispa
 				Enabled:         enabled,
 			}
 			if err := dispatcher.AddEmailNotifier(emailConfig); err != nil {
-				return nil, fmt.Errorf("failed to add email notifier for channel %d - %w", i, err)
+				channelErrs = append(channelErrs,
+					fmt.Errorf("channel %d (email) skipped: %w", i, err))
+				continue
 			}
 		default:
-			return nil, fmt.Errorf("unsupported notification type: %s", notifCfg.Type)
+			channelErrs = append(channelErrs,
+				fmt.Errorf("channel %d skipped: unsupported notification type %q", i, notifCfg.Type))
+			continue
 		}
 	}
 
+	if len(channelErrs) > 0 {
+		// Say how much alerting survived. "One channel failed" reads very
+		// differently from "every channel failed", and an operator needs to know
+		// which of the two they have.
+		summary := fmt.Errorf("%d of %d notification channel(s) unavailable, %d still active",
+			len(channelErrs), len(notifications), dispatcher.Len())
+		return dispatcher, errors.Join(append([]error{summary}, channelErrs...)...)
+	}
 	return dispatcher, nil
 }
 

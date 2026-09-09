@@ -121,12 +121,13 @@ func NewBackupExecutorFromConfig(
 	var notif ports.Dispatcher
 	var notifWarn error
 	if len(job.Notifications) > 0 {
+		// Use the dispatcher even when err is non-nil: it holds every channel
+		// that resolved, and err describes only the ones that did not.
+		// Discarding it on error is what made a single unresolvable secret
+		// silence every channel on the job (#187).
 		dispatcher, err := notifier.NewDispatcherFromConfig(job.Notifications)
-		if err != nil {
-			notifWarn = err
-		} else {
-			notif = dispatcher
-		}
+		notifWarn = err
+		notif = dispatcher
 	}
 
 	// Remote-artifact security: redirect the dump to a local staging

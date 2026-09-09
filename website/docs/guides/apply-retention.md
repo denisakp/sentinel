@@ -174,24 +174,46 @@ sentinel restore validate-chain app-postgres-restore --config sentinel.yaml
 
 ## If it goes wrong
 
-**`retention delete not supported for storage type 'google-drive'`.** Deletion is implemented for
-local, S3, GCS, and Azure only. A Google Drive job computes candidates normally and fails at the
-deletion step, leaving both the artifacts and the history rows in place. Worse, `preview` gives no
-hint: it returns before storage is ever consulted, so it lists candidates for a backend that cannot
-delete them. This is [issue #169](https://github.com/denisakp/sentinel/issues/169). Prune Google
-Drive artifacts outside Sentinel.
+**Google Drive retention.** Deletion works for local, S3, GCS, Azure and Google Drive.
 
-**An all-jobs run reported errors and still exited 0.** Without `--job`, per-job failures are
-collected, summarised as a single `retention completed with errors` line on stderr, and then
-discarded; the command returns success. A cron entry wrapping it will never alert. This is
-[issue #168](https://github.com/denisakp/sentinel/issues/168). Run one job at a time in automation,
-where a failure does propagate as a non-zero exit, or grep the stderr for that line.
+**On v1.4.0 and earlier, Google Drive jobs failed at the deletion step** with
+`retention delete not supported for storage type 'google-drive'`, leaving both the artifacts and the
+history rows in place. The backend had always implemented deletion; only the retention path lacked a
+case for it. `preview` gave no hint either, since it returns before storage is consulted, so a policy
+looked configured, looked previewed, and enforced nothing. Fixed by
+[issue #169](https://github.com/denisakp/sentinel/issues/169).
 
-**Artifacts are gone but history still lists them.** One deletion in the batch failed, so the history
-transaction was skipped for the entire job, including the artifacts that were removed. Fix the
-underlying permission or path problem and re-run `retention apply`. On local storage deletion is
-idempotent, so an already-removed file does not fail the second attempt and the rows clear once every
-candidate succeeds.
+`preview` now warns up front when a job's storage type cannot be deleted from, so this shape cannot
+recur quietly for a backend added later.
+
+**An all-jobs run reports errors and exits non-zero.** Per-job failures are listed individually on
+stderr, under a line naming how many of the jobs with a policy failed, and the command exits 1. A
+cron entry wrapping it will alert.
+
+**On v1.4.0 and earlier this exited 0.** Failures were summarised as a single
+`retention completed with errors` line with no detail and then discarded, so nothing noticed that
+retention had stopped working and the first symptom was a full disk. The `--job` path exited 1 on the
+same failure, so testing with `--job` showed correct behaviour and hid the difference. Fixed by
+[issue #168](https://github.com/denisakp/sentinel/issues/168).
+
+**A candidate is reported as `refusing to report ... as deleted: no object at that path`.** Retention
+checks that an artifact exists before removing it, and reports the ones it could not find rather than
+counting them as deleted. Its history row is kept on purpose: either the object was removed out of
+band, in which case the row is stale and `sentinel repair` will say so, or the recorded path is
+wrong, in which case the row is the only evidence. Either way, nothing is lost by keeping it.
+
+**On v1.4.0 and earlier this was silent, and on GCS it was systematic.** Deletion was reported from
+the delete call alone, which every backend implements idempotently, so an object that was never there
+counted as removed. The GCS backend compounded it by flattening prefixes when resolving the object,
+so `backups/pg/dump.sql` was addressed as `dump.sql`: retention deleted nothing, reported success,
+and dropped the history rows. Storage grew while every signal said it was being pruned. Fixed by
+[issue #182](https://github.com/denisakp/sentinel/issues/182).
+
+**Artifacts are gone but history still lists them.** On v1.4.0 and earlier, one failed deletion
+skipped the history transaction for the entire job, including artifacts that had been removed. History
+rows are now cleared for exactly the artifacts whose deletion was confirmed, so a partial failure no
+longer leaves the rest inconsistent. Fix the underlying permission or path problem and re-run
+`retention apply`.
 
 **Manifests and sidecars are still there.** Retention deletes the artifact path recorded in history
 and nothing else, so `<artifact>.manifest.json` survives, along with engine side artifacts such as an

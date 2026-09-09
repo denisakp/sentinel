@@ -13,14 +13,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
-	domainincr "github.com/denisakp/sentinel/internal/domain/restore/incremental"
-	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
-	"github.com/denisakp/sentinel/internal/domain/schedule"
 	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
+	"github.com/denisakp/sentinel/internal/config"
+	domainrestore "github.com/denisakp/sentinel/internal/domain/restore"
+	domainincr "github.com/denisakp/sentinel/internal/domain/restore/incremental"
+	"github.com/denisakp/sentinel/internal/domain/schedule"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 func mapRestoreSourceError(job config.RestoreJob, err error) error {
@@ -667,9 +667,14 @@ func notifyRestoreResult(ctx context.Context, jobName string, job config.Restore
 	if len(job.Notifications) == 0 {
 		return
 	}
+	// Warn, but keep the channels that did resolve. Returning here silenced
+	// every channel because one was misconfigured (#187).
 	dispatcher, err := notifier.NewDispatcherFromRestoreConfig(job.Notifications)
 	if err != nil {
-		slog.Warn("failed to initialize restore notifier", "job", jobName, "error", err.Error())
+		slog.Warn("some restore notification channels are unavailable",
+			"job", jobName, "error", err.Error())
+	}
+	if dispatcher == nil || dispatcher.Len() == 0 {
 		return
 	}
 
