@@ -32,11 +32,36 @@ Prerequisite: Go 1.24+.
      go test ./...
    ```
 
+   Note that `go test ./...` silently excludes every file behind the `integration`
+   build tag. To confirm those still compile:
+
+   ``` shell
+     go vet -tags=integration ./...
+   ```
+
    For end-to-end coverage against real database engines (requires Docker):
 
    ``` shell
      make e2e
    ```
+
+   `make e2e` compiles the integration tests always, and runs them when the four
+   database client binaries are present (`pg_dump`, `mysqldump`, `mariadb-dump`,
+   `mongodump`). When they are not, it says the stage did not run and names what
+   is missing, rather than reporting a pass that does not cover them.
+
+   Two smaller targets are useful while iterating:
+
+   ``` shell
+     make e2e-fast     # unit stage only; NOT a green suite, read its warning
+     make test-census  # configuration reachability check, sub-second, no Docker
+   ```
+
+   Adding a configuration key will fail `make test-census` until the key is
+   recorded in `tests/config_census/reachability/`. That is intentional: a key
+   that is parsed, validated, and then read by nothing is worse than a key that is
+   rejected, because the operator is told nothing at all. See that directory's
+   README for how to record one.
 5. Make your changes, additions, or fixes, following the [Architecture](#architecture) rules below.
 6. Commit your changes with descriptive commit messages.
 7. Push your changes to your forked repository:

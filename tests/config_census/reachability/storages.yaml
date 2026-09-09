@@ -1,0 +1,66 @@
+area: storages
+entries:
+  - path: "storages.azure_container"
+    classification: unverified
+    note: "Go field AzureContainer is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.azure_storage_account"
+    classification: unverified
+    note: "Go field AzureStorageAccount is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.azure_storage_account_env"
+    classification: unverified
+    note: "Go field AzureStorageAccountEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.azure_storage_key"
+    classification: unverified
+    note: "Go field AzureStorageKey is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.azure_storage_key_env"
+    classification: unverified
+    note: "Go field AzureStorageKeyEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.gcs_bucket"
+    classification: unverified
+    note: "Go field GCSBucket is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.gcs_credentials_file"
+    classification: unverified
+    note: "Go field GCSCredentialsFile is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.gcs_project_id"
+    classification: unverified
+    note: "Go field GCSProjectID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.gdrive_folder_id"
+    classification: unverified
+    note: "Go field GDriveFolderID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.gdrive_sa_file"
+    classification: unverified
+    note: "Go field GDriveSAFile is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.local_path"
+    classification: unverified
+    note: "Go field LocalPath is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.name"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "if config.Name == \"\" {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "storages.s3_access_key_id"
+    classification: unverified
+    note: "Go field S3AccessKeyID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_access_key_id_env"
+    classification: unverified
+    note: "Go field S3AccessKeyIDEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_bucket"
+    classification: unverified
+    note: "Go field S3Bucket is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_bucket_endpoint"
+    classification: unverified
+    note: "Go field S3BucketEndpoint is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_region"
+    classification: unverified
+    note: "Go field S3Region is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_secret_access_key"
+    classification: unverified
+    note: "Go field S3SecretAccessKey is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.s3_secret_access_key_env"
+    classification: unverified
+    note: "Go field S3SecretAccessKeyEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "storages.type"
+    classification: unverified
+    note: "Go field Type is declared on 5 config types (BackupJob, NotificationChannel, RestoreBackupSource, RestoreJob, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"

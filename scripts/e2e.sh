@@ -1,9 +1,38 @@
 #!/usr/bin/env bash
-# End-to-end validation script for Sentinel M1.
+# End-to-end validation script for Sentinel.
 # Requires: docker, sentinel binary in PATH or SENTINEL_BIN env var.
 # Usage: ./scripts/e2e.sh [--skip-build] [--keep]
 #   --skip-build  skip docker image build (use existing sentinel-dev:local)
 #   --keep        keep containers running after the run
+#   --demo-assert-rejected
+#                 run only the deliberately-failing demonstration of the refusal
+#                 assertion, to show the gate can fail. Never part of a normal run.
+#
+# WHERE THE SUITE RUNS, AND WHY IT IS SPLIT
+#
+# The unit stage runs `go test ./...`, which silently excludes every file behind
+# the `integration` build tag. Those tests therefore need their own stage, which
+# is `test_integration` below, and it behaves differently from the others on
+# purpose:
+#
+#   * It ALWAYS compiles the integration-tagged tests, module-wide. That is
+#     nearly free and it is the guarantee that matters most: a test that does not
+#     compile is not coverage, and until this stage existed nothing locally
+#     compiled them at all.
+#   * It RUNS them only when the four database client binaries they invoke are
+#     present. On a host without pg_dump, mysqldump and mariadb-dump, six engine
+#     tests fail for reasons that have nothing to do with the change under test.
+#     Continuous integration installs all four explicitly (see
+#     .github/workflows/integration.yml), so the stage runs there.
+#   * When it declines to run, it SAYS SO, naming the missing binaries. A stage
+#     that could not run is neither a pass nor a failure, and reporting it as
+#     either is what allowed 73 defects to ship against a green suite.
+#
+# Every skip is checked against scripts/e2e-skip-allowlist.txt. An unrecorded
+# skip fails the suite, and so does an allowlist entry that no longer skips.
+#
+# Until branch protection exists on develop and 1.x, every gate here is advisory:
+# nothing stops a merge that ignores it. See docs/runbooks/required-checks.md.
 
 set -euo pipefail
 
@@ -23,10 +52,12 @@ NETWORK="sentinel"
 
 SKIP_BUILD=false
 KEEP_RUNNING=false
+DEMO_ASSERT_REJECTED=false
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=true ;;
     --keep)       KEEP_RUNNING=true ;;
+    --demo-assert-rejected) DEMO_ASSERT_REJECTED=true ;;
   esac
 done
 
@@ -48,6 +79,23 @@ PASS=0
 FAIL=0
 SKIPPED=0
 
+# The integration stage keeps its own tallies so the summary can distinguish
+# "the integration tests passed" from "the rest of the suite passed".
+INTEG_PASS=0
+INTEG_FAIL=0
+INTEG_SKIP=0
+
+# Stages that could not run, as "name|reason" entries. This is the third state
+# the summary was missing: neither a pass nor a failure, and rounding it to
+# either is the defect this harness exists to stop repeating.
+STAGES_NOT_RUN=()
+
+# Names of everything that did not execute, listed by name in the summary so the
+# count is never the only thing a reader gets.
+SKIPPED_NAMES=()
+
+SKIP_ALLOWLIST="$PROJECT_ROOT/scripts/e2e-skip-allowlist.txt"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -59,7 +107,7 @@ NC='\033[0m'
 log()  { echo -e "${NC}[e2e] $*"; }
 ok()   { echo -e "${GREEN}[PASS]${NC} $*"; PASS=$((PASS+1)); }
 fail() { echo -e "${RED}[FAIL]${NC} $*"; FAIL=$((FAIL+1)); }
-skip() { echo -e "${YELLOW}[SKIP]${NC} $*"; SKIPPED=$((SKIPPED+1)); }
+skip() { echo -e "${YELLOW}[SKIP]${NC} $*"; SKIPPED=$((SKIPPED+1)); SKIPPED_NAMES+=("$*"); }
 
 # Run sentinel inside sentinel-dev container, sharing workspace and env.
 sentinel() {
@@ -112,6 +160,86 @@ assert_output_contains() {
     fail "$label (expected '$needle' in output)"
     echo "    got: $out" >&2
   fi
+}
+
+# Record a stage that could not run, with the reason. Reported distinctly from
+# passes and failures in the summary.
+stage_not_run() {
+  STAGES_NOT_RUN+=("$1|$2")
+  echo -e "${YELLOW}[NOT RUN]${NC} $1: $2"
+}
+
+# Run the Go test suite with the integration build tag and emit one line per test
+# outcome, as "<action> <package> <test>".
+#
+# This consumes the toolchain's own machine-readable stream rather than scraping
+# the human-readable output. Scraping is fragile across toolchain versions and
+# cannot reliably attribute a skip to its package.
+#
+# IMPORTANT: invoke the toolchain directly. Some developer environments proxy
+# `go test` through a wrapper that rewrites its output into a human summary. Such
+# a wrapper swallows this stream entirely and yields an empty result that reads as
+# "no tests ran" while the suite reports success. That is the exact failure this
+# stage exists to prevent, so do not validate changes here through a wrapper.
+#
+# Returns the toolchain's own exit status.
+run_go_tests_json() {
+  local rc=0
+  ( cd "$PROJECT_ROOT" && go test -tags integration -json ./... 2>/dev/null ) \
+    | grep -E '"Action":"(pass|fail|skip)"' \
+    | grep '"Test":' \
+    | sed -E 's/.*"Action":"([a-z]+)".*"Package":"([^"]+)".*"Test":"([^"]+)".*/\1 \2 \3/' \
+    || rc=$?
+  return $rc
+}
+
+# Assert that a command REFUSED an input, and refused it for a stated reason.
+#
+#   assert_rejected <label> <expected-stderr-pattern> <command> [args...]
+#
+# Passes only when BOTH hold: the command exits non-zero, AND the expected
+# pattern matches the ERROR stream.
+#
+# WHY THIS HELPER DOES NOT MERGE THE STREAMS, unlike assert_exit_ok and
+# assert_output_contains above: a refusal is an error, and errors belong on the
+# error stream. Merging is exactly what kept issue #165 invisible, where several
+# commands write ordinary output to the error stream and no assertion could see
+# it. A merging helper would happily pass for a command that prints its refusal
+# to stdout, so this one captures the two separately and matches only stderr.
+# The stdout capture is used solely to make failures legible.
+#
+# The four failure cases are distinguished, because "it failed" is not enough to
+# act on: a wording change, a stream fault and a genuine regression need
+# different fixes.
+assert_rejected() {
+  local label="$1"
+  local needle="$2"; shift 2
+  local out err rc=0 errfile
+  errfile="$(mktemp)"
+  out="$(sentinel "$@" 2>"$errfile")" || rc=$?
+  err="$(cat "$errfile")"
+  rm -f "$errfile"
+
+  local err_match=false out_match=false
+  echo "$err" | grep -q "$needle" && err_match=true
+  echo "$out" | grep -q "$needle" && out_match=true
+
+  if [[ $rc -ne 0 && "$err_match" == true ]]; then
+    ok "$label"
+    return
+  fi
+
+  if [[ $rc -eq 0 && "$out_match" == true ]]; then
+    fail "$label (two faults: command exited 0 when it should have refused, AND wrote the message to stdout instead of stderr)"
+  elif [[ $rc -eq 0 ]]; then
+    fail "$label (expected refusal, but the command exited 0)"
+  elif [[ "$out_match" == true ]]; then
+    fail "$label (WRONG STREAM: refused with exit $rc, but '$needle' arrived on stdout, not stderr)"
+  else
+    fail "$label (refused with exit $rc, but for a different reason: expected '$needle')"
+  fi
+  printf '%s\n' "  [stderr] ${err:-<empty>}" | head -8
+  printf '%s\n' "  [stdout] ${out:-<empty>}" | head -8
 }
 
 wait_healthy() {
@@ -324,12 +452,148 @@ test_unit() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Integration stage
+#
+# Always compiles the integration-tagged tests. Runs them only when the database
+# client binaries they invoke are present, and says so plainly when they are not.
+# See the header comment for why the stage is split this way.
+# ---------------------------------------------------------------------------
+
+# The binaries the integration tests shell out to. Absent any of these, the
+# engine backup and restore tests fail for reasons unrelated to the change under
+# test, so the stage declines to run rather than reporting a misleading red.
+INTEG_REQUIRED_TOOLS=(pg_dump mysqldump mariadb-dump mongodump)
+
+# Echo the names of any required binaries that are missing. Returns the names
+# rather than a bare boolean so the report can say which ones.
+integration_missing_tools() {
+  local t
+  for t in "${INTEG_REQUIRED_TOOLS[@]}"; do
+    command -v "$t" >/dev/null 2>&1 || printf '%s\n' "$t"
+  done
+}
+
+# Strip the module prefix so allowlist entries read as repository paths.
+_short_pkg() { printf '%s\n' "${1#github.com/denisakp/sentinel/}"; }
+
+# Emit "key|category|issue|reason" for each allowlist entry, comments stripped.
+_allowlist_entries() {
+  [[ -f "$SKIP_ALLOWLIST" ]] || return 0
+  # Strip whole-line comments only. A mid-line strip would eat the "#123" issue
+  # reference that every environment and scaffold entry is required to carry.
+  grep -v '^[[:space:]]*#' "$SKIP_ALLOWLIST" \
+    | grep -v '^[[:space:]]*$' \
+    | sed -E 's/[[:space:]]*\|[[:space:]]*/|/g'
+}
+
+test_integration() {
+  log ""
+  log "=== Suite: integration tests ==="
+
+  # (1) Compile gate. Module-wide on purpose: the continuous-integration job
+  # targets ./tests/integration/... only, which misses the integration-tagged
+  # files under internal/adapters/storage/. Those are compiled here.
+  if (cd "$PROJECT_ROOT" && go vet -tags=integration ./... >/dev/null 2>&1); then
+    ok "integration tests compile (go vet -tags=integration ./...)"
+  else
+    fail "integration tests do not compile (go vet -tags=integration ./...)"
+    (cd "$PROJECT_ROOT" && go vet -tags=integration ./... 2>&1 | tail -15 | sed 's/^/  [vet] /') || true
+    return
+  fi
+
+  # (2) Prerequisite preflight.
+  local missing
+  missing=$(integration_missing_tools | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+  if [[ -n "$missing" ]]; then
+    stage_not_run "integration tests" "missing client binaries: $missing (CI installs these; see .github/workflows/integration.yml)"
+    return
+  fi
+
+  # (3) Run, and account for every outcome.
+  local results rc=0
+  results=$(run_go_tests_json) || rc=$?
+
+  local action pkg test key
+  local observed_skips=()
+  while read -r action pkg test; do
+    [[ -z "${action:-}" ]] && continue
+    key="$(_short_pkg "$pkg")::$test"
+    case "$action" in
+      pass) INTEG_PASS=$((INTEG_PASS+1)) ;;
+      fail) INTEG_FAIL=$((INTEG_FAIL+1)); fail "integration: $key" ;;
+      skip) INTEG_SKIP=$((INTEG_SKIP+1)); observed_skips+=("$key") ;;
+    esac
+  done <<< "$results"
+
+  if [[ $INTEG_FAIL -eq 0 && $rc -ne 0 ]]; then
+    fail "integration stage exited non-zero ($rc) with no failing test recorded"
+  fi
+  [[ $INTEG_FAIL -eq 0 ]] && ok "integration tests ($INTEG_PASS passed)"
+
+  # (3a) Every skip must be declared. An unrecorded skip is coverage that
+  # silently vanished, which is how this defect batch reached production.
+  local entry ekey allowed_keys=()
+  while IFS='|' read -r ekey ecat eissue ereason; do
+    [[ -z "${ekey:-}" ]] && continue
+    allowed_keys+=("$ekey")
+  done <<< "$(_allowlist_entries)"
+
+  local s a found
+  for s in ${observed_skips[@]+"${observed_skips[@]}"}; do
+    found=false
+    for a in ${allowed_keys[@]+"${allowed_keys[@]}"}; do
+      [[ "$s" == "$a" ]] && { found=true; break; }
+    done
+    if [[ "$found" == true ]]; then
+      skip "integration: $s (declared)"
+    else
+      fail "integration: $s skipped but is not in scripts/e2e-skip-allowlist.txt (record it with a reason and issue, or fix it)"
+    fi
+  done
+
+  # (3b) Every declared skip must still be skipping. Without this the allowlist
+  # decays into a list nobody has revisited, which is how a control of this kind
+  # usually dies.
+  for a in ${allowed_keys[@]+"${allowed_keys[@]}"}; do
+    found=false
+    for s in ${observed_skips[@]+"${observed_skips[@]}"}; do
+      [[ "$s" == "$a" ]] && { found=true; break; }
+    done
+    [[ "$found" == false ]] && \
+      fail "stale allowlist entry: $a no longer skips (or no longer exists); remove it from scripts/e2e-skip-allowlist.txt"
+  done
+}
+
 test_config_validate() {
   log ""
   log "=== Suite: config validate ==="
   for cfg in local s3 azure gcs; do
     assert_exit_ok "config validate [$cfg]" config validate --config "/configs/$cfg.yaml"
   done
+
+  # The refusal assertion, exercised against refusals the product already
+  # performs. No product behaviour is introduced or changed to make these pass;
+  # they demonstrate the helper works in the direction that matters.
+  assert_rejected "config validate rejects a missing config file" \
+    "failed to load config" config validate --config /configs/does-not-exist.yaml
+  assert_rejected "unknown subcommand is rejected" \
+    "unknown command" definitely-not-a-command
+}
+
+# Demonstrates that the refusal assertion FAILS when a command does not refuse.
+# Run on demand, never from main: its whole purpose is to fail, and a suite that
+# ships a deliberately failing test teaches contributors to ignore red.
+#
+#   bash scripts/e2e.sh --demo-assert-rejected
+#
+# This is the negative half of the demonstration required for the helper. A gate
+# nobody has watched fail is not a gate anyone should trust.
+demo_assert_rejected_negative() {
+  log ""
+  log "=== Demo: assert_rejected must FAIL below (this is the point) ==="
+  assert_rejected "version should NOT be refused (expect this to FAIL)" \
+    "this string appears nowhere" version
 }
 
 test_local_backup() {
@@ -1260,11 +1524,24 @@ EOF
 # Main
 # ---------------------------------------------------------------------------
 main() {
+  # The demonstration needs only the product image, not the database infra, so it
+  # runs before setup and skips the teardown trap entirely.
+  if [[ "$DEMO_ASSERT_REJECTED" == true ]]; then
+    demo_assert_rejected_negative
+    log ""
+    echo -e "${GREEN}PASS: $PASS${NC}  ${RED}FAIL: $FAIL${NC}"
+    log "The single failure above is the expected result: it shows the refusal"
+    log "assertion rejects a command that did not refuse. A gate nobody has"
+    log "watched fail is not a gate anyone should trust."
+    return 0
+  fi
+
   trap teardown EXIT
 
   setup
 
   test_unit
+  test_integration
   test_config_validate
   test_local_backup
   test_verify_all
@@ -1287,6 +1564,37 @@ main() {
   log ""
   log "========================================"
   echo -e "${GREEN}PASS: $PASS${NC}  ${RED}FAIL: $FAIL${NC}  ${YELLOW}SKIP: $SKIPPED${NC}"
+
+  # The integration stage reports separately, so "the suite passed" cannot be
+  # read as "the integration tests passed" when they never ran.
+  if [[ $((INTEG_PASS + INTEG_FAIL + INTEG_SKIP)) -gt 0 ]]; then
+    echo -e "  integration: ${GREEN}${INTEG_PASS} passed${NC}, ${RED}${INTEG_FAIL} failed${NC}, ${YELLOW}${INTEG_SKIP} skipped${NC}"
+  fi
+
+  # Name what did not run. A count alone tells a reader nothing about which
+  # coverage they are missing.
+  if [[ ${#SKIPPED_NAMES[@]} -gt 0 ]]; then
+    log ""
+    log "Did not execute (${#SKIPPED_NAMES[@]}):"
+    local n
+    for n in "${SKIPPED_NAMES[@]}"; do
+      echo -e "  ${YELLOW}-${NC} $n"
+    done
+  fi
+
+  # A stage that could not run is neither a pass nor a failure. Reporting it as
+  # either is what let 73 defects ship against a green suite.
+  if [[ ${#STAGES_NOT_RUN[@]} -gt 0 ]]; then
+    log ""
+    log "Stages that DID NOT RUN (${#STAGES_NOT_RUN[@]}):"
+    local entry
+    for entry in "${STAGES_NOT_RUN[@]}"; do
+      echo -e "  ${YELLOW}-${NC} ${entry%%|*}: ${entry#*|}"
+    done
+    log ""
+    log "This result does NOT cover the stages above. It is not a full pass."
+  fi
+
   log "========================================"
 
   [[ $FAIL -eq 0 ]]
