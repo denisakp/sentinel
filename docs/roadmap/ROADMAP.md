@@ -49,8 +49,50 @@ current envelope format (v2) closes it.
 
 ## Next
 
-No directional items are currently queued. Have something in mind? See
-"Propose something" below.
+**Correctness remediation.** Writing the documentation site surfaced 73 distinct
+defects across the CLI, the config plumbing, retention, restore planning and the
+storage backends. Every one was confirmed against the code on 2026-08-06; none
+was a false alarm. They are tracked as 54 `bug` issues labelled `found-by-docs`
+(#136 to #197, tracking issue #176), and the remediation plan is 15 grouped work
+items, `I00` to `I14`, in
+[`docs/audit/documentation-batch-defects/`](../audit/documentation-batch-defects/README.md).
+
+The plan groups by root cause rather than by issue number, because six patterns
+explain most of the batch:
+
+- commands that bypass the shared config resolver and reinvent their own path
+  and validation
+- success and failure that are indistinguishable, with exit 0 on failure and
+  output written to stderr
+- config keys that are parsed and validated but never threaded to a consumer
+- behaviour wired on one axis and forgotten on the other, for example dump but
+  not restore, or `--all` but not the single-job path
+- a validator that accepts what the runtime then rejects
+- artifact identity lost between the dump and the manifest
+
+`I00` and `I01` land first and block the rest. The end-to-end harness cannot
+currently tell a fix from a no-op: `scripts/e2e.sh` runs `go test ./...`, which
+silently skips every `//go:build integration` file; every scenario under
+`tests/integration/incremental/` is a `t.Skip` scaffold that reads as coverage;
+and the default assertion is `assert_exit_ok`, under which a command that
+validates a key, ignores it, and exits 0 is indistinguishable from success. That
+is the dominant shape of the whole batch. `I01` then makes every later failure
+visible.
+
+Two commitments govern this work. PITR is a required feature and is not to be
+withdrawn or descoped; if the recoverable-window plumbing outgrows `I09` it gets
+its own spec. And each fix ships its end-to-end assertion and its documentation
+update in the same pull request, since deferring coverage is how the batch
+happened.
+
+Where a defect affects a reader today, the documentation site already says so
+and names the issue number. `grep -rl "<issue>" website/docs/` finds every page
+that has to change when it is fixed.
+
+## Feature proposals
+
+No directional feature items are currently queued beyond the remediation above.
+Have something in mind? See "Propose something" below.
 
 ---
 
