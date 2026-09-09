@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/storage/local"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/sanitize"
 )
 
 // backupBackendFactory is overridable in tests.
@@ -102,7 +102,12 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 		if stdout != "" {
 			return "", fmt.Errorf("failed to run mongo_dump: %w: %s", err, stdout)
 		}
-		return "", fmt.Errorf("failed to run mongo_dump: %w (command: mongodump %s)", err, strings.Join(args, " "))
+		// args carries --uri=mongodb://user:PASSWORD@host. Joining it verbatim put
+		// the password in the error, and so in every log that captured it (#156).
+		// The surrounding code already redacts: the stderr branch above calls
+		// RedactStderr. This branch was simply missed.
+		return "", fmt.Errorf("failed to run mongo_dump: %w (command: mongodump %s)",
+			err, strings.Join(sanitize.RedactArgs(args), " "))
 	}
 
 	if executorOwned {

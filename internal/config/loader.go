@@ -17,7 +17,6 @@ const (
 	defaultJobTimeoutMinutes     = 180
 	defaultStaleLockThreshold    = 60
 	defaultMaxConcurrentRestores = 1
-	defaultLockDir               = "/var/run/sentinel"
 )
 
 // LoadConfig reads, parses, and normalizes a YAML configuration file.
@@ -82,7 +81,7 @@ func applyDefaults(cfg *Configuration) {
 		cfg.Scheduler.StaleLockThreshold = defaultStaleLockThreshold
 	}
 	if cfg.Scheduler.LockDir == "" {
-		cfg.Scheduler.LockDir = defaultLockDir
+		cfg.Scheduler.LockDir = DefaultLockDir()
 	}
 
 	for name, job := range cfg.Databases {

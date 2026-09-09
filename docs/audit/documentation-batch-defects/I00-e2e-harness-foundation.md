@@ -1,7 +1,8 @@
 # PRD I00 — e2e harness foundation
 
 **Severity:** Critical (this is why 73 defects shipped undetected)
-**Status:** Open
+**Status:** Items 1, 3 and 5 DELIVERED by spec 061 (2026-09-09). Items 2, 4, 6 and 7 remain, and land
+with I09, I14, I04 and I09 respectively.
 **Issues:** #175 (root cause of the whole batch), context in #176
 **Area:** `scripts/e2e.sh`, `tests/integration/`, `Makefile`, `.github/workflows/integration.yml`
 **Blocks:** every other PRD in this directory
@@ -62,6 +63,41 @@ success under `assert_exit_ok`.** That is the dominant shape of this defect batc
 | `azure` | 14, connectivity only — the script's own comment admits no backup is exercised | #161 |
 | `gcs` | 17, no delete-verification | #182 |
 | `gdrive` | 0 | #169 |
+
+## Delivery status
+
+Spec 061 delivered the first slice on 2026-09-09. What shipped, and three findings that corrected
+this PRD's own assumptions:
+
+| Item | Status |
+|---|---|
+| 1, make the integration suite run | **Delivered.** `scripts/e2e.sh` gained a `test_integration` stage that always compiles the integration-tagged tests module-wide, runs them when the four database client binaries are present, and reports the stage as *did not run* when they are not. |
+| 3, `assert_rejected` | **Delivered.** Matches the error stream alone, so a refusal printed to stdout fails as a named stream fault. All four failure cases verified. |
+| 5, config-key reachability | **Delivered.** `tests/config_census/` accounts for all 228 settable paths: 77 connected with verified evidence anchors, 151 recorded `unverified` under a ratcheting budget. |
+| 2, the `t.Skip` scaffolds | Remains with I09. The six scaffolds are recorded in the skip allowlist meanwhile, so they no longer read as coverage. |
+| 4, shell-redirection assertion | Remains with I14. |
+| 6, concurrency test | Remains with I04. |
+| 7, real-backup PITR fixtures | Remains with I09. |
+
+**Three corrections to this PRD, found by measurement:**
+
+1. **The schema is roughly twice the size implied here.** There are 204 schema-tagged fields across
+   three files, not one: `types.go` has 133, `restore_types.go` has **68**, and
+   `mongo_secrets_file.go` has 3. Those resolve to 228 settable paths from the root. The restore-side
+   keys were missing from every earlier estimate.
+2. **The continuous-integration job has the same blind spot it was meant to compensate for.** It runs
+   `go test -tags integration ./tests/integration/...`, and two integration-tagged files live outside
+   that path, under `internal/adapters/storage/`. Demonstrated: a compile error placed in one of them
+   is invisible to plain `go vet ./...` **and** to the path-scoped command CI uses, and is caught only
+   by the module-wide form the new stage runs.
+3. **Making the suite run is not sufficient, because the tests exclude themselves.** Thirteen skip at
+   runtime: 8 on absent credentials, 5 of the 6 scaffolds plus one more. They were absorbed into a
+   passing result. The allowlist now makes each one declared, named and non-growable.
+
+**A fourth finding, from the census rather than the harness:** the reachability check independently
+reproduced issue **#143**. `RestoreConfiguration`, a parallel "extends Configuration" struct, is
+constructed by nothing, and it is the only route to `RestoreDefaults`. Every key under either is
+unsettable by any operator.
 
 ## Fix
 

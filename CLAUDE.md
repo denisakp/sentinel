@@ -47,7 +47,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/domain/manifest/` — pure manifest v1 lineage validator (spec 037; relocated from `internal/manifest/`). `ValidateIncrementalLineageContract` only; stdlib + ports only.
 - `internal/adapters/manifest_store/` — driving adapter for `ports.ManifestStore` (spec 037). Owns `WriteManifest`/`ReadManifest`/`LoadRestoreManifest`/`VerifyBackupHash` + `Adapter` (file I/O + `internal/adapters/crypto.HashingWriter` for SHA-256).
 - `internal/adapters/db_probe/` — driving adapter for `ports.DBProber` (spec 037). Consolidates SQL ping/list/connectivity (PG/MySQL/MariaDB) + Mongo ping/list + PG cascade-safety. Package-level helpers (`PingSqlDatabase`, `ListDatabases`, `CheckConnectivity`, `CheckMongoConnectivity`, `ListMongoDatabases`, `AssessPostgresCascadeSafetyDSN`) reachable for legacy callers.
-- `internal/adapters/lock/` — file-based concurrency adapter implementing `ports.LockManager`; `RunWithLock` / `RunWithTimeout` + stale lock scan on startup (spec 031)
+- `internal/adapters/lock/`: file-based concurrency adapter implementing `ports.LockManager` (spec 031). Both backup and restore acquire a per-job lock: backups through `internal/cli/backup_factory.go`, restores through `internal/adapters/restore/runtime`. The default directory is resolved per user by `config.DefaultLockDir` (`/var/run/sentinel` only for root), since `/var/run` is not creatable unprivileged (spec fix for #154/#163). **Still unwired:** `internal/scheduler/lock_integration.go`'s `RunWithLock` / `RunWithTimeout` have no callers, and the startup stale-lock sweep does not run because `scheduler.lock_dir` never reaches the scheduler (#142). Do not describe either as working.
 - `internal/sanitize/` — credential redaction (`RedactArgs`), used by all arg builders
 - `internal/adapters/tls/` — TLS adapter implementing `ports.Prober` (spec 033). `Adapter` satisfies the port; `BuildTLSArgs` + `ProbeTLSConnection` remain reachable as package-level functions. Domain type `internaltls.Config` lives in `internal/ports/tls.go` (spec 028); the adapter maps from `config.TLSConfig` (YAML). Mongo PEM lifecycle (`MongoTLSMaterial`, `PrepareMongoTLS`, `SweepOrphanMaterial`, `Register`/`Unregister`/`CloseAll`) lives in the neutral `internal/adapters/mongo_tls/` (spec 035 relocated it out of `tls/` to `dump/mongo/`; spec 042 / PRD 29 moved it to its neutral home).
 - `internal/adapters/notifier/` — multi-channel dispatcher (slack/discord/email/webhook) implementing `ports.Dispatcher` + `ports.Notifier` (spec 034). `*Dispatcher` satisfies `ports.Dispatcher`; each `*SlackNotifier`/`*DiscordNotifier`/`*EmailNotifier`/`*WebhookNotifier` satisfies `ports.Notifier`. Compile-time port assertions in `conformance.go`. Context/config types (`BackupContext`, `RestoreContext`, `WebhookNotificationConfig`, `EmailNotificationConfig`, `ErrNon2xxResponse`) live in `internal/ports/notifier.go`.
@@ -74,7 +74,7 @@ Top-level commands: `backup`, `schedule`, `restore`, `monitor`, `retention`, `co
 - `internal/adapters/restore/runtime/` (driving adapter) imports the four engine restore adapters, `chain_assembler`, `mysqlbinlog`, crypto, lock, monitor, and `internal/config` — by design: it is the composition root for restore execution (spec 038 FR-011). The domain Executor itself reaches engines only through `ports.RestoreBuilder`.
 
 ### Retry / locking
-`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). All backup/restore execution wraps in a per-job file lock from `internal/adapters/lock`.
+`withRetry` runs 3 attempts with 1s/2s/4s backoffs (`RunBackupWithRetry` helper). Backup and restore execution each acquire a per-job file lock from `internal/adapters/lock`; a contended backup is reported as skipped, not failed. Backups took no lock at all before the fix for #163, despite this section having claimed otherwise.
 
 ### Storage backends
 Implement `ports.StorageBackend` (`internal/ports/storage.go`). Concrete adapters: `internal/adapters/storage/{local,s3,gcs,gdrive,azure}/`. Adding a new backend = one new sub-package + one new line in `internal/adapters/storage/registry.go`.
@@ -127,5 +127,5 @@ Every new feature MUST run these skills in this exact order — no skipping, no 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/060-documentation-site/plan.md`
+`specs/061-e2e-harness-foundation/plan.md`
 <!-- SPECKIT END -->

@@ -1,0 +1,115 @@
+area: root
+entries:
+  - path: "encryption_key_env"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "if rsm.cfg != nil && (rsm.cfg.EncryptionKeyEnv != \"\" || rsm.cfg.EncryptionKeyFile != \"\") {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "encryption_key_file"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "if rsm.cfg != nil && (rsm.cfg.EncryptionKeyEnv != \"\" || rsm.cfg.EncryptionKeyFile != \"\") {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "history_db_path"
+    classification: connected
+    evidence:
+      file: "internal/cli/backup_factory.go"
+      expression: "HistoryDBPath"
+    behavioural_proof: verified
+    note: "Proven behaviourally in tests/config_census/behaviour_test.go: two configurations differing only in this key resolve to different paths."
+  - path: "integrity.algorithm"
+    classification: unverified
+    note: "Go field Algorithm is declared on 2 config types (CompressionConfig, IntegrityConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "integrity.scheduled_check.cron"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/scheduler.go"
+      expression: "cron     *cron.Cron"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "integrity.scheduled_check.enabled"
+    classification: unverified
+    note: "Go field Enabled is declared on 7 config types (BackupJob, CompressionConfig, IncrementalBackupConfig, IntegrityScheduledCheck, NotificationChannel, RestoreJob, TLSConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "integrity.scheduled_check.job"
+    classification: connected
+    evidence:
+      file: "internal/cli/backup_factory.go"
+      expression: "job  backup.Job"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "integrity.scheduled_check.notify_on"
+    classification: connected
+    evidence:
+      file: "internal/cli/integrity_scheduled.go"
+      expression: "mode := ic.NotifyOn"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "integrity.scheduled_check.since"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "duration := time.Since(startTime)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "integrity.verify_after_upload"
+    classification: unverified
+    note: "Go field VerifyAfterUpload is declared on 2 config types (BackupJob, IntegrityConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "log_format"
+    classification: connected
+    evidence:
+      file: "internal/cli/backup_verify.go"
+      expression: "outputFmt = cfg.LogFormat"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "max_concurrent_backups"
+    classification: unverified
+    note: "Go field MaxConcurrentBackups is declared on 2 config types (Configuration, SchedulerConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "max_concurrent_restores"
+    classification: unverified
+    note: "Go field MaxConcurrentRestores is declared on 2 config types (Configuration, SchedulerConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restore.keep_file"
+    classification: unverified
+    note: "Go field KeepFile is declared on 2 config types (RestoreJob, RestoreRuntimeConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restore.staging_dir"
+    classification: unverified
+    note: "Go field StagingDir is declared on 2 config types (RestoreJob, RestoreRuntimeConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "scheduler.job_timeout_minutes"
+    classification: unverified
+    note: "no read of SchedulerConfig.JobTimeoutMinutes found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "scheduler.lock_dir"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_executor.go"
+      expression: "LockDir: cfg.Scheduler.LockDir,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "scheduler.max_concurrent_backups"
+    classification: unverified
+    note: "Go field MaxConcurrentBackups is declared on 2 config types (Configuration, SchedulerConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "scheduler.max_concurrent_restores"
+    classification: unverified
+    note: "Go field MaxConcurrentRestores is declared on 2 config types (Configuration, SchedulerConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "scheduler.stale_lock_threshold"
+    classification: connected
+    evidence:
+      file: "internal/cli/repair.go"
+      expression: "minutes := cfg.Scheduler.StaleLockThreshold"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "secrets_key_env"
+    classification: unverified
+    note: "no read of Configuration.SecretsKeyEnv found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "secrets_key_file"
+    classification: unverified
+    note: "no read of Configuration.SecretsKeyFile found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "version"
+    classification: connected
+    evidence:
+      file: "internal/cli/db.go"
+      expression: "mig.Version,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"

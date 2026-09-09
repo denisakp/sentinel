@@ -60,16 +60,19 @@ its password through the subprocess environment. MongoDB's password sits in the 
 `mongo_secrets_file` exists, and why this track never puts a password on a command line. See
 [Database credentials](../../guides/database-credentials.md).
 
-:::danger A failed MongoDB backup or restore can print your password
-Two error paths do not redact the URI. When `mongodump` fails and writes nothing to either standard
-stream, Sentinel reports the failure by joining the whole argument vector, `--uri=` included. And
-the restore connectivity check reports a failure as `cannot connect to MongoDB at URI <uri>`, with
-the URI verbatim. If the URI carries a password, that password lands in your terminal, your CI log,
-and your log aggregator. Tracked as issue 156.
+:::note MongoDB failure messages redact the password, since the fix for issue 156
+Both error paths now pass the URI through Sentinel's redaction before printing it. The scheme, user
+and host survive, so the message still tells you what failed; only the secret is replaced.
 
-Until it is fixed: keep the URI out of shell history and out of the configuration file by using
-`uri_env` or `mongo_secrets_file`, treat any log containing a MongoDB failure as credential-bearing,
-and prefer a MongoDB user whose credentials you can rotate cheaply.
+**On v1.4.0 and earlier the password was printed verbatim** by two paths: a `mongodump` failure that
+wrote nothing to either standard stream reported the whole argument vector with `--uri=` included,
+and the restore connectivity check reported `cannot connect to MongoDB at URI <uri>` unredacted. On
+those versions, treat any log containing a MongoDB failure as credential-bearing.
+
+The advice below is worth following regardless of version, because it keeps the secret out of more
+places than a log: supply the URI through `uri_env` or `mongo_secrets_file` so it never enters the
+configuration file or your shell history, and prefer a MongoDB user whose credentials you can rotate
+cheaply.
 :::
 
 **Set `output:` on the backup job, and make the artifact a single file.** Without `output`, Sentinel
