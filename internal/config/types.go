@@ -47,7 +47,9 @@ type SchedulerConfig struct {
 	// StaleLockThreshold is the age in minutes after which a lock with a dead PID is considered stale (default: 60)
 	StaleLockThreshold int `yaml:"stale_lock_threshold"`
 
-	// LockDir is the directory for job lock files (default: /var/run/sentinel)
+	// LockDir is the directory for job lock files. When empty the default is
+	// resolved by DefaultLockDir: /var/run/sentinel for root, and a per-user
+	// directory otherwise, because /var/run is not creatable unprivileged.
 	LockDir string `yaml:"lock_dir"`
 }
 

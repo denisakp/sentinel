@@ -70,12 +70,14 @@ status other than `current`: `1` for `stale-pending`, `2` for `forward-incompati
 **`repair` is host-local.** It never finalises a row whose job lock names another host, and it never
 removes another host's lock file. In a multi-host deployment, run it on each host.
 
-:::note Only restores and schema migrations create lock files
-Backup jobs take no file lock today: the backup factory is wired with no lock manager, and the
-scheduler helper meant to supply one has no callers. A `stale_lock` finding therefore comes from a
-restore job or from the history database's `monitor.migrate` lock, never from a backup. This is
-tracked as [issue #163](https://github.com/denisakp/sentinel/issues/163), and it has a direct
-consequence for `--fix` below.
+:::note Backups take a lock, since the fix for issue #163
+A `stale_lock` finding can come from a backup job, a restore job, or the history database's
+`monitor.migrate` lock.
+
+**On v1.4.0 and earlier, backups took no file lock at all**: the factory was wired with no lock
+manager, and the scheduler helper meant to supply one had no callers. On those versions a
+`stale_lock` finding never came from a backup, which changes what `--fix` can be reasoning about
+below. Fixed by [issue #163](https://github.com/denisakp/sentinel/issues/163).
 :::
 
 ## Resolution

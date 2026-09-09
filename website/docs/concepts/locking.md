@@ -236,11 +236,19 @@ history database schema. Neither one substitutes for the other.
 
 ## Failure modes
 
-**`mkdir /var/run/sentinel: permission denied`, on restore only.** The default `lock_dir` is not
-writable by a non-root user, and the restore path takes its lock before doing anything else, so the
-job fails having touched nothing. Backup jobs in the very same configuration never hit this, because
-no backup path takes a lock at all; a backup will get as far as its connectivity check. This is
-tracked as issue #154. Set `scheduler.lock_dir` to a directory the running user owns.
+**`mkdir /var/run/sentinel: permission denied`.** Seen on v1.4.0 and earlier, where `lock_dir`
+defaulted to `/var/run/sentinel` for every user. `/var/run` is root-owned, so an unprivileged restore
+failed having touched nothing (issue #154). Backups in the same configuration never hit it, because
+no backup path took a lock at all (issue #163).
+
+Both are fixed. The default is now resolved per user: `/var/run/sentinel` when running as root,
+otherwise `$XDG_RUNTIME_DIR/sentinel`, or `$HOME/.local/state/sentinel/locks`, or a uid-suffixed
+directory under the temporary directory. An explicit `scheduler.lock_dir` always wins, and on the
+affected versions setting one is the workaround.
+
+One consequence worth knowing: a per-user default means locks serialize **that user's** invocations.
+Two different users backing up the same job to the same target will not see each other's locks. Set
+`scheduler.lock_dir` to a shared directory if that is your deployment.
 
 **A restore is skipped with reason `lock_conflict`.** Another holder owns the lock for that job. If a
 process really is running, this is the mechanism doing its job. If nothing is running, the lock is
