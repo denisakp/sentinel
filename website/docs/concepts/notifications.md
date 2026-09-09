@@ -183,11 +183,18 @@ channels to `failure`, and add `warning` only on restore jobs
 `to_addresses`, along with `smtp_host` and `smtp_password_env`. Use the excerpt on this page instead
 ([issue #180](https://github.com/denisakp/sentinel/issues/180)).
 
-**The job runs but every channel is silent, with `notification error:` on stderr.** The dispatcher could
-not be constructed. Almost always this is a missing environment variable, reported as
-`environment variable not found: NAME`, or a variable name that does not match `^[A-Z_][A-Z0-9_]*$`.
-Note the blast radius: one unresolvable channel prevents *all* channels on that job from being
-registered, because construction fails as a unit.
+**A channel is silent, with `notification error:` on stderr.** Almost always a missing environment
+variable, reported as `environment variable not found: NAME`, or a name that does not match
+`^[A-Z_][A-Z0-9_]*$`.
+
+Channels are built independently, so **only the broken channel is lost**. The warning says how many
+survived, for example `1 of 2 notification channel(s) unavailable, 1 still active`, so losing one
+channel is distinguishable from losing all of them.
+
+**On v1.4.0 and earlier the blast radius was every channel on the job.** Construction failed as a
+unit, so one unresolvable secret silenced correctly configured channels too: rotating a Slack webhook
+took the email channel down with it, backups then failed with nobody told, and the only signal was an
+absence of messages. Fixed by [issue #187](https://github.com/denisakp/sentinel/issues/187).
 
 **Slack or Discord returns a non-2xx status.** The error text includes the status code, the response
 body, and the `Retry-After` header when the remote sent one. There is no retry; a rate-limited or

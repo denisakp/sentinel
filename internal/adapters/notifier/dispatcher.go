@@ -3,10 +3,10 @@ package notifier
 import (
 	"context"
 	"fmt"
+	"github.com/denisakp/sentinel/internal/ports"
 	"log/slog"
 	"sync"
 	"time"
-	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // Dispatcher handles sending notifications to multiple channels
@@ -201,3 +201,8 @@ func (d *Dispatcher) Count() int {
 func (d *Dispatcher) SetTimeout(timeout time.Duration) {
 	d.timeout = timeout
 }
+
+// Len reports how many notifiers the dispatcher will fan out to. Used to tell
+// "some alerting survived" from "alerting is entirely gone", which are different
+// situations for an operator reading a warning.
+func (d *Dispatcher) Len() int { return len(d.notifiers) }
