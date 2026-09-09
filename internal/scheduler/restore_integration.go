@@ -7,17 +7,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/crypto"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
-	"github.com/denisakp/sentinel/internal/ports"
-	domainret "github.com/denisakp/sentinel/internal/domain/retention"
-	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
 	mariadb_restore "github.com/denisakp/sentinel/internal/adapters/restore/mariadb"
 	mongo_restore "github.com/denisakp/sentinel/internal/adapters/restore/mongo"
 	mysql_restore "github.com/denisakp/sentinel/internal/adapters/restore/mysql"
 	pg_restore "github.com/denisakp/sentinel/internal/adapters/restore/pg"
+	internalrestore "github.com/denisakp/sentinel/internal/adapters/restore/runtime"
+	"github.com/denisakp/sentinel/internal/config"
+	domainret "github.com/denisakp/sentinel/internal/domain/retention"
+	"github.com/denisakp/sentinel/internal/ports"
 )
 
 // RestoreScheduleConfig represents a scheduled restore job configuration
@@ -252,12 +252,16 @@ func (rsm *RestoreScheduleManager) notifyRestoreSuccess(ctx context.Context, res
 		return
 	}
 
+	// Warn, but keep the channels that did resolve. Returning here silenced
+	// every channel because one was misconfigured (#187).
 	dispatcher, err := notifier.NewDispatcherFromRestoreConfig(restoreJobCfg.Notifications)
 	if err != nil {
-		rsm.logger.Warn("Failed to create notification dispatcher",
+		rsm.logger.Warn("Some notification channels are unavailable",
 			slog.String("job", restoreScheduleConfig.Name),
 			slog.String("error", err.Error()),
 		)
+	}
+	if dispatcher == nil || dispatcher.Len() == 0 {
 		return
 	}
 
@@ -293,12 +297,16 @@ func (rsm *RestoreScheduleManager) notifyRestoreFailure(ctx context.Context, res
 		return
 	}
 
+	// Warn, but keep the channels that did resolve. Returning here silenced
+	// every channel because one was misconfigured (#187).
 	dispatcher, err := notifier.NewDispatcherFromRestoreConfig(restoreJobCfg.Notifications)
 	if err != nil {
-		rsm.logger.Warn("Failed to create notification dispatcher",
+		rsm.logger.Warn("Some notification channels are unavailable",
 			slog.String("job", restoreScheduleConfig.Name),
 			slog.String("error", err.Error()),
 		)
+	}
+	if dispatcher == nil || dispatcher.Len() == 0 {
 		return
 	}
 

@@ -126,7 +126,7 @@ func (b *GCSBackend) Download(ctx context.Context, src, dest string) error {
 
 // Delete removes object path from GCS.
 func (b *GCSBackend) Delete(ctx context.Context, path string) error {
-	object := extractObjectPath(path)
+	object := extractObjectKey(path)
 	if object == "" {
 		return fmt.Errorf("gcs: object path is required")
 	}
@@ -147,7 +147,7 @@ func (b *GCSBackend) List(ctx context.Context, prefix string) ([]ports.StorageOb
 
 // Exists checks whether an object exists.
 func (b *GCSBackend) Exists(ctx context.Context, path string) (bool, error) {
-	object := extractObjectPath(path)
+	object := extractObjectKey(path)
 	if object == "" {
 		return false, fmt.Errorf("gcs: object path is required")
 	}
@@ -279,6 +279,10 @@ func (s *sdkBucketClient) Download(ctx context.Context, object, destPath string)
 func (s *sdkBucketClient) Delete(ctx context.Context, object string) error {
 	err := s.bucket.Object(object).Delete(ctx)
 	if errors.Is(err, gcsapi.ErrObjectNotExist) {
+		// Idempotent by contract: rule R4 of the storage contract requires Delete
+		// to succeed on a missing object, and every backend honours it. A caller
+		// that needs to know whether an object was really there must ask Exists
+		// first; retention does exactly that (#182).
 		return nil
 	}
 	return err
@@ -314,6 +318,31 @@ func (s *sdkBucketClient) Exists(ctx context.Context, object string) (bool, erro
 		return false, err
 	}
 	return true, nil
+}
+
+// extractObjectKey resolves a storage path to the exact object key, WITHOUT
+// flattening prefixes.
+//
+// extractObjectPath below reduces "backups/pg/2026-01-01.sql" to
+// "2026-01-01.sql" via filepath.Base. For an upload that is merely a naming
+// convention, but for Delete and Exists it addresses a different object than the
+// caller named: almost always one that does not exist. Combined with a Delete
+// that treated "not there" as "done", retention reported deletions it had never
+// performed (#182).
+func extractObjectKey(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "gs://") {
+		withoutScheme := strings.TrimPrefix(trimmed, "gs://")
+		parts := strings.SplitN(withoutScheme, "/", 2)
+		if len(parts) == 2 {
+			return parts[1]
+		}
+		return ""
+	}
+	return strings.TrimPrefix(trimmed, "/")
 }
 
 func extractObjectPath(path string) string {
