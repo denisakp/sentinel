@@ -105,8 +105,9 @@ idea. Each entry links to the page that explains it in depth.
 ## L
 
 **Lock**
-: A file taken for the duration of a job so two runs cannot interleave. Restores take one; backups
-  currently do not ([#163](https://github.com/denisakp/sentinel/issues/163)). See
+: A file taken for the duration of a job so two runs cannot interleave. Both backups and restores
+  take one. Backups did not on v1.4.0 and earlier
+  ([#163](https://github.com/denisakp/sentinel/issues/163)). See
   [Locking and concurrency](../concepts/locking.md).
 
 ## M

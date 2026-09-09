@@ -23,6 +23,7 @@ import (
 	dumpmongo "github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	dumpmysql "github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 	dumppg "github.com/denisakp/sentinel/internal/adapters/dump/pg"
+	"github.com/denisakp/sentinel/internal/adapters/lock"
 	manifest "github.com/denisakp/sentinel/internal/adapters/manifest_store"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/adapters/notifier"
@@ -168,6 +169,21 @@ func NewBackupExecutorFromConfig(
 		storageBackend = backend
 	}
 
+	// Job serialization. This used to be nil, with a comment saying the scheduler
+	// owned it. The scheduler's helpers had no callers at all, so nothing
+	// serialized two backups of the same job across processes: two `sentinel
+	// backup` invocations, or a cron entry running beside a scheduler, could
+	// interleave their output and their history rows (#163). The in-process
+	// jobState.running flag only ever covered one scheduler process.
+	//
+	// Restores already take this lock through the same manager and the same
+	// directory, so this makes backup and restore consistent rather than
+	// introducing a new mechanism.
+	var locks ports.LockManager
+	if cfg != nil && cfg.Scheduler.LockDir != "" {
+		locks = lock.NewManager(cfg.Scheduler.LockDir)
+	}
+
 	exec := backup.NewExecutor(
 		dumps,
 		storageBackend, // ports.StorageBackend — remote upload target (nil for local)
@@ -175,7 +191,7 @@ func NewBackupExecutorFromConfig(
 		nil,            // ports.Hasher — digests computed inline by dump adapters
 		rec,
 		notif,
-		nil, // ports.LockManager — job serialization owned by the scheduler runtime
+		locks,
 		dbprobe.NewAdapter(),
 		manifest.Adapter{},
 	)
@@ -310,7 +326,7 @@ func buildDomainBackupJob(
 		MaxChainDepth:      maxChainDepth,
 		ForceFull:          forceFull,
 		Scheduled:          scheduled,
-		Retention: buildRetentionPolicy(job.Retention, false),
+		Retention:          buildRetentionPolicy(job.Retention, false),
 		VerifyArtifactHash: verifyIncrementalArtifactHash,
 	}
 

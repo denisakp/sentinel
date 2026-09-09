@@ -29,6 +29,16 @@ type Executor struct {
 	manifests ports.ManifestStore
 }
 
+// Locks reports the lock manager the Executor will serialize this job with, or
+// nil when nothing will.
+//
+// It exists so the composition root can be tested. The backup executor spent a
+// release constructed with a nil LockManager under a comment claiming the
+// scheduler owned serialization, while the scheduler's lock helpers had no
+// callers at all (#163). Nothing could observe that from outside the package,
+// which is why it survived: the wiring was wrong in a way no test could reach.
+func (e *Executor) Locks() ports.LockManager { return e.locks }
+
 // NewExecutor constructs an Executor over the 9 architectural ports.
 // Ports not exercised by a given configuration may be nil; the
 // corresponding step degrades to a no-op (e.g. nil Dispatcher = no

@@ -43,9 +43,13 @@ Or `*.lock` files are simply still sitting in the lock directory after a reboot 
 Error: restore execution failed: failed to acquire restore lock: lock: filesystem error - mkdir "/var/run/sentinel": mkdir /var/run/sentinel: permission denied
 ```
 
-The default `scheduler.lock_dir` is `/var/run/sentinel`, which an unprivileged user cannot create.
-Nothing is stale; the directory never existed. Set `scheduler.lock_dir` to a path the running user
-owns and re-run. Tracked as [issue #154](https://github.com/denisakp/sentinel/issues/154).
+On v1.4.0 and earlier the default `scheduler.lock_dir` was `/var/run/sentinel` for every user, which
+an unprivileged one cannot create. Nothing is stale; the directory never existed. Set
+`scheduler.lock_dir` to a path the running user owns and re-run.
+
+Fixed by [issue #154](https://github.com/denisakp/sentinel/issues/154): the default is now resolved
+per user, and only root gets `/var/run/sentinel`. If you still see this on a current version, an
+explicit `scheduler.lock_dir` is pointing somewhere the user cannot write.
 :::
 
 ## Before you start
