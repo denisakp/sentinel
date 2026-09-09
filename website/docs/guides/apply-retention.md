@@ -174,18 +174,27 @@ sentinel restore validate-chain app-postgres-restore --config sentinel.yaml
 
 ## If it goes wrong
 
-**`retention delete not supported for storage type 'google-drive'`.** Deletion is implemented for
-local, S3, GCS, and Azure only. A Google Drive job computes candidates normally and fails at the
-deletion step, leaving both the artifacts and the history rows in place. Worse, `preview` gives no
-hint: it returns before storage is ever consulted, so it lists candidates for a backend that cannot
-delete them. This is [issue #169](https://github.com/denisakp/sentinel/issues/169). Prune Google
-Drive artifacts outside Sentinel.
+**Google Drive retention.** Deletion works for local, S3, GCS, Azure and Google Drive.
 
-**An all-jobs run reported errors and still exited 0.** Without `--job`, per-job failures are
-collected, summarised as a single `retention completed with errors` line on stderr, and then
-discarded; the command returns success. A cron entry wrapping it will never alert. This is
-[issue #168](https://github.com/denisakp/sentinel/issues/168). Run one job at a time in automation,
-where a failure does propagate as a non-zero exit, or grep the stderr for that line.
+**On v1.4.0 and earlier, Google Drive jobs failed at the deletion step** with
+`retention delete not supported for storage type 'google-drive'`, leaving both the artifacts and the
+history rows in place. The backend had always implemented deletion; only the retention path lacked a
+case for it. `preview` gave no hint either, since it returns before storage is consulted, so a policy
+looked configured, looked previewed, and enforced nothing. Fixed by
+[issue #169](https://github.com/denisakp/sentinel/issues/169).
+
+`preview` now warns up front when a job's storage type cannot be deleted from, so this shape cannot
+recur quietly for a backend added later.
+
+**An all-jobs run reports errors and exits non-zero.** Per-job failures are listed individually on
+stderr, under a line naming how many of the jobs with a policy failed, and the command exits 1. A
+cron entry wrapping it will alert.
+
+**On v1.4.0 and earlier this exited 0.** Failures were summarised as a single
+`retention completed with errors` line with no detail and then discarded, so nothing noticed that
+retention had stopped working and the first symptom was a full disk. The `--job` path exited 1 on the
+same failure, so testing with `--job` showed correct behaviour and hid the difference. Fixed by
+[issue #168](https://github.com/denisakp/sentinel/issues/168).
 
 **A candidate is reported as `refusing to report ... as deleted: no object at that path`.** Retention
 checks that an artifact exists before removing it, and reports the ones it could not find rather than

@@ -93,12 +93,16 @@ When both flat rules are set, a backup is deleted if **either** rule discards it
 Deletion removes the artifact path recorded in the history database and nothing else. The matching `<artifact>.manifest.json` sidecar is left behind, as is any other sidecar written next to it. On local storage the directory accumulates manifests with no artifact; on object storage the same keys accumulate and keep costing money. Sweep them yourself after an apply run, or use `sentinel repair` to detect the resulting inconsistency. Tracked as issue #159.
 :::
 
-:::caution Deletion is unsupported on Google Drive, and `preview` will not tell you
-Artifact deletion is implemented for `local`, `s3`, `gcs`, and `azure` only. A job on `google-drive` storage fails at apply time with `retention delete not supported for storage type 'google-drive'`. `preview` returns before reaching the storage layer, so it lists candidates happily for a backend that cannot delete them.
+:::note Deletion works on Google Drive, since the fix for issue #169
+Artifact deletion is implemented for `local`, `s3`, `gcs`, `azure` and `google-drive`. `preview` now warns up front when a job's storage type cannot be deleted from, so a policy can no longer look configured and previewed while enforcing nothing.
+
+**On v1.4.0 and earlier a `google-drive` job failed at apply time** with `retention delete not supported for storage type 'google-drive'`, and `preview` gave no hint because it returns before reaching the storage layer. The backend had always implemented deletion; only the retention path lacked a case for it.
 :::
 
-:::caution The all-jobs run reports errors without detail and still exits 0
-Without `--job`, a failure in one job is collected, the line `retention completed with errors` is printed to stderr, and the individual error messages are discarded. The command then exits 0. A per-job run (`--job <name>`) does surface the underlying error and exits 1. Use `--job` in any automated context where the exit code matters.
+:::note The all-jobs run reports each failure and exits non-zero, since the fix for issue #168
+Without `--job`, per-job failures are listed individually on stderr under a line naming how many jobs with a policy failed, and the command exits 1.
+
+**On v1.4.0 and earlier it exited 0**, printing only `retention completed with errors` and discarding the individual messages. A per-job run surfaced the error and exited 1 on the same failure, so testing with `--job` showed correct behaviour and hid the difference. On those versions, use `--job` in any automated context where the exit code matters.
 :::
 
 The all-jobs summary also prints `total deleted: N backups` in preview mode, where nothing was deleted. Read the mode from the command you typed, not from that line.
