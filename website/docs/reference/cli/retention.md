@@ -77,8 +77,12 @@ Two safety rules apply after candidate selection:
 
 ## Known defects
 
-:::danger `retention.dry_run` in YAML is ignored
-The `dry_run` key is parsed into the configuration struct and then never read. Only the `--dry-run` flag on `sentinel retention apply` suppresses deletion. Worse, the automatic retention sweep that runs after a backup passes dry-run as false unconditionally, so a job carrying `dry_run: true` still has its artifacts deleted for real at the end of every `sentinel backup --config <file>` run. Do not rely on this key to hold a policy in observation mode; remove the policy, or use `sentinel retention preview` as the only safe evaluation path. The key is not entirely inert: a job whose `retention` block contains `dry_run: true` and nothing else counts as having a policy, which silently suppresses inheritance of `defaults.retention` for that job. Tracked as issue #157.
+:::note `retention.dry_run` is honoured, since the fix for issue #157
+A job carrying `dry_run: true` is never deleted from, by `sentinel retention apply` or by the automatic sweep that runs after a scheduled backup. The key and the `--dry-run` flag combine and neither cancels the other: either alone makes the run report without deleting, and disabling a configured `dry_run: true` requires editing the configuration file.
+
+**On v1.4.0 and earlier the key was parsed, validated, inherited, and then read by no deletion path**, so artifacts were deleted for real at the end of every `sentinel backup --config <file>` run. On those versions use `sentinel retention preview` as the only safe evaluation path.
+
+One thing is unchanged: a job whose `retention` block contains `dry_run: true` and nothing else still counts as having a policy, which suppresses inheritance of `defaults.retention` for that job. Fixed by issue #157.
 :::
 
 :::caution `keep_last` and `keep_days` intersect, they do not union

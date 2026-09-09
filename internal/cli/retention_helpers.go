@@ -107,7 +107,20 @@ func applyJobRetention(ctx context.Context, cfg *config.Configuration, rec ports
 	if !ok {
 		return nil, fmt.Errorf("backup '%s' not found", jobName)
 	}
-	policy := buildRetentionPolicy(job.Retention, dryRun)
+	// A dry run is requested either by the caller, which is the --dry-run flag,
+	// or by the job's own retention.dry_run in YAML. The two OR together
+	// deliberately: dry_run is a safety switch, and a safety switch must never be
+	// silently cancelled by the other party. Someone who writes dry_run: true is
+	// asking for nothing to be deleted for this job, full stop; turning that off
+	// is an edit to the file, not a flag.
+	//
+	// Before this, the YAML key was parsed, validated and inherited, and then read
+	// by no delete path at all. The automatic sweep that runs after a scheduled
+	// backup passed false unconditionally, so it deleted for real while the
+	// operator believed the safety switch was on: silent data loss with the guard
+	// engaged (#157).
+	effectiveDryRun := dryRun || job.Retention.DryRun
+	policy := buildRetentionPolicy(job.Retention, effectiveDryRun)
 
 	records, err := fetchRetentionRecords(ctx, rec, jobName)
 	if err != nil {
@@ -115,7 +128,7 @@ func applyJobRetention(ctx context.Context, cfg *config.Configuration, rec ports
 	}
 	candidates := domainret.CalculateCandidates(records, policy, time.Now().UTC())
 	candidates = domainret.ProtectActiveBaseline(candidates, records)
-	if dryRun {
+	if effectiveDryRun {
 		return candidatesToDeleted(candidates), nil
 	}
 
