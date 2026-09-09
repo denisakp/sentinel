@@ -1,0 +1,54 @@
+# Declared skips for the integration stage of scripts/e2e.sh.
+#
+# A skipped test contributes nothing, but without this file it is absorbed into a
+# passing result and disappears. Every skip observed during a run must match an
+# entry here, and every entry must match a test that actually skipped. Both
+# directions fail the suite: the first stops the set growing in silence, the
+# second stops the file decaying into a list nobody has revisited, which is how a
+# control of this kind usually dies.
+#
+# FORMAT, one entry per line:
+#
+#   <package>::<TestName> | <category> | <issue-or-dash> | <reason>
+#
+# CATEGORIES:
+#
+#   environment  Would run given credentials or tooling. Absent coverage, expected
+#                to disappear once the environment is provisioned. Issue REQUIRED.
+#   scaffold     A placeholder that never asserted anything. Issue REQUIRED.
+#   permanent    Deliberate and lasting exclusion. Issue field is "-".
+#
+# NOT FOR FAILURES. A test that fails is not a test that skipped. The six engine
+# tests that fail on a host lacking pg_dump, mysqldump and mariadb-dump are
+# handled by the stage's prerequisite check, which declines to run the stage at
+# all when its tooling is absent. Recording a failure here as a permitted skip
+# would be the same dishonesty in a new form.
+#
+# Blank lines and lines beginning with # are ignored.
+
+# ---------------------------------------------------------------------------
+# environment: absent credentials or configuration. These would run if the
+# environment provided what they need, so they represent coverage the project
+# does not currently have anywhere. #175 tracks the surfaces the suite does not
+# exercise.
+# ---------------------------------------------------------------------------
+tests/integration::TestConfigToBackupIntegration | environment | #175 | requires SENTINEL_INTEGRATION_TESTS=1; unset in CI, so the config-to-backup path is unexercised
+tests/integration::TestScheduleListAndRetentionPreview | environment | #175 | requires SENTINEL_INTEGRATION_TESTS=1; unset in CI, so schedule list and retention preview are unexercised
+tests/integration/restore::TestRunS3_StagesArtifactFromS3Source | environment | #175 | requires SENTINEL_TEST_S3_BUCKET and SENTINEL_TEST_S3_REGION
+tests/integration/restore::TestRunS3_NotFound_ReturnsErrSourceObjectNotFound | environment | #175 | requires SENTINEL_TEST_S3_BUCKET and SENTINEL_TEST_S3_REGION
+tests/integration/restore::TestRunS3_InvalidCredentials_Fails | environment | #175 | requires SENTINEL_TEST_S3_BUCKET and SENTINEL_TEST_S3_REGION
+tests/integration/restore::TestRunGCS_StagesArtifactFromGCSSource | environment | #175 | requires SENTINEL_TEST_GCS_BUCKET and SENTINEL_TEST_GCS_BACKUP
+tests/integration/restore::TestRunGCS_NotFound_ReturnsErrSourceObjectNotFound | environment | #175 | requires SENTINEL_TEST_GCS_BUCKET and SENTINEL_TEST_GCS_BACKUP
+
+# ---------------------------------------------------------------------------
+# scaffold: placeholders that have never asserted anything. A grep for
+# "incremental" across tests/integration/ returns 22 hits and zero executed
+# assertions, which reads as coverage to anyone checking. They are owned by PRD
+# I09, which lands the real fixtures; they convert to assertions there.
+# ---------------------------------------------------------------------------
+tests/integration/incremental::TestPostgresBackupChain_FullThenIncremental | scaffold | #185 | scaffold, no assertions; every incremental prerequisite check is unreachable
+tests/integration/incremental::TestPostgresChainRestore_FullPlusIncrementals | scaffold | #150 | scaffold, no assertions; restore_mode incremental fails to stage its baseline
+tests/integration/incremental::TestPostgresChainResetAtDepthBoundary | scaffold | #185 | scaffold, no assertions; max_chain_depth rollover never exercised
+tests/integration/incremental::TestIncrementalFallbackRequiresExplicitConfirmation | scaffold | #185 | scaffold, no assertions; confirm_full_fallback path never exercised
+tests/integration/incremental::TestMySQLBinlogIncrementalRestoreFlow | scaffold | #190 | scaffold, no assertions; binlog archival matches only mysql-bin and mariadb-bin
+tests/integration/incremental::TestMongoDBOplogIncrementalRestore_Integration | scaffold | #176 | scaffold, no assertions; requires a live MongoDB replica set, no specific defect issue yet

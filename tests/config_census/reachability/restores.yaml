@@ -1,0 +1,278 @@
+area: restores
+entries:
+  - path: "restores.allow_cascade"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/pg/args_factory.go"
+      expression: "AllowCascade:   spec.AllowCascade,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.backup_source.azure_container"
+    classification: unverified
+    note: "Go field AzureContainer is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.azure_storage_account"
+    classification: unverified
+    note: "Go field AzureStorageAccount is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.azure_storage_account_env"
+    classification: unverified
+    note: "Go field AzureStorageAccountEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.azure_storage_key"
+    classification: unverified
+    note: "Go field AzureStorageKey is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.azure_storage_key_env"
+    classification: unverified
+    note: "Go field AzureStorageKeyEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.backup_path"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "backupData, err := rsm.backupStorage.ReadBackup(ctx, config.BackupSource, config.BackupPath)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.backup_source.gcs_bucket"
+    classification: unverified
+    note: "Go field GCSBucket is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.gcs_credentials_file"
+    classification: unverified
+    note: "Go field GCSCredentialsFile is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.gcs_project_id"
+    classification: unverified
+    note: "Go field GCSProjectID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.gdrive_folder_id"
+    classification: unverified
+    note: "Go field GDriveFolderID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.gdrive_sa_file"
+    classification: unverified
+    note: "Go field GDriveSAFile is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.local_path"
+    classification: unverified
+    note: "Go field LocalPath is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_access_key_id"
+    classification: unverified
+    note: "Go field S3AccessKeyID is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_access_key_id_env"
+    classification: unverified
+    note: "Go field S3AccessKeyIDEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_bucket"
+    classification: unverified
+    note: "Go field S3Bucket is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_bucket_endpoint"
+    classification: unverified
+    note: "Go field S3BucketEndpoint is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_region"
+    classification: unverified
+    note: "Go field S3Region is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_secret_access_key"
+    classification: unverified
+    note: "Go field S3SecretAccessKey is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.s3_secret_access_key_env"
+    classification: unverified
+    note: "Go field S3SecretAccessKeyEnv is declared on 2 config types (RestoreBackupSource, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.type"
+    classification: unverified
+    note: "Go field Type is declared on 5 config types (BackupJob, NotificationChannel, RestoreBackupSource, RestoreJob, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.backup_source.use_latest_match"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/runtime/staging.go"
+      expression: "if !source.UseLatestMatch {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.confirm_full_fallback"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/runtime/planner.go"
+      expression: "ConfirmFullFallback:   request.ConfirmFullFallback,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.conflict_strategy"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_executor.go"
+      expression: "ConflictStrategy:   effectiveConflictStrategy(job.ConflictStrategy),"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.database"
+    classification: unverified
+    note: "Go field Database is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.enabled"
+    classification: unverified
+    note: "Go field Enabled is declared on 7 config types (BackupJob, CompressionConfig, IncrementalBackupConfig, IntegrityScheduledCheck, NotificationChannel, RestoreJob, TLSConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.host"
+    classification: unverified
+    note: "Go field Host is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.host_env"
+    classification: unverified
+    note: "Go field HostEnv is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.incremental_from_backup"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/runtime/planner.go"
+      expression: "IncrementalFromBackup: request.IncrementalFromBackup,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.keep_file"
+    classification: unverified
+    note: "Go field KeepFile is declared on 2 config types (RestoreJob, RestoreRuntimeConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.mongodb.oplog_target_timestamp"
+    classification: unverified
+    note: "no read of MongoDBRestoreConfig.OplogTargetTimestamp found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "restores.mysql.binlog_target_position.file"
+    classification: connected
+    evidence:
+      file: "internal/utils/file.go"
+      expression: "defer func(file *os.File) {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.mysql.binlog_target_position.pos"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/incremental/mysqlbinlog/replay.go"
+      expression: "if targetFile == \"\" || args.TargetPosition.Pos <= 0 {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.mysql.binlog_target_time"
+    classification: unverified
+    note: "no read of MySQLRestoreConfig.BinlogTargetTime found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "restores.notifications.enabled"
+    classification: unverified
+    note: "Go field Enabled is declared on 7 config types (BackupJob, CompressionConfig, IncrementalBackupConfig, IntegrityScheduledCheck, NotificationChannel, RestoreJob, TLSConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.notifications.events"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/webhook.go"
+      expression: "if !w.config.Enabled || !ShouldNotify(w.config.Events, backup.Status) {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.from_address_env"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "fromAddress, err := resolveEnvVar(notifCfg.FromAddressEnv)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.smtp_host"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "SMTPHost:        notifCfg.SMTPHost,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.smtp_password_env"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "smtpPassword, err := resolveEnvVar(notifCfg.SMTPPasswordEnv)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.smtp_port"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "smtpPort := notifCfg.SMTPPort"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.smtp_username_env"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "if notifCfg.SMTPUsernameEnv != \"\" {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.timeout_seconds"
+    classification: unverified
+    note: "Go field TimeoutSeconds is declared on 2 config types (NotificationChannel, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.notifications.to_addresses"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/dispatcher.go"
+      expression: "if len(config.ToAddresses) == 0 {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.type"
+    classification: unverified
+    note: "Go field Type is declared on 5 config types (BackupJob, NotificationChannel, RestoreBackupSource, RestoreJob, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.notifications.use_tls"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "if notifCfg.UseTLS != nil {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.notifications.webhook_url_env"
+    classification: connected
+    evidence:
+      file: "internal/adapters/notifier/converter.go"
+      expression: "webhookURL, err := resolveEnvVar(notifCfg.WebhookURLEnv)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.password_env"
+    classification: unverified
+    note: "Go field PasswordEnv is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.pitr_target_timeline"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/runtime/planner.go"
+      expression: "PITRTargetTimeline:    request.PITRTargetTimeline,"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.pitr_timestamp"
+    classification: unverified
+    note: "no read of RestoreJob.PITRTimestamp found outside internal/config; likely inert, but recording it as such requires confirming it and citing an issue"
+  - path: "restores.port"
+    classification: unverified
+    note: "Go field Port is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.restore_mode"
+    classification: connected
+    evidence:
+      file: "internal/cli/restore.go"
+      expression: "mode := rec.RestoreMode"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.restore_options"
+    classification: connected
+    evidence:
+      file: "internal/adapters/restore/mariadb/conformance.go"
+      expression: "_ ports.RestoreOptions     = (*RestoreArgs)(nil)"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"
+  - path: "restores.retention.dry_run"
+    classification: unverified
+    note: "Go field DryRun is declared on 2 config types (RestoreRetentionPolicy, RetentionPolicy), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.retention.keep_days"
+    classification: unverified
+    note: "Go field KeepDays is declared on 2 config types (RestoreRetentionPolicy, RetentionPolicy), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.retention.keep_last"
+    classification: unverified
+    note: "Go field KeepLast is declared on 2 config types (RestoreRetentionPolicy, RetentionPolicy), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.schedule"
+    classification: unverified
+    note: "Go field Schedule is declared on 3 config types (BackupJob, GlobalDefaults, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.staging_dir"
+    classification: unverified
+    note: "Go field StagingDir is declared on 2 config types (RestoreJob, RestoreRuntimeConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.timeout_seconds"
+    classification: unverified
+    note: "Go field TimeoutSeconds is declared on 2 config types (NotificationChannel, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.type"
+    classification: unverified
+    note: "Go field Type is declared on 5 config types (BackupJob, NotificationChannel, RestoreBackupSource, RestoreJob, StorageConfig), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.uri"
+    classification: unverified
+    note: "Go field URI is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.uri_env"
+    classification: unverified
+    note: "Go field URIEnv is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.username"
+    classification: unverified
+    note: "Go field Username is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.username_env"
+    classification: unverified
+    note: "Go field UsernameEnv is declared on 2 config types (BackupJob, RestoreJob), so a read cannot be attributed by name alone; needs type-aware analysis"
+  - path: "restores.verify_after_restore"
+    classification: connected
+    evidence:
+      file: "internal/scheduler/restore_integration.go"
+      expression: "if config.VerifyAfterRestore && rsm.verifier != nil {"
+    behavioural_proof: pending
+    needs: "a suite assertion comparing behaviour across differing values of this key"

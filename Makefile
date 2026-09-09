@@ -5,12 +5,19 @@ NETWORK     := sentinel
 IMAGE       := sentinel-dev:local
 MONGO_NAME  := sentinel-mongo
 
-.PHONY: e2e e2e-quick infra-up infra-down build-image clean help lint-redact-stderr lint bench-small bench-matrix
+.PHONY: e2e e2e-quick e2e-fast infra-up infra-down build-image clean help lint-redact-stderr lint bench-small bench-matrix test-census demo-assert-rejected
 
 help:
 	@echo "Targets:"
 	@echo "  e2e         Full end-to-end run (build image + start infra + run tests + teardown)"
 	@echo "  e2e-quick   Same but skip image rebuild"
+	@echo "  e2e-fast    Unit stage ONLY. Omits the integration stage and every"
+	@echo "              container-backed suite, so a pass here proves much less"
+	@echo "              than a pass from 'e2e'. For iteration, not for merging."
+	@echo "  test-census Configuration reachability check alone (sub-second, no infra)"
+	@echo "  demo-assert-rejected"
+	@echo "              Show the refusal assertion failing on a command that did"
+	@echo "              not refuse. Expected to report one failure."
 	@echo "  infra-up    Start all infra (DBs + emulators) without running tests"
 	@echo "  infra-down  Stop and remove all infra containers"
 	@echo "  build-image Build sentinel-dev:local Docker image"
@@ -27,6 +34,24 @@ e2e: _network infra-up build-image
 e2e-quick: _network infra-up
 	@bash scripts/e2e.sh --skip-build
 	@$(MAKE) -s infra-down
+
+## Fast stage only, for iteration. Deliberately named and deliberately loud:
+## choosing it must be an explicit act, because it omits the integration stage
+## and every container-backed suite. A pass here is not a pass of the suite.
+e2e-fast:
+	@echo "e2e-fast: unit stage only. The integration stage and all container-backed"
+	@echo "          suites are NOT run. Do not read a pass here as a green suite."
+	@go test ./...
+	@go vet ./...
+	@go vet -tags=integration ./...
+
+## The configuration reachability check on its own. No infra, sub-second.
+test-census:
+	@go test ./tests/config_census/...
+
+## Demonstrate that the refusal assertion can fail. One failure is the point.
+demo-assert-rejected:
+	@bash scripts/e2e.sh --demo-assert-rejected
 
 ## Start infra only (useful for manual testing)
 infra-up: _network _db-up _mongo-up _e2e-emulators-up
