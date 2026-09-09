@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,12 +12,15 @@ import (
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/ports/storagetesting"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // retentionFixture wires a job whose history names three artifacts, and lets the
 // caller decide which of them actually exist in storage.
 func retentionFixture(t *testing.T, present []string, all []string) (*config.Configuration, *storagetesting.MockBackend, ports.Recorder) {
 	t.Helper()
+	t.Setenv("SENTINEL_TEST_RETENTION_PW", "pw")
 	mock := storagetesting.NewMockBackend()
 	for _, k := range present {
 		mock.PutBytes(k, []byte("x"))
@@ -31,10 +35,17 @@ func retentionFixture(t *testing.T, present []string, all []string) (*config.Con
 		HistoryDBPath: historyPath,
 		Databases: map[string]config.BackupJob{
 			"gcs-job": {
-				Name:      "gcs-job",
-				Type:      "postgres",
-				Storage:   config.StorageConfig{Type: "gcs", GCSBucket: "bucket-a"},
-				Retention: config.RetentionPolicy{KeepLast: 1},
+				// Complete enough to survive config validation, so the same
+				// fixture can drive the command layer as well as the helpers.
+				Name:        "gcs-job",
+				Type:        "postgres",
+				Host:        "localhost",
+				Port:        5432,
+				Database:    "appdb",
+				Username:    "app",
+				PasswordEnv: "SENTINEL_TEST_RETENTION_PW",
+				Storage:     config.StorageConfig{Type: "gcs", GCSBucket: "bucket-a"},
+				Retention:   config.RetentionPolicy{KeepLast: 1},
 			},
 		},
 	}
@@ -123,4 +134,61 @@ func TestPartialFailureStillClearsHistoryForWhatWasDeleted(t *testing.T) {
 				"because another candidate in the same run failed")
 		}
 	}
+}
+
+// TestRetentionApplyAllExitsNonZeroOnFailure is the regression guard for #168.
+//
+// Per-job failures were collected, summarised as a single "retention completed
+// with errors" line carrying no detail, and then discarded: the command returned
+// nil and the process exited 0. The --job path exited 1 on the same failure, so
+// an operator who tested with --job saw correct behaviour and never learned this
+// path differed.
+//
+// Retention runs unattended, from cron or after a scheduled backup. Exiting 0 on
+// failure means nothing notices it has stopped working, and the first symptom is
+// a full disk rather than an alert. It is also what kept #182 quiet.
+func TestRetentionApplyAllExitsNonZeroOnFailure(t *testing.T) {
+	// "old.sql" is in history but absent from storage, so its deletion fails.
+	cfg, _, mon := retentionFixture(t, []string{"mid.sql", "new.sql"}, []string{"old.sql", "mid.sql", "new.sql"})
+
+	summary := applyAllRetention(context.Background(), cfg, mon, false)
+	if len(summary.Errors) == 0 {
+		t.Fatal("the failing job was not recorded in the summary")
+	}
+
+	// The command layer must turn that summary into a non-zero exit, and must
+	// print the detail rather than a bare "completed with errors" line.
+	cfgPath := writeRetentionConfig(t, cfg)
+	var out, errOut strings.Builder
+	cmd := &cobra.Command{RunE: func(c *cobra.Command, _ []string) error { return runRetention(c, false) }}
+	cmd.Flags().String("config", cfgPath, "")
+	cmd.Flags().String("job", "", "")
+	cmd.Flags().Bool("dry-run", false, "")
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	err := cmd.Execute()
+
+	if err == nil {
+		t.Error("retention apply across all jobs returned nil despite a failed job, so the " +
+			"process exits 0 and no cron entry will ever alert")
+	}
+	if !strings.Contains(errOut.String(), "old.sql") {
+		t.Errorf("the per-job detail was not printed, so nobody can tell which job failed.\n"+
+			"err: %v\nstdout: %s\nstderr: %s", err, out.String(), errOut.String())
+	}
+}
+
+// writeRetentionConfig serialises cfg to a YAML file so the command layer, which
+// loads from a path, can be driven against the same fixture the helper tests use.
+func writeRetentionConfig(t *testing.T, cfg *config.Configuration) string {
+	t.Helper()
+	body, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshalling config: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "sentinel.yaml")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	return path
 }

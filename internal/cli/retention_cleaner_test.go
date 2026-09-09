@@ -172,19 +172,55 @@ func TestDeleteRetentionCandidatesGCSDeleteFailure(t *testing.T) {
 	}
 }
 
-func TestDeleteRetentionCandidatesUnsupportedBackend(t *testing.T) {
+// TestDeleteRetentionCandidatesGoogleDriveIsSupported replaces a test that
+// asserted the opposite.
+//
+// The old TestDeleteRetentionCandidatesUnsupportedBackend required
+// "retention delete not supported" for google-drive, encoding #169 as intended
+// behaviour. It was not: the gdrive backend has always implemented Delete and
+// Exists, and only this switch lacked a case, so every Google Drive job computed
+// candidates and then failed at the deletion step. A user previewed a sensible
+// list and nothing was ever deleted.
+//
+// A test that pins a defect in place is worse than no test, because it makes the
+// defect look deliberate to whoever reads it next.
+func TestDeleteRetentionCandidatesGoogleDriveIsSupported(t *testing.T) {
+	mock := storagetesting.NewMockBackend()
+	mock.PutBytes("gdrive://folder/backup.sql", []byte("x"))
+	stubRetentionBackend(t, func(p *storage.BackendParams) (ports.StorageBackend, error) {
+		if p.StorageType != "google-drive" {
+			t.Errorf("backend built with StorageType %q, want google-drive", p.StorageType)
+		}
+		return mock, nil
+	})
+
 	deleted, errs := deleteRetentionCandidates(context.Background(), []domainret.BackupCandidate{{
 		FilePath: "gdrive://folder/backup.sql",
-	}}, config.StorageConfig{Type: "google-drive"})
+	}}, config.StorageConfig{Type: "google-drive", GDriveFolderID: "folder"})
+
+	if len(errs) != 0 {
+		t.Fatalf("google-drive retention returned errors: %v", errs)
+	}
+	if len(deleted) != 1 {
+		t.Fatalf("deleted = %d, want 1; google-drive jobs must be able to enforce a policy", len(deleted))
+	}
+	if _, still := mock.GetBytes("gdrive://folder/backup.sql"); still {
+		t.Error("the artifact is still in storage, so nothing was actually deleted")
+	}
+}
+
+// TestDeleteRetentionCandidatesTrulyUnsupportedBackend keeps the default branch
+// covered now that google-drive has left it.
+func TestDeleteRetentionCandidatesTrulyUnsupportedBackend(t *testing.T) {
+	deleted, errs := deleteRetentionCandidates(context.Background(), []domainret.BackupCandidate{{
+		FilePath: "ftp://host/backup.sql",
+	}}, config.StorageConfig{Type: "ftp"})
 
 	if len(deleted) != 0 {
-		t.Fatalf("expected no deletions for unsupported backend, got %d", len(deleted))
+		t.Fatalf("expected no deletions for an unsupported backend, got %d", len(deleted))
 	}
-	if len(errs) == 0 {
-		t.Fatal("expected unsupported backend delete error")
-	}
-	if !strings.Contains(errs[0].Error(), "retention delete not supported") {
-		t.Fatalf("unexpected error: %v", errs[0])
+	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "retention delete not supported") {
+		t.Fatalf("unexpected error: %v", errs)
 	}
 }
 

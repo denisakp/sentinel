@@ -78,6 +78,17 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 		_ = mon.Close()
 	}()
 
+	// Warn before previewing a policy that cannot be enforced. preview returns
+	// before storage is consulted, so it would otherwise present a confident
+	// candidate list for a backend whose deletion step will fail (#169).
+	for name, job := range cfg.Databases {
+		if !retentionEnabled(job.Retention) || retentionDeleteSupported(job.Storage.Type) {
+			continue
+		}
+		cmd.PrintErrf("warning: backup '%s' has a retention policy but retention cannot delete "+
+			"from storage type '%s'; candidates below will never be removed\n", name, job.Storage.Type)
+	}
+
 	ctx := context.Background()
 	if jobName != "" {
 		deleted, err := applyJobRetention(ctx, cfg, mon, jobName, dryRun)
@@ -89,13 +100,27 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 	}
 
 	summary := applyAllRetention(ctx, cfg, mon, dryRun)
-	if len(summary.Errors) > 0 {
-		cmd.PrintErrln("retention completed with errors")
-	}
 	for job, count := range summary.ByBackupJob {
 		cmd.Printf("%s: deleted %d backups\n", job, count)
 	}
 	cmd.Printf("total deleted: %d backups\n", summary.TotalDeleted)
+
+	// Per-job failures used to be collected, summarised as a single line with no
+	// detail, and then discarded: the command returned nil and exited 0. The
+	// single-job path exited 1 on the same failure, so an operator who tested
+	// with --job saw correct behaviour and never learned this path differed.
+	//
+	// Retention runs unattended. Exiting 0 on failure means nothing notices it
+	// has stopped working, and the first symptom is a full disk rather than an
+	// alert (#168).
+	if len(summary.Errors) > 0 {
+		cmd.PrintErrf("retention completed with errors (%d of %d job(s) with a policy failed):\n",
+			len(summary.Errors), len(summary.Errors)+len(summary.ByBackupJob))
+		for _, e := range summary.Errors {
+			cmd.PrintErrln("  " + e)
+		}
+		return fmt.Errorf("retention failed for %d job(s)", len(summary.Errors))
+	}
 	return nil
 }
 
