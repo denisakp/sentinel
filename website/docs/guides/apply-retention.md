@@ -125,15 +125,19 @@ again.
 `sentinel retention apply --dry-run` is the same code path as `preview`, with the header reading
 `retention apply for <job>` instead.
 
-:::danger The `dry_run` key in YAML is not a safety net
-`retention.dry_run: true` parses, validates, and participates in inheritance, and then is never
-consulted by the deletion path. Dry-run is decided entirely by the subcommand and the `--dry-run`
-flag. A job configured with `keep_last: 7` and `dry_run: true` is really deleted by
-`sentinel retention apply`, and by the automatic post-scheduled-backup sweep, which passes false
-unconditionally.
+:::note `retention.dry_run` is honoured, since the fix for issue #157
+A job carrying `dry_run: true` is never deleted from, by any path: not by
+`sentinel retention apply`, and not by the automatic sweep that runs after a scheduled backup.
 
-This is [issue #157](https://github.com/denisakp/sentinel/issues/157). Delete the key from your
-configuration so nobody trusts it, and use `sentinel retention preview` instead.
+The key and the `--dry-run` flag combine, and neither can cancel the other. Either one is enough to
+make a run report without deleting. Turning off a configured `dry_run: true` means editing the
+configuration file, which is deliberate: a safety switch that a flag could silently disable is not a
+safety switch.
+
+**On v1.4.0 and earlier the key was ignored and backups were deleted for real**, including under the
+post-backup sweep. If you are running one of those versions, do not rely on this key; use
+`sentinel retention preview` instead. Fixed by
+[issue #157](https://github.com/denisakp/sentinel/issues/157).
 :::
 
 ### 4. Let the scheduler take over

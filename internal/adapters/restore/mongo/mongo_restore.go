@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/sanitize"
 )
 
 // RestoreArgs holds arguments for MongoDB restore operations
@@ -160,7 +161,10 @@ func checkConnectivity(ctx context.Context, ra *RestoreArgs) error {
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot connect to MongoDB at URI %s - %w", ra.URI, err)
+		// ra.URI carries userinfo, so printing it verbatim leaked the password
+		// into the error and into logs (#156). The host and scheme stay visible,
+		// which is what makes the message useful; only the secret goes.
+		return fmt.Errorf("cannot connect to MongoDB at URI %s - %w", sanitize.RedactLog(ra.URI), err)
 	}
 
 	return nil

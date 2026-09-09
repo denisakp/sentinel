@@ -107,16 +107,18 @@ Five keys are worth pausing on, and two of them behave differently on MongoDB th
 - **`restore.staging_dir`** is where artifacts are staged before being applied. The default is
   `/tmp/sentinel`; pointing it at the working directory keeps the tutorial self-contained.
 
-:::danger A failed connectivity check prints the URI unredacted
+:::note A failed connectivity check redacts the password, since the fix for issue 156
 
 Before invoking `mongorestore`, Sentinel runs `mongosh` against the target and, on failure, reports
-`cannot connect to MongoDB at URI <uri>` with the URI exactly as configured. If your URI carries a
-password, that password is now in your terminal scrollback, your CI job log, and wherever those get
-shipped. Tracked as issue 156.
+`cannot connect to MongoDB at URI <uri>`. The URI now passes through redaction first, so the scheme,
+user and host remain visible and the password is replaced.
 
-Nothing on this page uses a password, which is the safest way to run a drill. On a real target:
-supply the URI through `uri_env` so it never enters the configuration file or shell history, treat
-any restore failure log as credential-bearing, and see
+**On v1.4.0 and earlier this message printed the URI exactly as configured**, putting any password it
+carried into terminal scrollback and CI logs. On those versions, treat any restore failure log as
+credential-bearing.
+
+Nothing on this page uses a password, which is the safest way to run a drill. On a real target,
+supply the URI through `uri_env` so it never enters the configuration file or shell history, and see
 [Credential sanitization](../../concepts/credential-sanitization.md) for what Sentinel does and does
 not redact.
 :::
