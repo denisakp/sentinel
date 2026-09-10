@@ -112,7 +112,13 @@ If it is empty for every window, check two things. `history_db_path` must be set
 
 ### `2026/08/05 21:44:36 WARN TLS not configured for database event=tls_not_configured database=shop`
 
-Informational, on stderr, emitted at config load by any command that reads the configuration. The job has no `tls:` block and will connect in the clear. It does not fail anything. Configure TLS on the job to silence it.
+Informational, on stderr, emitted at config load by any command that reads the configuration. The job
+will connect in the clear: either it has no `tls:` block, or it has one with `enabled: false`. It does
+not fail anything. Set `tls.enabled: true` on the job to silence it.
+
+On v1.4.0 and earlier the warning depended on the block being **present**, so `tls: {enabled: false}`
+silenced it while the connection stayed in plaintext, and so did a fully configured block, because the
+block never reached any engine. See [#189](https://github.com/denisakp/sentinel/issues/189).
 
 ### `Warning: SENTINEL_MASTER_KEY is already configured.`
 

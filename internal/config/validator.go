@@ -12,7 +12,6 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	backupincremental "github.com/denisakp/sentinel/internal/domain/backup/incremental"
-	"github.com/denisakp/sentinel/internal/ports"
 )
 
 var allowedPostgresOptions = map[string]bool{
@@ -110,20 +109,22 @@ func ValidateConfig(cfg *Configuration) error {
 			return fmt.Errorf("backup '%s': %w", name, err)
 		}
 
-		// T017: validate TLS configuration when present; warn when absent.
+		// T017: validate the TLS block when present, and warn whenever the
+		// connection will not actually be encrypted.
+		//
+		// The warning used to depend on the block's PRESENCE, so writing
+		// `tls: {enabled: false}` silenced it while leaving the connection in
+		// plaintext. Combined with the block never reaching any engine, someone
+		// hardening a deployment saw the warning stop and concluded it had worked
+		// (#189). What matters to an operator is whether the connection is
+		// encrypted, not whether a key exists in their file.
 		if job.TLS != nil {
-			tlsCfg := &ports.Config{
-				Enabled:              job.TLS.Enabled,
-				Mode:                 job.TLS.Mode,
-				CACertPath:           job.TLS.CACertPath,
-				ClientCert:           job.TLS.ClientCert,
-				ClientKey:            job.TLS.ClientKey,
-				ClientKeyPasswordEnv: job.TLS.ClientKeyPasswordEnv,
-			}
+			tlsCfg := TLSPortConfig(job.TLS)
 			if err := tlsCfg.Validate(); err != nil {
 				return fmt.Errorf("backup '%s': tls: %w", name, err)
 			}
-		} else {
+		}
+		if job.TLS == nil || !job.TLS.Enabled {
 			slog.Warn("TLS not configured for database",
 				"event", "tls_not_configured",
 				"database", name)

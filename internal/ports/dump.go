@@ -87,6 +87,15 @@ type DumpJobSpec struct {
 	Compress             bool   // pg + mongo
 	CompressionAlgorithm string // pg
 	CompressionLevel     int    // pg
+
+	// TLS is the job's transport-security configuration, nil when the job
+	// declares no `tls:` block.
+	//
+	// Every engine's args builder already consumed a TLS field and nothing ever
+	// populated one, so a `tls:` block reached the validator and stopped there:
+	// the connection was made in plaintext while the warning that would have said
+	// so was silenced by the block's mere presence (#189).
+	TLS *Config
 }
 
 // DumpArgsFactory translates a DumpJobSpec into the engine-specific dump-args
