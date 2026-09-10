@@ -8,6 +8,11 @@ import (
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
+// The local cases expect --archive, not --out.
+//
+// They asserted --out until #191: mongodump then wrote a DIRECTORY and produced
+// nothing on stdout, so the pipeline hashed empty output and recorded sha256("")
+// with a size of 0 for every local Mongo backup. The test pinned that in place.
 func Test_argsBuilder(t *testing.T) {
 
 	backupPath := filepath.Join("tmp", "backups")
@@ -24,30 +29,30 @@ func Test_argsBuilder(t *testing.T) {
 		{
 			name:    "Args with default URI (local)",
 			args:    &DumpMongoArgs{Compress: false, Storage: &storage.Params{OutName: "test.archive"}},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet"},
+			want:    []string{"--uri=mongodb://localhost:27017", "--archive=" + outPath, "--quiet"},
 			wantErr: false,
 		},
 		{
 			name: "Args with custom URI (local)",
 			args: &DumpMongoArgs{Uri: "mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", Compress: false, Storage: &storage.Params{OutName: "test.archive"}},
-			want: []string{"--uri=mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", "--out=" + outPath, "--quiet"},
+			want: []string{"--uri=mongodb://username@password:192.168.1.34:27017/?timeoutMS=5000", "--archive=" + outPath, "--quiet"},
 		},
 		{
 			name:    "Args with compression enabled (local)",
 			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: true, Storage: &storage.Params{OutName: "test.archive"}},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--gzip"},
+			want:    []string{"--uri=mongodb://localhost:27017", "--archive=" + outPath, "--quiet", "--gzip"},
 			wantErr: false,
 		},
 		{
 			name:    "Args with additional arguments (local)",
 			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin", Storage: &storage.Params{OutName: "test.archive"}},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--authenticationDatabase=admin"},
+			want:    []string{"--uri=mongodb://localhost:27017", "--archive=" + outPath, "--quiet", "--authenticationDatabase=admin"},
 			wantErr: false,
 		},
 		{
 			name:    "Remove duplicate arguments (local)",
 			args:    &DumpMongoArgs{Uri: "mongodb://localhost:27017", Compress: false, AdditionalArgs: "--authenticationDatabase=admin --authenticationDatabase=admin", Storage: &storage.Params{OutName: "test.archive"}},
-			want:    []string{"--uri=mongodb://localhost:27017", "--out=" + outPath, "--quiet", "--authenticationDatabase=admin"},
+			want:    []string{"--uri=mongodb://localhost:27017", "--archive=" + outPath, "--quiet", "--authenticationDatabase=admin"},
 			wantErr: false,
 		},
 		{

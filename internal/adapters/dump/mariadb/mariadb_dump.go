@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/streamsink"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/utils"
@@ -45,15 +46,6 @@ func Backup(ctx context.Context, prober ports.DBProber, mda *MariaDBDumpArgs) (s
 	cmd.Stderr = &stdErr
 
 	// capture command output
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
-
-	err = cmd.Run()
-	if err != nil {
-		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return "", fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
-	}
-
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
@@ -66,8 +58,38 @@ func Backup(ctx context.Context, prober ports.DBProber, mda *MariaDBDumpArgs) (s
 	// set output name with customizable extension (default is .sql)
 	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
 
-	// get the full path
+	// get the full path. This must be resolved BEFORE the dump runs: streaming to
+	// Storage.OutName instead wrote the artifact to a relative path, which lands in
+	// the process's working directory rather than the configured output directory.
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
+
+	// Local storage streams straight to the destination file, hashing on the way.
+	// Reading the whole dump into a bytes.Buffer first made peak memory track the
+	// uncompressed dump size, so a large database was killed by the OOM killer
+	// rather than failing with a useful error (#164).
+	//
+	// Remote storage still buffers, deliberately: that path writes through
+	// Storage.WriteBackup, whose object key is derived differently per backend, and
+	// converting it to a streaming Upload without untangling that first risks
+	// breaking remote backups that work today.
+	if streamsink.IsLocal(mda.Storage) {
+		digest, serr := streamsink.RunToSink(ctx, cmd, streamsink.Sink{LocalPath: fullPath})
+		if serr != nil {
+			redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+			return "", fmt.Errorf("failed to execute mariadb-dump command - %w, %s", serr, redacted)
+		}
+		fmt.Printf("Backup complete !\n")
+		return digest, nil
+	}
+
+	var stdOut bytes.Buffer
+	cmd.Stdout = &stdOut
+
+	err = cmd.Run()
+	if err != nil {
+		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+		return "", fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
+	}
 
 	sum := sha256.Sum256(stdOut.Bytes())
 	digest := hex.EncodeToString(sum[:])

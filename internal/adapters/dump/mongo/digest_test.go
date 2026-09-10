@@ -17,7 +17,18 @@ import (
 func installFakeMongodumpWithPayload(t *testing.T, payload string) {
 	t.Helper()
 	dir := t.TempDir()
-	script := fmt.Sprintf("#!/bin/sh\nprintf %%s %q\n", payload)
+	// Honour --archive like the real mongodump: write the payload to the named
+	// file. The old stub printed to stdout, which matched the --out behaviour the
+	// local path used to have, where mongodump produced a directory and nothing on
+	// stdout at all (#191).
+	script := fmt.Sprintf(`#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    --archive=*) printf %%s %q > "${arg#--archive=}"; exit 0 ;;
+  esac
+done
+printf %%s %q
+`, payload, payload)
 	if err := os.WriteFile(filepath.Join(dir, "mongodump"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake mongodump: %v", err)
 	}
