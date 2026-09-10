@@ -196,12 +196,15 @@ raw stored bytes went to the restore tool. Confirm that `<object>.manifest.json`
 artifact in the bucket. A missing sidecar is deliberately not an error, which is what makes this
 failure look like a corrupt backup rather than a missing file.
 
-**The job is disabled and ran anyway.** `sentinel restore run <job-name>` does not consult `enabled`;
-that flag governs only `--all` and the scheduler
-([issue #139](https://github.com/denisakp/sentinel/issues/139)). There is no command that enables or
-disables a job: `restore enable`, `disable`, `pause` and `resume` were removed because they printed
-success and changed nothing ([issue #137](https://github.com/denisakp/sentinel/issues/137)). Only the
-YAML has any effect.
+**The job is refused as disabled.** `sentinel restore run <job-name>` consults `enabled` and refuses
+a job set to `enabled: false`, before anything is locked or staged. Set `enabled: true` in the YAML,
+which is the only thing that controls it: `restore enable`, `disable`, `pause` and `resume` were
+removed because they printed success and changed nothing
+([issue #137](https://github.com/denisakp/sentinel/issues/137)).
+
+**On v1.4.0 and earlier a disabled job ran anyway** on an explicit invocation, because `enabled`
+governed only `--all` and the scheduler
+([issue #139](https://github.com/denisakp/sentinel/issues/139)).
 
 ## Related
 

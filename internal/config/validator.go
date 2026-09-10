@@ -312,17 +312,24 @@ func validateAdvancedRestoreOptions(job RestoreJob) error {
 		}
 		return nil
 	case "incremental":
+		// Only postgres, matching the planner. This whitelisted all four engines
+		// while domain/restore.planIncremental rejects anything but postgres with
+		// ReasonCodeUnsupportedDatabaseType, so a MySQL, MariaDB or MongoDB
+		// incremental job validated cleanly and failed at `restore run` instead
+		// (#186). For a restore, that is the worst available moment to learn the
+		// mode was never supported.
+		//
+		// The pitr branch above already restricts to postgres at validation; this
+		// is the same rule applied to the sibling mode.
+		if job.Type != "postgres" {
+			return fmt.Errorf("restore_mode incremental is currently supported only for postgres, "+
+				"not '%s': use restore_mode full for this engine", job.Type)
+		}
 		if job.IncrementalFromBackup == "" {
 			return fmt.Errorf("incremental_from_backup is required when restore_mode is incremental")
 		}
 		if job.PITRTimestamp != "" || job.PITRTargetTimeline != "" {
 			return fmt.Errorf("pitr fields are only valid when restore_mode is pitr")
-		}
-		switch job.Type {
-		case "postgres", "mysql", "mariadb", "mongodb":
-			// Supported for advanced incremental planning.
-		default:
-			return fmt.Errorf("restore_mode incremental is not supported for type '%s'", job.Type)
 		}
 		return nil
 	default:

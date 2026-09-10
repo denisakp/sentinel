@@ -129,17 +129,21 @@ for two different reasons.
 Error: invalid config "sentinel.yaml": restore 'app-inc': restore_mode pitr is currently supported only for postgres
 ```
 
-`restore_mode: incremental`, by contrast, is *accepted* at configuration load for all four engines,
-and then rejected by the planner:
+`restore_mode: incremental` is refused the same way, and for the same reason:
 
 ```text
-Error: chain validation failed: status=rejected reason=unsupported_database_type
+Error: invalid config "sentinel.yaml": restore 'app-inc': restore_mode incremental is currently supported only for postgres, not 'mysql': use restore_mode full for this engine
 ```
 
-The two layers disagree: the configuration validator lists MySQL, MariaDB and MongoDB as supported
-for incremental planning, while the planner accepts only PostgreSQL. `sentinel restore dry-run`
-does not plan, so it prints `Restore Mode: incremental` for a MySQL job without any warning that the
-mode cannot execute. The binlog and oplog replay code is dead from the configuration surface.
+**On v1.4.0 and earlier the two layers disagreed.** The validator listed MySQL, MariaDB and MongoDB
+as supported for incremental planning while the planner accepted only PostgreSQL, so a job validated
+cleanly and was then rejected at run time with
+`status=rejected reason=unsupported_database_type`. `sentinel restore dry-run` does not plan, so it
+printed `Restore Mode: incremental` for a MySQL job with no warning at all, and the failure arrived
+at `restore run`, which for a restore is the worst place to learn the mode was never supported.
+Fixed by [issue #186](https://github.com/denisakp/sentinel/issues/186).
+
+The binlog and oplog replay code remains unreachable from the restore configuration surface.
 
 ## Per-engine behaviour
 

@@ -69,13 +69,18 @@ func TestValidateConfig_AdvancedRestoreRules(t *testing.T) {
 			wantErrPart: "incremental_from_backup is required",
 		},
 		{
-			name: "incremental mysql allowed",
+			// Was "incremental mysql allowed", asserting this validated cleanly.
+			// That encoded #186: the planner rejects any engine but postgres with
+			// ReasonCodeUnsupportedDatabaseType, so a clean validation here meant
+			// the failure arrived at `restore run` instead. A test that pins a
+			// defect makes it look deliberate to the next reader.
+			name: "incremental rejected for mysql, the planner cannot run it",
 			mutate: func(job *RestoreJob) {
 				job.Type = "mysql"
 				job.RestoreMode = "incremental"
 				job.IncrementalFromBackup = "baseline-1"
 			},
-			wantErrPart: "",
+			wantErrPart: "supported only for postgres",
 		},
 		{
 			name: "binlog selectors mutually exclusive",
@@ -97,14 +102,18 @@ func TestValidateConfig_AdvancedRestoreRules(t *testing.T) {
 			wantErrPart: "only valid for mysql or mariadb",
 		},
 		{
-			name: "mariadb binlog target position accepted",
+			// Was "mariadb binlog target position accepted", expecting no error.
+			// The position itself is well formed and passes its own validation;
+			// what fails is the mode, because only postgres can be planned
+			// incrementally (#186).
+			name: "incremental rejected for mariadb even with a valid binlog position",
 			mutate: func(job *RestoreJob) {
 				job.Type = "mariadb"
 				job.RestoreMode = "incremental"
 				job.IncrementalFromBackup = "baseline-1"
 				job.MySQL.BinlogTargetPosition = &BinlogTargetPosition{File: "mariadb-bin.000101", Pos: 1234}
 			},
-			wantErrPart: "",
+			wantErrPart: "supported only for postgres",
 		},
 		{
 			name: "binlog target position requires file and pos",
