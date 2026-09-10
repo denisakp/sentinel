@@ -173,11 +173,15 @@ Raised at configuration load for MySQL, MariaDB, and MongoDB. It is the earlier 
 
 The restore job requests `restore_mode: incremental` on MySQL, MariaDB, or MongoDB. Configuration validation accepts those engines; the planner accepts only PostgreSQL. The two layers disagree, and the planner wins.
 
-### `Error: backup "shop.sql" not found in local source: restore source object not found: backups/shop.sql`
+### `Error: verification handler is required for restore mode "incremental"`
 
-An incremental restore that planned successfully, and failed while staging its baseline. The baseline is recorded as the path the backup was written to, then resolved a second time relative to the source root. Tracked as issue #150.
+An incremental restore that planned, staged its whole chain, and ran the engine restore, then stopped at the post-restore verification gate. Incremental mode requires a verification handler and no call site supplies one. Tracked as issue #149.
 
-To recover data from a chain today, point a restore job at the target artifact with `restore_mode: full`.
+**The target database has already been written to when this is reported.** The command exits non-zero, but the restore itself happened. Check the target before retrying, and do not assume the failure means nothing changed.
+
+This message replaced `Error: backup "shop.sql" not found in local source: restore source object not found: backups/shop.sql`, which was the same job failing earlier, during staging, because the baseline was recorded from the backup's root and resolved against the restore source's root. That was issue #150 and it is fixed.
+
+To recover data from a chain predictably today, point a restore job at the target artifact with `restore_mode: full`.
 
 ### `required_tool_missing: pg_combinebackup`, or `required_tool_missing: mysqlbinlog`
 

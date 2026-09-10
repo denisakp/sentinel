@@ -449,3 +449,54 @@ func runResolveCase(t *testing.T, backupID string, paths []string, wantPath stri
 		t.Fatalf("expected an error matching none of %v, got nil error", errNotIs)
 	}
 }
+
+// The full shape of #150, through the staging path rather than the resolver
+// alone: a backup records its baseline as <local_path>/<out_name>, the
+// restore source lists relative to its own local_path, and the manifest
+// sidecar sits beside the artifact. Before the fix this returned
+// ErrSourceObjectNotFound for a file present on disk, and fixing only the
+// root mismatch turned that into ErrAmbiguousBackupID.
+func TestStageChainArtifacts_StagesABaselineRecordedFromTheBackupRoot(t *testing.T) {
+	root := t.TempDir()
+	sourceDir := filepath.Join(root, "backups")
+	stagingDir := filepath.Join(root, "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	for _, name := range []string{"shop.sql", "shop.sql.manifest.json", "shop-incr.sql"} {
+		if err := os.WriteFile(filepath.Join(sourceDir, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+
+	// What the backup wrote into the execution history: joined with its own
+	// local_path, which is the directory the restore source lists from.
+	baselineID := filepath.Join("backups", "shop.sql")
+
+	artifacts, err := StageChainArtifacts(context.Background(), config.RestoreJob{
+		Name:       "restore-job",
+		StagingDir: stagingDir,
+		BackupSource: config.RestoreBackupSource{
+			Type:      "local",
+			LocalPath: sourceDir,
+		},
+	}, []string{baselineID, "shop-incr.sql"})
+	if err != nil {
+		t.Fatalf("StageChainArtifacts() error = %v, want the chain staged", err)
+	}
+	if len(artifacts) != 2 {
+		t.Fatalf("StageChainArtifacts() staged %d artifacts, want 2", len(artifacts))
+	}
+	if artifacts[0].SourcePath != "shop.sql" {
+		t.Fatalf("baseline resolved to %q, want %q", artifacts[0].SourcePath, "shop.sql")
+	}
+	// The sidecar rides along as the artifact's manifest, not as a chain member.
+	if artifacts[0].ManifestPath == "" {
+		t.Fatal("baseline staged without its manifest sidecar")
+	}
+	for _, artifact := range artifacts {
+		if _, statErr := os.Stat(artifact.Path); statErr != nil {
+			t.Fatalf("staged artifact %s not on disk: %v", artifact.Path, statErr)
+		}
+	}
+}

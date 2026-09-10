@@ -29,9 +29,12 @@ should observe, rather than showing a transcript nobody produced.
 
 Where a step cannot work in the current release, the track says so and shows the real failure instead
 of skipping it. That happens more than it should: point-in-time recovery cannot be planned for any
-engine ([#148](https://github.com/denisakp/sentinel/issues/148)), and incremental restore fails while
-staging its baseline ([#150](https://github.com/denisakp/sentinel/issues/150)). Incremental *backup*
-works, and each track covers it.
+engine ([#148](https://github.com/denisakp/sentinel/issues/148)), and incremental restore now stages
+its chain and restores it before failing at the verification gate
+([#149](https://github.com/denisakp/sentinel/issues/149)), which means a failed run has still changed
+the target. The staging failure that used to come first
+([#150](https://github.com/denisakp/sentinel/issues/150)) is fixed. Incremental *backup* works, and
+each track covers it.
 
 ## Before you start
 

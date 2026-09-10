@@ -15,11 +15,15 @@ on either.
 written into every manifest and every history row, and `sentinel restore validate-chain` correctly
 accepts a sound chain and rejects a broken one.
 
-**The restore half does not.** Point-in-time recovery cannot be planned for any engine, on any
-artifact, at any timestamp (issue #148). Incremental restore is accepted by the planner on
-PostgreSQL, then fails while staging its baseline (issue #150). On MySQL, MariaDB and MongoDB it is
-never planned at all. Treat incremental backup as lineage bookkeeping that makes a *full* restore
-better informed, not as a recovery mechanism you can execute today.
+**The restore half still cannot complete.** Point-in-time recovery cannot be planned for any
+engine, on any artifact, at any timestamp (issue #148). Incremental restore on PostgreSQL now plans
+and stages its whole chain correctly (issue #150, fixed), runs the engine restore, and then fails at
+the post-restore verification gate: incremental mode requires a verification handler and no call
+site supplies one (issue #149). **The data has already been written to the target when that failure
+is reported**, which is a change from the earlier behaviour, where staging failed before anything
+was touched. On MySQL, MariaDB and MongoDB incremental restore is never planned at all. Treat
+incremental backup as lineage bookkeeping that makes a *full* restore better informed, not as a
+recovery mechanism you can execute today.
 :::
 
 ## Why it exists
@@ -102,18 +106,25 @@ There is no configuration that works around this, because the rejection does not
 configuration you control. The project README advertises point-in-time recovery as a headline
 capability; it is not usable in this release. Tracked as issue #148.
 
-### Incremental restore fails while staging its baseline
+### Incremental restore stages its chain, then fails verification
 
-On PostgreSQL, planning succeeds. Execution does not. The baseline is recorded in the manifest as
-the path the backup was written to, for example `backups/shop.sql`, and staging then resolves that
-value again relative to the source root:
+On PostgreSQL, planning succeeds and staging now succeeds with it. Issue #150 is fixed: a baseline
+recorded as `backups/shop.sql` and listed by the restore source as `shop.sql` is recognised as the
+same file, and the manifest sidecar beside it is no longer mistaken for a second candidate artifact.
+
+Execution still does not finish. After the engine restore has run, the executor requires a
+post-restore verification handler for `incremental` mode, and no call site wires one:
 
 ```text
-Error: backup "shop.sql" not found in local source: restore source object not found: backups/shop.sql
+Error: verification handler is required for restore mode "incremental"
 ```
 
-The same planning that `restore validate-chain` reports as valid therefore cannot be executed.
-Tracked as issue #150. To recover data from a chain today, restore the target artifact with a plain
+Tracked as issue #149. Note where in the sequence this now happens: the target database has already
+been restored when the command reports failure. Before the #150 fix the job failed during staging,
+before any write. A failed incremental restore is therefore no longer a no-op, and you should treat
+the target as modified.
+
+To recover data from a chain predictably today, restore the target artifact with a plain
 `restore_mode: full` job. The chain metadata still earns its keep by telling you which artifacts
 belong together.
 
@@ -149,7 +160,7 @@ The binlog and oplog replay code remains unreachable from the restore configurat
 
 | Engine | Change mechanism | Side artifact written at backup time | Incremental backup | Incremental restore | PITR plannable |
 |---|---|---|---|---|---|
-| PostgreSQL | WAL summarisation (PostgreSQL 17+, server-side `summarize_wal=on`) | None: change data stays in the WAL | Yes | No: plans, then fails staging the baseline (issue #150) | No (issue #148) |
+| PostgreSQL | WAL summarisation (PostgreSQL 17+, server-side `summarize_wal=on`) | None: change data stays in the WAL | Yes | No: plans and stages, then fails post-restore verification after the data has landed (issue #149) | No (issue #148) |
 | MySQL | Binary logs | `<artifact>.binlogs.tar` | Yes, requires `mysql.binlog_path` | No: planner rejects with `unsupported_database_type` | No: rejected at config load, and issue #148 |
 | MariaDB | Binary logs | `<artifact>.binlogs.tar` | Yes, requires `mysql.binlog_path` | No: planner rejects with `unsupported_database_type` | No: rejected at config load, and issue #148 |
 | MongoDB | Oplog | `<artifact>.oplog.archive` | Yes, requires a replica set | No: planner rejects with `unsupported_database_type` | No: rejected at config load, and issue #148 |
@@ -158,8 +169,12 @@ Any engine outside these four is rejected at configuration load with `incrementa
 supported for database type '<type>'`.
 
 MySQL and MariaDB are deliberately identical here: the same archiver walks the binlog directory,
-tars every `mysql-bin.*` or `mariadb-bin.*` file it finds, and records the first and last filenames
-in the manifest. PostgreSQL is the outlier in the other direction, writing no side artifact at all.
+tars every binary log segment it finds, and records the first and last filenames in the manifest. A
+segment is any file whose name ends in a numbered suffix of six digits or more, which is the form
+every server uses whatever `log_bin_basename` is set to: stock MySQL 8's `binlog.000001` as much as
+`mysql-bin.000001` or a custom basename. The server's own `.index` file is read when it is present
+and is never packed into the archive. Until issue #190 was fixed only the `mysql-bin.` and
+`mariadb-bin.` prefixes matched, so a default MySQL 8 install archived nothing. PostgreSQL is the outlier in the other direction, writing no side artifact at all.
 
 ### Prerequisites that are declared but not checked
 
@@ -268,8 +283,8 @@ Incremental chain is valid for restore job "shop-chain"
 ```
 
 This is the useful end of incremental support today: the chain is real, ordered, and checkable.
-Running `sentinel restore run shop-chain` against that same validated chain fails while staging the
-baseline, as described above.
+Running `sentinel restore run shop-chain` against that same validated chain now stages the whole
+chain and restores it, then fails at the verification gate, as described above.
 
 ## Failure modes
 
@@ -279,9 +294,10 @@ fixable by configuration. No manifest Sentinel writes declares the `pitr` capabi
 **`status=rejected reason=unsupported_database_type`.** The restore job requests `incremental` on
 MySQL, MariaDB, or MongoDB. Configuration validation accepted it; the planner does not.
 
-**`backup "<name>" not found in local source`, on an incremental restore that validated.** The
-baseline path is resolved twice against the source root. Issue #150. Restore the artifact with a
-`full` job instead.
+**`verification handler is required for restore mode "incremental"`.** Staging and the engine
+restore both succeeded; the executor then demanded a post-restore verification handler that no call
+site provides. Issue #149. **The target has already been written to.** This replaced the earlier
+`backup "<name>" not found in local source` failure, which was issue #150 and is fixed.
 
 **`status=rejected reason=missing_incremental_baseline`.** The artifact the job points at has no
 baseline. This is the correct answer immediately after a chain reset, when the newest artifact is a
@@ -305,9 +321,11 @@ unsupported. A retention sweep that removed a mid-chain artifact is the usual ca
 `binlog_path_unreadable`.** MySQL or MariaDB incrementals cannot read the binary log directory. These
 fire at configuration load, which makes them the one prerequisite class you can rely on.
 
-**`no_binlog_files_found in <dir>`.** The directory exists but holds nothing matching `mysql-bin.*`
-or `mariadb-bin.*`. Binary logging is probably off; nothing checked, because the `log_bin` check is
-hard-coded to pass.
+**`no_binlog_files_found in <dir>`.** The directory exists but holds no binary log segment: no
+file with a numbered suffix of six digits or more, and nothing listed by a `.index` file there.
+Binary logging is probably off; nothing checked it, because the `log_bin` check is hard-coded to
+pass. This message no longer means the segments are simply named something other than `mysql-bin.*`,
+which was issue #190 and is fixed.
 
 **`mongodump oplog capture failed`.** Almost always a standalone `mongod`, which has no
 `local.oplog.rs` to dump. Configuration validation does not catch this.

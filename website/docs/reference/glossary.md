@@ -98,8 +98,10 @@ idea. Each entry links to the page that explains it in depth.
 
 **Incremental backup**
 : A backup capturing only what changed since the previous one in its chain, using the engine's own
-  change log. Works on all four engines. Incremental *restore* is a separate matter, and currently
-  fails ([#150](https://github.com/denisakp/sentinel/issues/150)). See
+  change log. Works on all four engines. Incremental *restore* is a separate matter: on PostgreSQL
+  it now plans, stages and restores, then fails at the post-restore verification gate
+  ([#149](https://github.com/denisakp/sentinel/issues/149)), leaving the target modified. The staging
+  failure that preceded it ([#150](https://github.com/denisakp/sentinel/issues/150)) is fixed. See
   [Incremental and PITR](../concepts/incremental-pitr.md).
 
 ## L
