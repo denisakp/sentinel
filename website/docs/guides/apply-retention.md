@@ -1,6 +1,6 @@
 ---
 title: Applying a retention policy
-description: "Preview and apply backup retention safely, including the flat-rule trap and the dry-run key that does nothing."
+description: "Preview and apply backup retention safely, including the flat-rule trap and how the dry-run key behaves across versions."
 sidebar_position: 9
 ---
 

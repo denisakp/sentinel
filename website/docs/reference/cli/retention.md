@@ -1,6 +1,6 @@
 ---
 title: sentinel retention
-description: Reference for sentinel retention preview and apply, every flag, the rules that select deletion candidates, and four known defects.
+description: Reference for sentinel retention preview and apply, every flag, the rules that select deletion candidates, and two remaining known defects.
 sidebar_position: 6
 ---
 

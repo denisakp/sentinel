@@ -15,6 +15,17 @@ jobs:
     steps:
       - name: install database client tools
         run: |
+          # The runner image preinstalls third-party apt sources this project does
+          # not use (Chrome, Microsoft, and others). apt-get update fails the whole
+          # step when any one of their indexes is unavailable, so an outage on a
+          # repository we never install from takes the integration suite down.
+          # Observed 2026-09-09: "Failed to fetch dl.google.com/linux/chrome-stable
+          # ... Hash Sum mismatch", reproducible across re-runs, blocking every PR.
+          #
+          # Everything installed below comes from Ubuntu's own repositories or from
+          # a direct download, so dropping the extras costs nothing and removes a
+          # dependency on vendors unrelated to this project.
+          sudo rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
           sudo apt-get update
           sudo apt-get install -y postgresql-client mysql-client
 
