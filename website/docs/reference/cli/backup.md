@@ -87,6 +87,7 @@ Exit codes: `0` success, `2` backup ID not found, `3` verification skipped (no m
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--config` | string | n/a | Path to the YAML configuration file. Required. |
 | `-h`, `--help` | bool | `false` | Print help for `chain-status`. |
 | `--job` | string | n/a | Configured backup job name. Required. |
 
@@ -95,17 +96,21 @@ Exit codes: `0` success, `2` backup ID not found, `3` verification skipped (no m
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--chain-id` | string | n/a | Incremental chain ID to list. Required. |
+| `--config` | string | n/a | Path to the YAML configuration file. Required. |
 | `-h`, `--help` | bool | `false` | Print help for `chain-list`. |
 
 ### `sentinel backup force-full`
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--config` | string | n/a | Path to the YAML configuration file. Required. |
 | `-h`, `--help` | bool | `false` | Print help for `force-full`. |
 | `--job` | string | n/a | Configured backup job name. Required. |
 
-:::caution `chain-status`, `chain-list`, and `force-full` require a config they cannot receive
-All three handlers reject the run with `Error: --config is required`, but none of them registers a `--config` flag and `backup`'s own `--config` is a local flag rather than a persistent one, so passing `--config` returns `Error: unknown flag: --config`. As of v1.4.0 these three subcommands cannot complete. Use `sentinel monitor` to inspect chain metadata in the meantime.
+:::note `chain-status`, `chain-list` and `force-full` accept `--config`, since the fix for issue #136
+Each declares its own `--config`, required, alongside its `--job` or `--chain-id`.
+
+**On v1.4.0 and earlier none of them could be invoked at all.** They read `--config` in their handlers but never registered it, and `backup`'s own `--config` is a local flag rather than a persistent one, so a subcommand did not inherit it: omitting the flag failed with `Error: --config is required` and passing it failed with `Error: unknown flag: --config`. On those versions use `sentinel monitor` to inspect chain metadata.
 :::
 
 ### `sentinel backup diff <id1> <id2>`

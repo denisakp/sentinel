@@ -273,10 +273,14 @@ takes; lengthen the interval or raise the ceiling.
 **`schedule status` reports a restore job as not found.** Expected. That command registers backup
 jobs only. Use `sentinel schedule list`.
 
-**`restore enable`, `disable`, `pause`, and `resume` appear to succeed but change nothing.** These
-subcommands print a confirmation and return without modifying your configuration or any running
-scheduler. Treat the `enabled` key in YAML as the only control, and restart the scheduler after
-editing it.
+**There is no command that enables, disables, pauses or resumes a restore job.** The `enabled` key in
+YAML is the only control; restart the scheduler after editing it.
+
+**On v1.4.0 and earlier, `restore enable`, `disable`, `pause` and `resume` existed** and printed a
+confirmation without modifying the configuration or any running scheduler. They were removed rather
+than left in place, since a command that reports success while changing nothing is worse than an
+absent one ([issue #137](https://github.com/denisakp/sentinel/issues/137)). A script that still calls
+one now fails with `unknown command` and a non-zero exit.
 
 **`scheduler.max_concurrent_backups` seems to have no effect.** The running loop sizes its backup
 pool from the **top-level** `max_concurrent_backups`. Set that key; the value under `scheduler:` is
