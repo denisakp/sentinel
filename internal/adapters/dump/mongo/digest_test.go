@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -44,7 +45,7 @@ func TestBackup_LocalReturnsInlineDigest(t *testing.T) {
 			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(prober, &DumpMongoArgs{
+			digest, err := Backup(context.Background(), prober, &DumpMongoArgs{
 				Uri: "mongodb://stub",
 				Storage: &storage.Params{
 					StorageType: "local",
@@ -72,7 +73,7 @@ func TestBackup_RemoteReturnsEmptyDigest(t *testing.T) {
 	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
-	digest, err := Backup(prober, &DumpMongoArgs{
+	digest, err := Backup(context.Background(), prober, &DumpMongoArgs{
 		Uri: "mongodb://stub",
 		Storage: &storage.Params{
 			StorageType: "s3",

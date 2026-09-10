@@ -175,7 +175,7 @@ var BackupCmd = &cobra.Command{
 				Storage:              params,
 			}
 
-			_, err = pg.Backup(dbprobe.NewAdapter(), pda)
+			_, err = pg.Backup(cmd.Context(), dbprobe.NewAdapter(), pda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -193,7 +193,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mysql.Backup(dbprobe.NewAdapter(), mda)
+			_, err = mysql.Backup(cmd.Context(), dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -211,7 +211,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mariadb.Backup(dbprobe.NewAdapter(), mda)
+			_, err = mariadb.Backup(cmd.Context(), dbprobe.NewAdapter(), mda)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -229,7 +229,7 @@ var BackupCmd = &cobra.Command{
 				Storage:        params,
 			}
 
-			_, err = mongo.Backup(dbprobe.NewAdapter(), da)
+			_, err = mongo.Backup(cmd.Context(), dbprobe.NewAdapter(), da)
 			if err != nil {
 				cmd.PrintErrln(err)
 				return err
@@ -316,7 +316,7 @@ func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) erro
 		if job.Enabled != nil && !*job.Enabled {
 			continue
 		}
-		if err := executeBackupJobWithMode(cmd, cfg, job, executionModeConfig, backupRunOptions{}); err != nil {
+		if err := executeBackupJobWithMode(cmd.Context(), cmd, cfg, job, executionModeConfig, backupRunOptions{}); err != nil {
 			return err
 		}
 	}
@@ -324,23 +324,29 @@ func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) erro
 	return nil
 }
 
-func executeBackupJobWithMode(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
+// executeBackupJobWithMode runs one configured backup job.
+//
+// ctx carries the job deadline. It reaches the dump subprocess through
+// BuildContext, so cancelling it actually kills a hung pg_dump; the Run calls
+// below used to pass context.Background() unconditionally, which is one of the
+// three places scheduler.job_timeout_minutes was severed (#194).
+func executeBackupJobWithMode(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	if err := applyCLIOverrides(cmd, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
 	if job.Database == "*" {
-		return executeAutoDiscovery(cmd, cfg, job, mode, opts)
+		return executeAutoDiscovery(ctx, cmd, cfg, job, mode, opts)
 	}
 
-	return executeSingleBackupJob(cmd, cfg, job, mode, opts)
+	return executeSingleBackupJob(ctx, cmd, cfg, job, mode, opts)
 }
 
 // executeSingleBackupJob is the carved driving-adapter body: parse flags →
 // translate to domain Job → factory → Executor.Run.
 // Orchestration (dump, manifest, encryption, record, notify) lives in
 // internal/domain/backup.Executor.
-func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
+func executeSingleBackupJob(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
@@ -357,7 +363,7 @@ func executeSingleBackupJob(cmd *cobra.Command, cfg *config.Configuration, job c
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
-	res, backupErr := be.exec.Run(context.Background(), be.job)
+	res, backupErr := be.exec.Run(ctx, be.job)
 	reportBackupRunDiagnostics(cmd, be, res)
 	if mode == executionModeScheduled && backupErr == nil {
 		runScheduledRetention(cmd, cfg, job)
@@ -446,20 +452,20 @@ func reportBackupRunDiagnostics(cmd *cobra.Command, be *backupExecution, res bac
 	}
 }
 
-func executeAutoDiscovery(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
+func executeAutoDiscovery(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	strategy := job.Strategy
 	if strategy == "" {
 		strategy = "individual"
 	}
 
 	if strategy == "single" {
-		return executeAutoDiscoverySingle(cmd, cfg, job, mode, opts)
+		return executeAutoDiscoverySingle(ctx, cmd, cfg, job, mode, opts)
 	}
 
-	return executeAutoDiscoveryIndividual(cmd, cfg, job, mode, opts)
+	return executeAutoDiscoveryIndividual(ctx, cmd, cfg, job, mode, opts)
 }
 
-func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
+func executeAutoDiscoveryIndividual(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	databaseNames, err := listDatabases(job)
 	if err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
@@ -469,7 +475,7 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 		childJob := job
 		childJob.Database = dbName
 		childJob.Strategy = ""
-		if err := executeSingleBackupJob(cmd, cfg, childJob, mode, opts); err != nil {
+		if err := executeSingleBackupJob(ctx, cmd, cfg, childJob, mode, opts); err != nil {
 			return err
 		}
 	}
@@ -481,7 +487,7 @@ func executeAutoDiscoveryIndividual(cmd *cobra.Command, cfg *config.Configuratio
 // (one dump-all artifact). Same factory + Run shape as
 // executeSingleBackupJob; the dump-all entry points (no port-side Build)
 // are adapted via a dumpBuilderFunc closure.
-func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
+func executeAutoDiscoverySingle(ctx context.Context, cmd *cobra.Command, cfg *config.Configuration, job config.BackupJob, mode backupExecutionMode, opts backupRunOptions) error {
 	storageParams := config.BuildStorageParams(job)
 	if err := applyStorageOverrides(cmd, storageParams, &job); err != nil {
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
@@ -498,7 +504,7 @@ func executeAutoDiscoverySingle(cmd *cobra.Command, cfg *config.Configuration, j
 		return fmt.Errorf("backup '%s': %w", job.Name, err)
 	}
 
-	res, backupErr := be.exec.Run(context.Background(), be.job)
+	res, backupErr := be.exec.Run(ctx, be.job)
 	reportBackupRunDiagnostics(cmd, be, res)
 	if mode == executionModeScheduled && backupErr == nil {
 		runScheduledRetention(cmd, cfg, job)
@@ -542,8 +548,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			AdditionalArgs: pgArgs.AdditionalArgs,
 			Storage:        pgArgs.Storage,
 		}
-		return pgArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
-			digest, err := pg.BackupAll(allArgs)
+		return pgArgs, dumpBuilderFunc(func(bc ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := pg.BackupAll(dumpCtx(bc), allArgs)
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mysql":
@@ -557,8 +563,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			AdditionalArgs: mysqlArgs.AdditionalArgs,
 			Storage:        mysqlArgs.Storage,
 		}
-		return mysqlArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
-			digest, err := mysql.BackupAll(allArgs)
+		return mysqlArgs, dumpBuilderFunc(func(bc ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mysql.BackupAll(dumpCtx(bc), allArgs)
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mariadb":
@@ -572,8 +578,8 @@ func buildAllDump(cmd *cobra.Command, job config.BackupJob, storageParams *stora
 			AdditionalArgs: mariaArgs.AdditionalArgs,
 			Storage:        mariaArgs.Storage,
 		}
-		return mariaArgs, dumpBuilderFunc(func(_ ports.BuildContext) (ports.BuildResult, error) {
-			digest, err := mariadb.BackupAll(allArgs)
+		return mariaArgs, dumpBuilderFunc(func(bc ports.BuildContext) (ports.BuildResult, error) {
+			digest, err := mariadb.BackupAll(dumpCtx(bc), allArgs)
 			return ports.BuildResult{Digest: digest}, err
 		}), nil
 	case "mongodb":
@@ -839,7 +845,7 @@ func handleBackupForceFull(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("backup job %q not found", jobName)
 	}
 
-	if err := executeBackupJobWithMode(cmd, cfg, job, executionModeConfig, backupRunOptions{forceFull: true}); err != nil {
+	if err := executeBackupJobWithMode(cmd.Context(), cmd, cfg, job, executionModeConfig, backupRunOptions{forceFull: true}); err != nil {
 		return err
 	}
 
@@ -972,4 +978,17 @@ func latestSuccessfulExecution(executions []ports.Execution) *ports.Execution {
 
 func isSuccessfulStatus(status string) bool {
 	return status == "success" || status == ports.StatusCompleted
+}
+
+// dumpCtx returns the cancellation context the dump port carried, falling back to
+// a background context when the caller supplied none.
+//
+// The dump-all closures used to discard the BuildContext outright and start the
+// subprocess with exec.Command, so no deadline could reach a running dump and
+// scheduler.job_timeout_minutes was unenforceable whatever it was set to (#194).
+func dumpCtx(bc ports.BuildContext) context.Context {
+	if bc.Context != nil {
+		return bc.Context
+	}
+	return context.Background()
 }

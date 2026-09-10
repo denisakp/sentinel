@@ -2,14 +2,15 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os/exec"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -48,13 +49,13 @@ func argsBuilderAll(mda *MySqlDumpAllArgs) ([]string, error) {
 }
 
 // BackupAll backs up all MySQL databases using mysqldump --all-databases.
-func BackupAll(mda *MySqlDumpAllArgs) (string, error) {
+func BackupAll(ctx context.Context, mda *MySqlDumpAllArgs) (string, error) {
 	args, err := argsBuilderAll(mda)
 	if err != nil {
 		return "", err
 	}
 
-	cmd := exec.Command("mysqldump", args...)
+	cmd := exec.CommandContext(ctx, "mysqldump", args...)
 	if mda.Password != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
 	}

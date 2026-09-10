@@ -9,14 +9,14 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 // Backup backs up a PostgresSQL database using pg_dump. The prober checks
 // connectivity to the target database before pg_dump runs.
-func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
@@ -45,7 +45,7 @@ func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	}
 
 	// run pg_dump command
-	cmd := exec.Command("pg_dump", args...)
+	cmd := exec.CommandContext(ctx, "pg_dump", args...)
 
 	// capture the command error
 	var stdErr bytes.Buffer

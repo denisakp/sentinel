@@ -20,7 +20,7 @@ func TestPgDumpArgsBuilder(t *testing.T) {
 	}{
 		{
 			// File formats (c, p, t) write to stdout — no --file= in args.
-			// pg_dump.Backup() captures stdout and passes it to WriteBackup.
+			// pg_dump.Backup(context.Background(), ) captures stdout and passes it to WriteBackup.
 			name:    "Valid args without compression",
 			args:    &PgDumpArgs{Host: "192.168.1.26", Port: "5423", Username: "test", Database: "test", Storage: &storage.Params{OutName: "test.sql"}, PgOutFormat: "p", Compress: false},
 			want:    []string{"--host=192.168.1.26", "--port=5423", "--username=test", "--dbname=test", "--format=p"},
