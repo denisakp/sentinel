@@ -78,7 +78,7 @@ Each entry under `databases` is a backup job; the map key is the job name. The n
 | `uri_env` | string | No | n/a | Name of an environment variable holding the MongoDB URI. Overwrites `uri`; the variable must be set at config-load time or loading fails. |
 | `mongo_secrets_file` | string | No | n/a | Path to a Sentinel-native secrets file supplying a MongoDB password, URI, and/or TLS key passphrase. **mongodb only**: rejected on any other type. See [secrets files](#secrets-files). |
 | `mongo_secrets_file_env` | string | No | n/a | Name of an environment variable holding the path for `mongo_secrets_file`. Overwrites it; the variable must be set at config-load time or loading fails. |
-| `tls` | mapping | No | n/a | TLS settings for the database connection. Omitting it logs a `tls_not_configured` warning. See [`tls`](#tls). |
+| `tls` | mapping | No | n/a | TLS settings for the database connection. Omitting it, or setting `enabled: false`, logs a `tls_not_configured` warning. Had no effect at all before the fix for [#189](https://github.com/denisakp/sentinel/issues/189). See [`tls`](#tls). |
 
 :::info Added in v1.4.0
 `defaults_file`, `mongo_secrets_file`, `defaults_file_env`, and `mongo_secrets_file_env` were
@@ -233,7 +233,25 @@ Engine-agnostic streaming compression inserted between the dump and the hash/enc
 
 ## `tls`
 
-Per-job TLS settings for the database connection. Applies to all four engines.
+Per-job TLS settings for the database connection. Applies to all four engines, on the **backup**
+path.
+
+:::note The block had no effect at all on v1.4.0 and earlier
+Every engine's argument builder read a TLS field and nothing ever populated one. The validator built
+the configuration from this block, checked it, and discarded it. So a job with `tls:` connected in
+plaintext, for **every** engine, not only MongoDB as [issue #189](https://github.com/denisakp/sentinel/issues/189)
+reported.
+
+Worse, the `tls_not_configured` warning fired only when the block was **absent**, so adding it
+silenced the one diagnostic that would have said the connection was unencrypted. Someone hardening a
+deployment saw the warning stop and concluded it had worked.
+
+The block now reaches all four engines, and the warning depends on whether the connection will
+actually be encrypted rather than on whether the key exists: `tls: {enabled: false}` still warns.
+
+**Restore jobs remain unaffected**, because `restores.<name>` has no `tls:` key at all. That is a
+missing feature rather than broken wiring, and it is not covered by the fix.
+:::
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
