@@ -200,22 +200,46 @@ lineage block must have a non-empty `chain_id`, a `chain_index` of zero or more,
 
 ## Known defects
 
-Two behaviours here are broken rather than subtle, and you will meet both in normal use.
+You will meet these in normal use.
 
-### A job with no `output:` produces no manifest at all
+### A job with no `output:` gets a manifest, since the fix for issue #151
 
-If a backup job in your configuration omits `output:`, the dump engine's own argument builder
-invents a name (`SENTINEL_<timestamp>` plus the engine's extension) at dump time. That name is never
-propagated back to the pipeline that writes the manifest, so the pipeline resolves an empty artifact
-path, skips manifest creation entirely, and does not even emit a warning. The history row records the
-artifact as `unknown`. `sentinel backup verify` then classifies the backup as `missing_manifest`
-(exit `3`, or a `--all` integrity failure), and it will never verify.
+The dump engine's argument builder invents a name (`SENTINEL_<timestamp>` plus the engine's
+extension) when `output:` is unset, and it reports that path back. The pipeline uses it, so the
+manifest is written and the history row records the real artifact.
 
-Scheduled runs are not affected: `sentinel schedule` fills in a timestamped output name before the
-job runs, so the pipeline does know the path. The defect bites `sentinel backup --config …` runs of
-a job whose `output:` is unset. Tracked as issue #151.
+**On v1.4.0 and earlier the name was not propagated.** The pipeline resolved an empty artifact path,
+skipped manifest creation entirely, and emitted no warning. The history row recorded the artifact as
+`unknown`, and `sentinel backup verify` classified the backup as `missing_manifest` (exit `3`, or a
+`--all` integrity failure), so it could never verify. Scheduled runs escaped it, because
+`sentinel schedule` filled in a timestamped name before the job ran; the defect bit
+`sentinel backup --config …` runs of a job whose `output:` was unset.
 
-**Set `output:` on every job.** It is the only way to get a manifest today.
+That is why the old advice was to set `output:` on every job. **Do not follow it on a current
+version**: a literal `output:` makes every run overwrite the previous artifact (see below), and it is
+no longer needed for integrity.
+
+### A literal `output:` makes every run overwrite the previous artifact
+
+`output:` is used **verbatim**. A job with `output: shop.sql` writes `shop.sql` on every run,
+truncating what was there before. The result is exactly one backup file, permanently overwritten:
+retention has nothing to prune, `keep_last: 30` keeps one, the history accumulates rows all pointing
+at the same path whose contents are whatever the last run produced, and every member of an
+incremental chain resolves to the same file.
+
+Until the fix for #151 this was a trap, because `output:` was also the only way to get a manifest, so
+the guidance for integrity pushed you straight into it. It no longer is: omit `output:` and you get a
+unique name **and** a manifest.
+
+If you want a fixed prefix or directory, use a placeholder:
+
+```yaml
+output: shop-{timestamp}.sql   # shop-2026-01-02T15-04-05.sql
+output: shop-{date}.sql        # shop-2026-01-02.sql
+```
+
+Placeholders expand in UTC. A value with no placeholder keeps its literal meaning, so existing
+configurations produce the filenames they always have ([#193](https://github.com/denisakp/sentinel/issues/193)).
 
 ### Point-in-time recovery can never be planned
 

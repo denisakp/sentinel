@@ -51,6 +51,14 @@ func ResolveArtifactRef(storageType, localPath, outName, gcsBucket, stagedPath s
 	if storageType == "" || storageType == "local" {
 		path, size := LocalArtifactInfo(storageType, localPath, outName)
 		if path == "" {
+			// Fall back to the path the dump adapter actually produced. Without
+			// an explicit `output:`, job.OutName is empty and the adapter named
+			// the file itself, so recomputing from OutName yielded nothing and
+			// the execution record read "unknown". The adapter reports its
+			// real path on every engine, so the information was there all along.
+			if stagedPath != "" {
+				return stagedPath, stagedArtifactSize(stagedPath)
+			}
 			return "unknown", size
 		}
 		return path, size
@@ -114,6 +122,15 @@ func (e *Executor) ApplyArtifactSecurity(ctx context.Context, job Job, plaintext
 		fileSize = stagedArtifactSize(filePath)
 	} else {
 		filePath, fileSize = LocalArtifactInfo(job.StorageType, job.LocalPath, job.OutName)
+		if filePath == "" && stagedPath != "" {
+			// No explicit `output:`, so job.OutName is empty and the adapter chose
+			// the filename. Use what it produced rather than giving up: giving up
+			// meant no manifest was written at all, so `backup verify` reported
+			// missing_manifest and verify_after_upload silently no-opped, making
+			// integrity depend on an optional-looking configuration key (#151).
+			filePath = stagedPath
+			fileSize = stagedArtifactSize(filePath)
+		}
 		if filePath == "" {
 			return nil, nil, nil
 		}

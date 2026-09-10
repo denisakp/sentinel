@@ -114,8 +114,8 @@ idea. Each entry links to the page that explains it in depth.
 
 **Manifest**
 : The `<artifact>.manifest.json` sidecar recording an artifact's SHA-256, its encryption parameters,
-  and its position in a chain. Written only when the job sets `output:`
-  ([#151](https://github.com/denisakp/sentinel/issues/151)). See
+  and its position in a chain. Written for every job. Required `output:` to be set on v1.4.0 and
+  earlier ([#151](https://github.com/denisakp/sentinel/issues/151)). See
   [Manifests and integrity](../concepts/manifest.md).
 
 **Master key**

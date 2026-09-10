@@ -338,7 +338,20 @@ type BackupJob struct {
 	// Auto-discovery strategy: "individual" or "single" (only valid with database: "*")
 	Strategy string `yaml:"strategy,omitempty"`
 
-	// Output filename (defaults to SENTINEL_2006-01-02T15-04-05.ext)
+	// Output filename. Omit it and each run gets a unique generated name
+	// (SENTINEL_2006-01-02T15-04-05.ext) with a manifest written beside it.
+	//
+	// An explicit value is used VERBATIM, so `output: shop.sql` writes shop.sql on
+	// every run and truncates the previous artifact: retention then has nothing to
+	// prune and an incremental chain collapses onto one file. Include a
+	// placeholder to get one artifact per run instead:
+	//
+	//	output: shop-{timestamp}.sql   // 2026-01-02T15-04-05
+	//	output: shop-{date}.sql        // 2026-01-02
+	//
+	// Placeholders expand in UTC. The literal form is kept for compatibility,
+	// since interpolating unasked would rename what every existing install
+	// produces (#193).
 	Output string `yaml:"output,omitempty"`
 
 	// Storage configuration for this backup
