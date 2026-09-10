@@ -198,9 +198,10 @@ failure look like a corrupt backup rather than a missing file.
 
 **The job is disabled and ran anyway.** `sentinel restore run <job-name>` does not consult `enabled`;
 that flag governs only `--all` and the scheduler
-([issue #139](https://github.com/denisakp/sentinel/issues/139)). The `restore enable`, `disable`,
-`pause` and `resume` subcommands print success and change nothing
-([issue #137](https://github.com/denisakp/sentinel/issues/137)); only the YAML has any effect.
+([issue #139](https://github.com/denisakp/sentinel/issues/139)). There is no command that enables or
+disables a job: `restore enable`, `disable`, `pause` and `resume` were removed because they printed
+success and changed nothing ([issue #137](https://github.com/denisakp/sentinel/issues/137)). Only the
+YAML has any effect.
 
 ## Related
 

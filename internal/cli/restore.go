@@ -59,22 +59,6 @@ var (
 		RunE:  handleRestoreStatus,
 	}
 
-	restoreEnableCmd = &cobra.Command{
-		Use:   "enable <job-name>",
-		Short: "Enable a restore job",
-		Long:  `Enable a restore job so it runs on its configured schedule.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  handleRestoreEnable,
-	}
-
-	restoreDisableCmd = &cobra.Command{
-		Use:   "disable <job-name>",
-		Short: "Disable a restore job",
-		Long:  `Disable a restore job to prevent it from running.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  handleRestoreDisable,
-	}
-
 	restoreDryRunCmd = &cobra.Command{
 		Use:   "dry-run <job-name>",
 		Short: "Simulate a restore without applying changes",
@@ -106,22 +90,6 @@ var (
 		RunE:  handleRestoreHistory,
 	}
 
-	restorePauseCmd = &cobra.Command{
-		Use:   "pause <job-name>",
-		Short: "Pause a restore job temporarily",
-		Long:  `Temporarily pause a restore job without permanently disabling it.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  handleRestorePause,
-	}
-
-	restoreResumeCmd = &cobra.Command{
-		Use:   "resume <job-name>",
-		Short: "Resume a paused restore job",
-		Long:  `Resume a restore job that was previously paused.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  handleRestoreResume,
-	}
-
 	// Global flags for restore commands.
 	restoreConfigFile          string
 	restoreLogLevel            string
@@ -146,14 +114,10 @@ func init() {
 	restoreCmd.AddCommand(
 		restoreListCmd,
 		restoreStatusCmd,
-		restoreEnableCmd,
-		restoreDisableCmd,
 		restoreDryRunCmd,
 		restoreValidateChainCmd,
 		restoreRunCmd,
 		restoreHistoryCmd,
-		restorePauseCmd,
-		restoreResumeCmd,
 	)
 
 	restoreCmd.PersistentFlags().StringVar(&restoreConfigFile, "config", "", "Path to restore config file")
@@ -180,16 +144,39 @@ func init() {
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
 	Short: "Manage backup restoration and recovery",
+	// Args plus RunE together, and both are needed.
+	//
+	// A command with no Run is not Runnable, and Cobra returns flag.ErrHelp for
+	// those BEFORE it validates Args. Execute treats ErrHelp as success, so
+	// `sentinel restore enable nightly` printed the entire help to stderr and
+	// exited 0. A script calling one of the four removed subcommands would have
+	// carried on as though it had worked, which is the failure mode this whole
+	// batch of work exists to remove, reintroduced by the removal itself.
+	//
+	// With RunE set the command is Runnable, so NoArgs runs and rejects an unknown
+	// subcommand by name with a non-zero exit. Bare `restore` still prints help
+	// and exits 0, which is the conventional behaviour for a command group.
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
+	},
 	Long: `Sentinel restore operations enable automated backup validation and disaster recovery testing.
 
-Restore jobs default to DISABLED for safety. Enable explicitly in config or via CLI.
+Restore jobs default to DISABLED for safety. A job runs on its schedule only when its
+configuration sets:
+
+  restores:
+    postgres_nightly:
+      enabled: true
+
+There is no command that enables, disables, pauses or resumes a job. Four such
+subcommands existed and printed a success message without persisting anything, so an
+operator had every reason to believe a job was scheduled when it was not. They were
+removed rather than left lying (issue #137). Edit the configuration instead.
 
 Examples:
   # List all restore jobs
   sentinel restore list
-
-  # Enable and schedule a restore job
-  sentinel restore enable postgres_nightly
 
   # Test a restore without applying
   sentinel restore dry-run mysql_weekly_verify
@@ -198,10 +185,7 @@ Examples:
   sentinel restore run postgres_nightly
 
   # View restore history
-  sentinel restore history postgres_nightly
-
-  # Pause a job temporarily
-  sentinel restore pause mongodb_integration_env`,
+  sentinel restore history postgres_nightly`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logLevel := slog.LevelInfo
 		switch restoreLogLevel {
@@ -277,20 +261,6 @@ func handleRestoreStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Timeout: %d seconds\n", job.TimeoutSeconds)
 	fmt.Printf("  Keep File: %v\n", job.KeepFile)
 
-	return nil
-}
-
-func handleRestoreEnable(cmd *cobra.Command, args []string) error {
-	jobName := args[0]
-	slog.Info("Enabling restore job", "job", jobName)
-	fmt.Printf("Restore job %q enabled\n", jobName)
-	return nil
-}
-
-func handleRestoreDisable(cmd *cobra.Command, args []string) error {
-	jobName := args[0]
-	slog.Info("Disabling restore job", "job", jobName)
-	fmt.Printf("Restore job %q disabled\n", jobName)
 	return nil
 }
 
@@ -726,20 +696,6 @@ func notifyRestoreResult(ctx context.Context, jobName string, job config.Restore
 	if err := dispatcher.NotifyRestore(restoreCtx); err != nil {
 		slog.Warn("failed to dispatch restore notification", "job", jobName, "error", err.Error())
 	}
-}
-
-func handleRestorePause(cmd *cobra.Command, args []string) error {
-	jobName := args[0]
-	slog.Info("Pausing restore job", "job", jobName)
-	fmt.Printf("Restore job %q paused\n", jobName)
-	return nil
-}
-
-func handleRestoreResume(cmd *cobra.Command, args []string) error {
-	jobName := args[0]
-	slog.Info("Resuming restore job", "job", jobName)
-	fmt.Printf("Restore job %q resumed\n", jobName)
-	return nil
 }
 
 func loadRestoreConfig() (*config.Configuration, error) {

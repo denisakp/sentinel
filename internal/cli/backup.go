@@ -9,18 +9,18 @@ import (
 	"sync"
 	"time"
 
-	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
-	"github.com/denisakp/sentinel/internal/config"
-	"github.com/denisakp/sentinel/internal/adapters/monitor"
-	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
-	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/denisakp/sentinel/internal/adapters/dump"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mongo"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mysql"
 	"github.com/denisakp/sentinel/internal/adapters/dump/pg"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/config"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
+	"github.com/denisakp/sentinel/internal/ports"
+	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -283,16 +283,32 @@ func init() {
 	BackupCmd.Flags().StringVarP(&awsAccessKeyID, "aws-access-key-id", "", "", "AWS access key ID")
 	BackupCmd.Flags().StringVarP(&awsSecretAccessKey, "aws-secret", "", "", "AWS secret")
 
+	// These three read --config in their handlers, and none of them registered
+	// it. BackupCmd's --config is a LOCAL flag, so subcommands do not inherit it,
+	// and the result was that no invocation worked at all: without the flag the
+	// handler refused for want of a config, and with it Cobra refused the unknown
+	// flag. The whole chain-inspection and forced-full surface was unreachable
+	// from the command line, while README documented it with --config (#136).
+	//
+	// Registered per subcommand rather than promoted to a persistent flag on the
+	// parent, because `backup diff` and `backup verify` already declare their own
+	// local --config. Adding a persistent one above them would leave two flags of
+	// the same name in play on those commands, which is a shadowing rule nobody
+	// should have to reason about.
 	backupForceFullCmd.Flags().StringVar(&backupForceFullJob, "job", "", "Configured backup job name")
-	backupForceFullCmd.MarkFlagRequired("job")
+	backupForceFullCmd.Flags().String("config", "", "Path to YAML configuration file")
+	_ = backupForceFullCmd.MarkFlagRequired("job")
+	_ = backupForceFullCmd.MarkFlagRequired("config")
 
 	backupChainStatusCmd.Flags().StringVar(&backupChainStatusJob, "job", "", "Configured backup job name")
-	backupChainStatusCmd.MarkFlagRequired("job")
+	backupChainStatusCmd.Flags().String("config", "", "Path to YAML configuration file")
+	_ = backupChainStatusCmd.MarkFlagRequired("job")
+	_ = backupChainStatusCmd.MarkFlagRequired("config")
 
 	backupChainListCmd.Flags().StringVar(&backupChainListID, "chain-id", "", "Incremental chain ID")
-	backupChainListCmd.MarkFlagRequired("chain-id")
-
-	// required args are enforced at runtime when --config is not provided
+	backupChainListCmd.Flags().String("config", "", "Path to YAML configuration file")
+	_ = backupChainListCmd.MarkFlagRequired("chain-id")
+	_ = backupChainListCmd.MarkFlagRequired("config")
 }
 
 func runBackupJobsFromConfig(cmd *cobra.Command, cfg *config.Configuration) error {
@@ -805,7 +821,6 @@ func ensureDatabaseOptions(job *config.BackupJob) {
 		job.DatabaseOptions = make(map[string]interface{})
 	}
 }
-
 
 func handleBackupForceFull(cmd *cobra.Command, args []string) error {
 	cfgPath, _ := cmd.Flags().GetString("config")
