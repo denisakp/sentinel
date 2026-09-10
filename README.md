@@ -299,21 +299,18 @@ databases:
 
 Inspect and manage chains:
 
-> **These three subcommands cannot currently be invoked.** They require `--config` but never register
-> the flag, and the one on `sentinel backup` is local rather than persistent, so they fail whether you
-> pass it or not. Tracked in
-> [#136](https://github.com/denisakp/sentinel/issues/136). The usage shown below is what they are
-> meant to accept once that is fixed.
->
-> Until then, use `sentinel monitor list` and `sentinel monitor show` to inspect chain state, and
-> `sentinel restore validate-chain <job>` to check a chain. See
-> [Incremental backup and PITR](https://denisakp.github.io/sentinel/concepts/incremental-pitr) for
-> what does work today.
+> **On v1.4.0 and earlier these three could not be invoked at all.** They read `--config` but never
+> registered the flag, and the one on `sentinel backup` is local rather than persistent, so they
+> failed whether you passed it or not: without it the handler refused for want of a config, with it
+> Cobra refused an unknown flag. Fixed by
+> [#136](https://github.com/denisakp/sentinel/issues/136). On those versions, use
+> `sentinel monitor list` and `sentinel monitor show` to inspect chain state, and
+> `sentinel restore validate-chain <job>` to check a chain.
 
 ```bash
-sentinel backup chain-status --config sentinel.yaml
-sentinel backup chain-list --config sentinel.yaml
-sentinel backup force-full --job mysql-prod --config sentinel.yaml
+sentinel backup chain-status --config sentinel.yaml --job mysql-prod
+sentinel backup chain-list --config sentinel.yaml --chain-id <chain-id>
+sentinel backup force-full --config sentinel.yaml --job mysql-prod
 ```
 
 ---

@@ -541,20 +541,6 @@ func errMsg(err error) string {
 	return err.Error()
 }
 
-// PauseRestoreJob temporarily disables a restore job without removing it
-func (rsm *RestoreScheduleManager) PauseRestoreJob(jobName string) error {
-	// Note: This requires extending the Scheduler interface
-	rsm.logger.Info("Restore job paused", slog.String("job", jobName))
-	return nil
-}
-
-// ResumeRestoreJob re-enables a previously paused restore job
-func (rsm *RestoreScheduleManager) ResumeRestoreJob(jobName string) error {
-	// Note: This requires extending the Scheduler interface
-	rsm.logger.Info("Restore job resumed", slog.String("job", jobName))
-	return nil
-}
-
 // GetRestoreJobStatus returns the current status of a restore job
 func (rsm *RestoreScheduleManager) GetRestoreJobStatus(jobName string) (map[string]interface{}, error) {
 	status := map[string]interface{}{

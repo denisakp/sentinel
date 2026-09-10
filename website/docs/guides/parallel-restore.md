@@ -172,11 +172,14 @@ job whether or not it is enabled; the `enabled` flag governs only `--all` and th
 ([issue #139](https://github.com/denisakp/sentinel/issues/139)). Do not rely on `enabled: false` as a
 safety catch on an explicit invocation.
 
-**You disabled a job with the CLI and it still runs.** `restore enable`, `restore disable`,
-`restore pause`, and `restore resume` print a success message and change nothing. They do not write
-to the configuration file ([issue #137](https://github.com/denisakp/sentinel/issues/137)). Only
-`enabled:` in the YAML has any effect, which is why `restore status` still reports `disabled`
-straight after `restore enable` claims success.
+**You tried to disable a job with the CLI.** There is no such command. `restore enable`, `disable`,
+`pause` and `resume` were removed, because they printed a success message and persisted nothing
+([issue #137](https://github.com/denisakp/sentinel/issues/137)). Set `enabled:` in the YAML, which is
+the only thing that has ever had any effect.
+
+**On v1.4.0 and earlier those four subcommands existed and lied.** `restore status` reported
+`disabled` straight after `restore enable` claimed success. If a script of yours calls one, it now
+fails with `unknown command` and a non-zero exit rather than continuing as though it had worked.
 
 **Every job failed after the data landed.** If the jobs set `verify_after_restore: true`, each one
 fails with `verification handler is required for restore mode "full"` **after** the restore has

@@ -1,6 +1,6 @@
 ---
 title: sentinel restore
-description: Reference for sentinel restore and its ten subcommands, with every flag, the run --all concurrency model, and the enable and run caveats.
+description: Reference for sentinel restore and its six subcommands, with every flag, the run --all concurrency model, and the enable and run caveats.
 sidebar_position: 3
 ---
 
@@ -22,17 +22,15 @@ Restore jobs default to **disabled**: when `enabled` is absent from a job's YAML
 |---|---|---|
 | `list` | none | Prints every configured restore job with its type, schedule, enabled state, and target database. |
 | `status` | `<job-name>` (exactly 1) | Prints one job's type, database, schedule, enabled state, effective restore mode, `verify_after_restore`, timeout, and `keep_file`. |
-| `enable` | `<job-name>` (exactly 1) | Logs and prints an enable acknowledgement for the named job. Does not write to the configuration file; see the caution below. |
-| `disable` | `<job-name>` (exactly 1) | Logs and prints a disable acknowledgement. Does not write to the configuration file. |
-| `pause` | `<job-name>` (exactly 1) | Logs and prints a pause acknowledgement. Does not write to the configuration file. |
-| `resume` | `<job-name>` (exactly 1) | Logs and prints a resume acknowledgement. Does not write to the configuration file. |
 | `dry-run` | `<job-name>` (exactly 1) | Prints the resolved execution parameters for one job without contacting a database or fetching an artifact. |
 | `run` | `[job-name]` (at most 1) | Executes one restore job immediately, or every enabled job with `--all`. |
 | `history` | `[job-name]` (optional) | Prints the 50 most recent restore executions from the SQLite history database, optionally filtered to one job. |
 | `validate-chain` | `<job-name>` (exactly 1) | Validates incremental lineage and planner readiness for one `restore_mode: incremental` job without restoring anything. |
 
-:::caution `enable`, `disable`, `pause`, and `resume` do not persist
-As of v1.4.0 all four handlers only emit a log line and a confirmation message. They do not modify the configuration file and there is no separate state store, so the change is lost the moment the process exits. To actually enable a restore job, set `enabled: true` on it in the YAML configuration file. The same applies to disabling, pausing, and resuming.
+:::note `enable`, `disable`, `pause` and `resume` were removed, per issue #137
+There is no command that changes a restore job's enabled state. Set `enabled: true` on the job in the YAML configuration file; that is the only thing that has ever had any effect.
+
+**On v1.4.0 and earlier these four subcommands existed** and only emitted a log line and a confirmation. They modified nothing and there was no state store, so an operator who ran `restore enable nightly` and saw `Restore job "nightly" enabled` had every reason to believe the job was scheduled. It was not. They were removed rather than left in place, because a command that reports success while changing nothing is worse than an absent one. A script that still calls one now fails with `unknown command` and a non-zero exit.
 :::
 
 ## Flags
