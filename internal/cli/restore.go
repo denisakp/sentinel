@@ -328,6 +328,21 @@ func handleRestoreRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("restore job %q not found", jobName)
 	}
 
+	// Refuse a disabled job, before anything is opened or locked.
+	//
+	// `enabled` gated `restore run --all` and the scheduler, and not this path.
+	// A job explicitly marked `enabled: false` therefore passed validation,
+	// acquired the lock, and reached the staging step; with a real backup source
+	// it would have restored. For an operation that overwrites a database,
+	// `enabled: false` has to mean it will not run.
+	//
+	// The check sits here rather than inside runOneRestoreJob so no lock is taken
+	// and no history row is opened for a job that is not going to run.
+	if job.Enabled != nil && !*job.Enabled {
+		return fmt.Errorf("restore job %q is disabled: set `enabled: true` on it in the "+
+			"configuration to allow it to run", jobName)
+	}
+
 	applyRestoreRunOverrides(&job)
 
 	mon, err := monitor.NewMonitor(cfg.HistoryDBPath)

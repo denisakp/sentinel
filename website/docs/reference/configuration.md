@@ -364,7 +364,7 @@ reserved and rejected.
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `restore_mode` | string | No | `full` | `full`, `pitr`, or `incremental`. |
+| `restore_mode` | string | No | `full` | `full`, `pitr`, or `incremental`. `pitr` and `incremental` are accepted only for `postgres`; the validator rejects them for MySQL, MariaDB and MongoDB, because the planner cannot run them. `incremental` was accepted for all four before the fix for [issue #186](https://github.com/denisakp/sentinel/issues/186), and failed at `restore run` instead. |
 | `pitr_timestamp` | string | Conditional | n/a | RFC3339 timestamp with timezone. Required when `restore_mode: pitr`; rejected in other modes. **postgres only**: `pitr` mode is rejected for other engines. |
 | `pitr_target_timeline` | string | No | n/a | Recovery timeline for PITR. Valid only when `restore_mode: pitr`. |
 | `incremental_from_backup` | string | Conditional | n/a | Baseline backup for incremental planning. Required when `restore_mode: incremental`; rejected in other modes. |
