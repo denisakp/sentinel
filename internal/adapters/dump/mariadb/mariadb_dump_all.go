@@ -2,14 +2,15 @@ package mariadb
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os/exec"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -24,7 +25,7 @@ type MariaDBDumpAllArgs struct {
 }
 
 // BackupAll backs up all MariaDB databases using mariadb-dump --all-databases.
-func BackupAll(mda *MariaDBDumpAllArgs) (string, error) {
+func BackupAll(ctx context.Context, mda *MariaDBDumpAllArgs) (string, error) {
 	args := []string{
 		fmt.Sprintf("--host=%s", utils.DefaultValue(mda.Host, "127.0.0.1")),
 		fmt.Sprintf("--port=%s", utils.DefaultValue(mda.Port, "3306")),
@@ -42,7 +43,7 @@ func BackupAll(mda *MariaDBDumpAllArgs) (string, error) {
 
 	args = backup.RemoveArgsDuplicate(args)
 
-	cmd := exec.Command("mariadb-dump", args...)
+	cmd := exec.CommandContext(ctx, "mariadb-dump", args...)
 	if mda.Password != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
 	}

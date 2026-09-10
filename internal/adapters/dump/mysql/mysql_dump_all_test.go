@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/sanitize"
 )
 
 // fakeMysqldumpOnPath installs a fake `mysqldump` script in a temp dir and
@@ -123,7 +124,7 @@ func TestArgsBuilderAll(t *testing.T) {
 	t.Run("MDA-04 BackupAll success path with fake mysqldump", func(t *testing.T) {
 		fakeMysqldumpOnPath(t, "-- mysqldump fake output\\n", 0)
 		out := t.TempDir()
-		_, err := BackupAll(&MySqlDumpAllArgs{
+		_, err := BackupAll(context.Background(), &MySqlDumpAllArgs{
 			Username: "root",
 			Storage: &storage.Params{
 				StorageType: "local",
@@ -150,7 +151,7 @@ func TestArgsBuilderAll(t *testing.T) {
 		}
 		t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-		_, err := BackupAll(&MySqlDumpAllArgs{
+		_, err := BackupAll(context.Background(), &MySqlDumpAllArgs{
 			Username: "root",
 			Password: "hunter2",
 			Storage:  &storage.Params{StorageType: "local", LocalPath: t.TempDir(), OutName: "x"},

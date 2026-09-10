@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
 )
@@ -18,7 +18,7 @@ import (
 // Backup backs up a MariaDB database using mariadb-dump. The prober checks
 // connectivity to the target database before the dump runs. The probe uses the
 // "mysql" scheme, as the prior checkConnectivity call did.
-func Backup(prober ports.DBProber, mda *MariaDBDumpArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, mda *MariaDBDumpArgs) (string, error) {
 	// Validate the required arguments
 	args, err := argsBuilder(mda)
 	if err != nil {
@@ -35,7 +35,7 @@ func Backup(prober ports.DBProber, mda *MariaDBDumpArgs) (string, error) {
 	}
 
 	// execute mariadb-dump command
-	cmd := exec.Command("mariadb-dump", args...)
+	cmd := exec.CommandContext(ctx, "mariadb-dump", args...)
 	if mda.Password != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
 	}

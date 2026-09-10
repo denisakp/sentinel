@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/denisakp/sentinel/internal/adapters/lock"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/domain/schedule"
@@ -51,9 +52,23 @@ var scheduleStartCmd = &cobra.Command{
 			}
 		}()
 
-		// Reconcile stale executions before starting scheduler
+		// Reconcile stale executions before starting the scheduler, using the
+		// lock-aware logic `sentinel repair` already has.
+		//
+		// This used to call mon.ReconcileStaleExecutions, which has no age guard
+		// and no liveness check: every row still marked `running` became
+		// `interrupted`, including a backup running at that very moment. So
+		// restarting the scheduler, a routine operation, corrupted the history of
+		// work in progress: the run was recorded as interrupted while it carried
+		// on and completed normally, and anything reacting to a failed run acted
+		// on a false signal (#195).
+		//
+		// The issue supposed this also needed backups to take a lock, which they
+		// did not at the time. They do now (#163), so a live backup holds a lock
+		// and classifyStaleRunning can tell it from an abandoned one. A lock held
+		// by another host is left alone rather than finalised from here.
 		ctx := context.Background()
-		reconciledCount, err := mon.ReconcileStaleExecutions(ctx)
+		reconciledCount, err := reconcileStaleExecutionsOnStart(ctx, mon, cfg)
 		if err != nil {
 			return fmt.Errorf("failed to reconcile stale executions: %w", err)
 		}
@@ -82,7 +97,14 @@ var scheduleStartCmd = &cobra.Command{
 							err = pErr
 						}
 					}()
-					return executeBackupJobWithMode(cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+					// Enforce scheduler.job_timeout_minutes. The deadline
+					// reaches the dump subprocess through BuildContext, so a
+					// hung pg_dump is killed rather than holding a
+					// concurrency slot forever. Before this the key was
+					// defaulted, documented, and read by nothing (#194).
+					return scheduler.RunWithTimeout(ctx, cfg.Scheduler.JobTimeoutMinutes, func(jobCtx context.Context) error {
+						return executeBackupJobWithMode(jobCtx, cmd, cfg, jobCopy, executionModeScheduled, backupRunOptions{})
+					})
 				})
 			}); err != nil {
 				return err
@@ -401,4 +423,42 @@ func executeRestoreJob(
 	}
 
 	return nil
+}
+
+// reconcileStaleExecutionsOnStart finalises rows left in `running` by a previous
+// process, and ONLY those.
+//
+// It reuses classifyStaleRunning, the same decision `sentinel repair` makes, so
+// the two cannot disagree about what counts as abandoned. A row whose job still
+// holds a live lock is left running; a lock held by another host is left to that
+// host; only a row with no live lock is marked interrupted.
+//
+// Returns the number of rows finalised.
+func reconcileStaleExecutionsOnStart(ctx context.Context, mon *monitor.Monitor, cfg *config.Configuration) (int, error) {
+	rows, err := mon.GetStaleRunningExecutions(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+
+	lm := lock.NewManager(cfg.Scheduler.LockDir)
+	threshold := staleThreshold(cfg)
+	thisHost, _ := os.Hostname()
+
+	finalised := 0
+	for i := range rows {
+		r := rows[i]
+		jl, _ := lm.ReadLock(r.BackupName)
+		decision, _ := classifyStaleRunning(jl, threshold, thisHost)
+		if decision != staleFinalize {
+			continue
+		}
+		if rerr := mon.RecordInterrupted(ctx, r.ID, false, nil, "unclean shutdown (scheduler start)"); rerr != nil {
+			return finalised, rerr
+		}
+		finalised++
+	}
+	return finalised, nil
 }

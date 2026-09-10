@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/ports"
 	internaltls "github.com/denisakp/sentinel/internal/adapters/tls"
+	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 

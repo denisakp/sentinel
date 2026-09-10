@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 	"os/exec"
 )
 
 // Backup backs up a MySQL database using mysqldump. The prober checks
 // connectivity to the target database before mysqldump runs.
-func Backup(prober ports.DBProber, mda *MySqlDumpArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, mda *MySqlDumpArgs) (string, error) {
 	args, err := argsBuilder(mda)
 	if err != nil {
 		return "", fmt.Errorf("failed to build mysql_dump args - %w", err)
@@ -33,7 +33,7 @@ func Backup(prober ports.DBProber, mda *MySqlDumpArgs) (string, error) {
 	}
 
 	// execute mysqldump command
-	cmd := exec.Command("mysqldump", args...)
+	cmd := exec.CommandContext(ctx, "mysqldump", args...)
 	if mda.Password != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("MYSQL_PWD=%s", mda.Password))
 	}

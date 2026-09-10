@@ -58,13 +58,13 @@ func TestBackupErrorDoesNotLeakPassword(t *testing.T) {
 	// costs mongodump's 30-second server-selection timeout on every run.
 	t.Setenv("PATH", t.TempDir())
 
-	_, err := Backup(okProber{}, da)
+	_, err := Backup(context.Background(), okProber{}, da)
 	if err == nil {
-		t.Fatal("Backup() unexpectedly succeeded against a closed port")
+		t.Fatal("Backup(context.Background(), ) unexpectedly succeeded against a closed port")
 	}
 
 	msg := err.Error()
 	if strings.Contains(msg, secret) {
-		t.Errorf("password leaked into the error returned by Backup().\ngot: %s", msg)
+		t.Errorf("password leaked into the error returned by Backup(context.Background(), ).\ngot: %s", msg)
 	}
 }

@@ -160,8 +160,9 @@ scheduler:
 
 | Key | Default | What actually reads it |
 |---|---|---|
-| `scheduler.lock_dir` | `/var/run/sentinel` | Every restore path, and `sentinel repair` |
-| `scheduler.stale_lock_threshold` | `60` minutes | `sentinel repair` only |
+| `scheduler.lock_dir` | per-user, see above | Every backup and restore path, `sentinel repair`, and the startup reconciliation |
+| `scheduler.stale_lock_threshold` | `60` minutes | `sentinel repair` and the startup reconciliation |
+| `scheduler.job_timeout_minutes` | `180` | The deadline on a scheduled backup, carried into the dump subprocess |
 | `scheduler.max_concurrent_restores` | `1` | The restore limiter in `sentinel schedule start` |
 | `max_concurrent_restores` | `1` | The `restore run --all` fan-out |
 | `max_concurrent_backups` | `3` | The scheduler's backup semaphore |
@@ -169,8 +170,8 @@ scheduler:
 Three cautions about that table, all verified against the code rather than the key names:
 
 - `scheduler.stale_lock_threshold` does not reach the restore acquire path, which uses a hard-coded
-  one hour, nor the scheduler's startup sweep, which uses a hard-coded sixty minutes. Raising or
-  lowering it changes what `sentinel repair` will remove, and nothing else.
+  one hour. It now governs `sentinel repair` and the reconciliation `schedule start` performs, which
+  share the same lock-aware decision ([#195](https://github.com/denisakp/sentinel/issues/195)).
 - `scheduler.max_concurrent_backups` is accepted, defaulted, and never read. The scheduler sizes its
   backup semaphore from the top-level `max_concurrent_backups` key.
 - `scheduler.lock_dir` is not the directory used for the history database's migration lock, which

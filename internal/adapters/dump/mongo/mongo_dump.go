@@ -26,7 +26,7 @@ var backupBackendFactory = storage.NewBackend
 // google-drive, azure) mongodump runs in archive mode against a staging file
 // under <backup_path>/.staging/<job-id>/, then the file is streamed to the
 // configured StorageBackend and the staging dir is removed (success or failure).
-func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 	storageHandler, err := storage.NewStorage(da.Storage)
 	if err != nil {
 		return "", err
@@ -86,7 +86,7 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command("mongodump", args...)
+	cmd := exec.CommandContext(ctx, "mongodump", args...)
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr
 	var stdOut bytes.Buffer

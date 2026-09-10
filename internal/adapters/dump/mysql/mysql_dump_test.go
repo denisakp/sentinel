@@ -2,22 +2,23 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports/dbprobertesting"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 func TestBackup_ConnectivityFailureReturnsError(t *testing.T) {
 	// connectivity is injected; a failing prober aborts before mysqldump.
 	prober := &dbprobertesting.MockProber{}
 	prober.SetPingErr(errors.New("ping: connection refused"))
-	_, err := Backup(prober, &MySqlDumpArgs{
+	_, err := Backup(context.Background(), prober, &MySqlDumpArgs{
 		Host:     "127.0.0.1",
 		Port:     "1",
 		Username: "root",
@@ -34,7 +35,7 @@ func TestBackup_ConnectivityFailureReturnsError(t *testing.T) {
 
 func TestBackup_InvalidArgsReturnsBuildError(t *testing.T) {
 	// Missing Database → argsBuilder fails before connectivity attempt.
-	_, err := Backup(&dbprobertesting.MockProber{}, &MySqlDumpArgs{Username: "root"})
+	_, err := Backup(context.Background(), &dbprobertesting.MockProber{}, &MySqlDumpArgs{Username: "root"})
 	if err == nil {
 		t.Fatal("expected build error")
 	}
