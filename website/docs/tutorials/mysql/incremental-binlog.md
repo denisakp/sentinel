@@ -24,8 +24,8 @@ around this feature.
 ## What you need
 
 - The working directory and `sentinel.yaml` from [Restoring a MySQL backup](./restore.md).
-- A MySQL container whose binary logs are named `mysql-bin.NNNNNN` and are readable from the machine
-  running Sentinel. Step 1 explains why both conditions matter and how to satisfy them.
+- A MySQL container writing binary logs to a directory readable from the machine running Sentinel.
+  Step 1 explains what that takes.
 - `MYSQL_PWD` still exported:
 
   ```bash
@@ -34,13 +34,14 @@ around this feature.
 
 ## Step 1: Start a server whose binary logs Sentinel can find
 
-Two conditions have to hold, and neither is the default.
-
-**The file names must begin with `mysql-bin.`** When Sentinel scans the binary-log directory it keeps
-only regular files whose name starts with `mysql-bin.` or `mariadb-bin.`, skipping directories and
-any `.index` file. MySQL 8 enables binary logging by default but names the files `binlog.NNNNNN`, so
-a stock container produces logs that the scan discards. Starting the server with
-`--log-bin=mysql-bin` fixes this.
+**The file names no longer have to match a fixed prefix.** When Sentinel scans the binary-log
+directory it keeps every regular file with a numbered segment suffix, `<basename>.NNNNNN`, skipping
+directories and any `.index` file, and it reads the server's own `.index` file when one is present.
+A stock MySQL 8 container, which enables binary logging by default and names the files
+`binlog.NNNNNN`, is collected as it is. On v1.4.0 and earlier the scan matched only `mysql-bin.` and
+`mariadb-bin.`, so a default MySQL 8 install archived nothing and reported nothing: that was issue
+#190. This page still starts the server with `--log-bin=mysql-bin` so the file names below match what
+you see, not because the scan requires it.
 
 **The directory must be readable by Sentinel, on Sentinel's own filesystem.** `mysql.binlog_path` is
 validated at configuration load: it is resolved to an absolute path and must exist and be a

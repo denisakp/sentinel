@@ -36,11 +36,12 @@ docker run --name sentinel-mysql-tutorial \
   --log-bin=mysql-bin
 ```
 
-The trailing `--log-bin=mysql-bin` is not needed for this page. It is needed for
-[binary-log archival](./incremental-binlog.md) two pages from now, and setting it at creation time
-saves you recreating the container later. It matters even though MySQL 8 already writes binary logs
-by default, because the default file names are `binlog.NNNNNN` and Sentinel only collects files named
-`mysql-bin.NNNNNN`.
+The trailing `--log-bin=mysql-bin` is not needed for this page, and since issue #190 was fixed it is
+not needed for [binary-log archival](./incremental-binlog.md) either: Sentinel collects the server's
+log segments whatever `log_bin_basename` is set to, including MySQL 8's default `binlog.NNNNNN`. It
+is kept here so the file names on this track match what the later pages show. On v1.4.0 and earlier
+it was load-bearing, because collection matched only `mysql-bin.NNNNNN` and a stock MySQL 8 server
+archived nothing.
 
 The server takes a few seconds to initialise. Export the password once, into the variable the `mysql`
 client and Sentinel both read, then confirm the server is up:

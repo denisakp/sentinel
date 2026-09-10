@@ -55,7 +55,8 @@ capability on the artifact, so the planner rejects every request regardless of t
 [PITR page](./pitr.md) explains the mechanism and shows the real rejection rather than pretending the
 step works.
 
-Incremental **backup** works and is covered in full. Incremental **restore** currently fails while
-staging its baseline, which the chain page states where you would meet it.
+Incremental **backup** works and is covered in full. Incremental **restore** now plans, stages and
+runs, then fails at the post-restore verification gate, leaving the target modified. The chain page
+states this where you would meet it.
 
 {/* sources: internal/domain/backup/pipeline.go, internal/domain/backup/incremental/, internal/adapters/restore/chain_assembler/, internal/config/types.go, infra/docker/docker-compose.yml */}

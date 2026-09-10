@@ -188,11 +188,9 @@ func expandReplaySources(sources []string) ([]string, func(), error) {
 
 	filtered := make([]string, 0, len(files))
 	for _, f := range files {
-		base := filepath.Base(f)
-		if strings.HasSuffix(base, ".index") {
-			continue
-		}
-		if !strings.HasPrefix(base, "mysql-bin.") && !strings.HasPrefix(base, "mariadb-bin.") {
+		// Same predicate Archive discovers with: replay has to recognise
+		// every name Archive is willing to pack (#190).
+		if !isBinlogSegment(filepath.Base(f)) {
 			continue
 		}
 		filtered = append(filtered, f)

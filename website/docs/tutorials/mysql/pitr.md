@@ -129,9 +129,10 @@ on the one engine that gets far enough to see it.
 - **For a full restore**, use the plain `full` job from the [restore page](./restore.md). That path
   works end to end and is the one to build a recovery procedure on.
 - **For time-bounded recovery today**, use MySQL's own tooling. Sentinel's binary-log archive is a
-  plain tar of standard `mysql-bin.NNNNNN` files, so you can extract it and run `mysqlbinlog
-  --stop-datetime` into the `mysql` client yourself, exactly as Sentinel's own replay code would.
-  Nothing about the archive format requires Sentinel to read it back.
+  plain tar of the server's own log segments, whatever they are named (`binlog.NNNNNN` on a stock
+  MySQL 8, `mysql-bin.NNNNNN` when you set `--log-bin=mysql-bin`), so you can extract it and run
+  `mysqlbinlog --stop-datetime` into the `mysql` client yourself, exactly as Sentinel's own replay
+  code would. Nothing about the archive format requires Sentinel to read it back.
 - **Keep using Sentinel for what it does do here**: dumps, integrity checking, restore drills,
   retention, and the execution history that proves all of it ran.
 

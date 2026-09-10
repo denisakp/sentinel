@@ -311,17 +311,22 @@ There is no ordering of the arguments that satisfies both. Until this is fixed, 
 `sentinel monitor list` and `sentinel monitor show` as Steps 3 and 4 do, and reset a chain by
 lowering `max_chain_depth` rather than by forcing a full.
 
-**`sentinel restore run` in `incremental` mode does not complete.** Planning succeeds; the same
-planning `validate-chain` exercises; but staging the chain's baseline fails, because the baseline is
-recorded as a repository-relative path (`backups/shop.sql`) and then resolved again relative to the
-source root:
+**`sentinel restore run` in `incremental` mode still does not complete, and now fails later.**
+Planning succeeds, and staging succeeds with it: a baseline recorded as `backups/shop.sql` and listed
+by the restore source as `shop.sql` is recognised as the same file (issue #150, fixed). The engine
+restore then runs. The job stops at the post-restore verification gate, which `incremental` mode
+requires and which no call site wires up:
 
 ```text
 $ sentinel restore run shop-chain --config sentinel.yaml
-Error: backup "shop.sql" not found in local source: restore source object not found: backups/shop.sql
+Error: verification handler is required for restore mode "incremental"
 ```
 
-To recover data from a chain today, restore the artifact with a plain `full` job as on the
+Issue #149. **Read the sequence carefully: your target database has already been restored when this
+error appears.** The command exits non-zero, but it is not a no-op, which it was while the failure
+happened during staging.
+
+To recover data from a chain predictably, restore the artifact with a plain `full` job as on the
 [restore page](./restore.md). The chain metadata still earns its keep: it tells you which artifacts
 belong together and in what order.
 

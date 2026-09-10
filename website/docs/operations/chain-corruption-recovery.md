@@ -11,7 +11,7 @@ Two things constrain every option on this page.
 
 **The three chain subcommands cannot be invoked at all.** `sentinel backup chain-status`, `chain-list` and `force-full` each require `--config` but never register it, so they fail whether you pass the flag or not (issue #136). The project README documents them with `--config`; that has never worked.
 
-**An incremental chain cannot be restored, intact or not.** On PostgreSQL the planner accepts the request and then fails while staging the baseline (issue #150). On MySQL, MariaDB and MongoDB the planner rejects incremental mode outright. So repairing a chain does not buy you a chain restore; it buys you correct lineage bookkeeping and a clean starting point.
+**An incremental chain still cannot be restored to completion, intact or not.** On PostgreSQL the planner accepts the request, staging now resolves the whole chain correctly (issue #150, fixed), the engine restore runs, and the job then fails at the post-restore verification gate because no call site supplies a verification handler (issue #149). The target has been written to by the time that failure appears. On MySQL, MariaDB and MongoDB the planner rejects incremental mode outright. So repairing a chain does not buy you a chain restore; it buys you correct lineage bookkeeping and a clean starting point.
 
 The honest recovery for a broken chain is therefore: confirm the break, start a new chain from a fresh full backup, and cull the dead artifacts.
 :::

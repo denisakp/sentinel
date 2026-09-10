@@ -93,16 +93,20 @@ func discoverBinlogFiles(binlogDir string) ([]string, error) {
 		return nil, fmt.Errorf("failed to read binlog dir: %w", err)
 	}
 
+	// The server's own index, when it shipped with the directory, names the
+	// segments authoritatively whatever log_bin_basename is set to.
+	indexed := segmentNamesFromIndex(binlogDir)
+
 	matches := make([]string, 0)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 		name := entry.Name()
-		if strings.HasSuffix(name, ".index") {
+		if strings.HasSuffix(name, indexSuffix) {
 			continue
 		}
-		if !strings.HasPrefix(name, "mysql-bin.") && !strings.HasPrefix(name, "mariadb-bin.") {
+		if !indexed[name] && !isBinlogSegment(name) {
 			continue
 		}
 		matches = append(matches, filepath.Join(binlogDir, name))
