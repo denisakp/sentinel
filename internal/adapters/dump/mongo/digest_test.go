@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -16,7 +17,18 @@ import (
 func installFakeMongodumpWithPayload(t *testing.T, payload string) {
 	t.Helper()
 	dir := t.TempDir()
-	script := fmt.Sprintf("#!/bin/sh\nprintf %%s %q\n", payload)
+	// Honour --archive like the real mongodump: write the payload to the named
+	// file. The old stub printed to stdout, which matched the --out behaviour the
+	// local path used to have, where mongodump produced a directory and nothing on
+	// stdout at all (#191).
+	script := fmt.Sprintf(`#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    --archive=*) printf %%s %q > "${arg#--archive=}"; exit 0 ;;
+  esac
+done
+printf %%s %q
+`, payload, payload)
 	if err := os.WriteFile(filepath.Join(dir, "mongodump"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake mongodump: %v", err)
 	}
@@ -44,7 +56,7 @@ func TestBackup_LocalReturnsInlineDigest(t *testing.T) {
 			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(prober, &DumpMongoArgs{
+			digest, err := Backup(context.Background(), prober, &DumpMongoArgs{
 				Uri: "mongodb://stub",
 				Storage: &storage.Params{
 					StorageType: "local",
@@ -72,7 +84,7 @@ func TestBackup_RemoteReturnsEmptyDigest(t *testing.T) {
 	backupBackendFactory = func(*storage.Params) (ports.StorageBackend, error) { return fake, nil }
 	t.Cleanup(func() { backupBackendFactory = orig })
 
-	digest, err := Backup(prober, &DumpMongoArgs{
+	digest, err := Backup(context.Background(), prober, &DumpMongoArgs{
 		Uri: "mongodb://stub",
 		Storage: &storage.Params{
 			StorageType: "s3",

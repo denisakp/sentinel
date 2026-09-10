@@ -89,7 +89,9 @@ Match the `Error:` line against the leading fragment, not the whole string.
 | `chain=… : rule_4_non_contiguous_chain_index` and the other `rule_*` codes | Incremental lineage | [Recovering a broken incremental chain](./chain-corruption-recovery.md) |
 | `context deadline exceeded` | The job exceeded `scheduler.job_timeout_minutes` (default 180) | Raise the value, then investigate source load |
 
-There is no per-job backup timeout key. The only backup timeout is the scheduler-wide `scheduler.job_timeout_minutes`; `timeout_seconds` exists on restore jobs and on notification channels, not on backup jobs.
+There is no per-job backup timeout key. The only backup timeout is the scheduler-wide `scheduler.job_timeout_minutes`; `timeout_seconds` exists on restore jobs and on notification channels, not on backup jobs. It bounds **scheduled** runs only: a one-shot `sentinel backup --config` is bounded by whoever invoked it.
+
+On v1.4.0 and earlier the key was read by nothing, so `context deadline exceeded` on a backup came from somewhere else entirely ([#194](https://github.com/denisakp/sentinel/issues/194)).
 
 ### 4. Apply the fix, then re-run the job
 

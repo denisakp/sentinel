@@ -65,3 +65,48 @@ func TestTLSReachesThePgDumpCommandLine(t *testing.T) {
 		t.Errorf("the configured CA path does not appear in the arguments.\nargs: %s", with)
 	}
 }
+
+// TestDirectoryFormatIsNotStreamed guards the exclusion that keeps the streaming
+// fix for #164 from reproducing #191 in PostgreSQL.
+//
+// With --format=d, pg_dump writes a directory through --file= and produces
+// nothing on stdout. Streaming stdout to the artifact path would create an empty
+// file where the directory belongs, and record the digest of no bytes: a manifest
+// hash that is wrong in a way that looks valid, which is the Mongo defect this
+// campaign fixed in the same change.
+//
+// Every other format writes to stdout and is streamed.
+func TestDirectoryFormatIsNotStreamed(t *testing.T) {
+	for _, format := range []string{"d"} {
+		args := &PgDumpArgs{
+			Host: "h", Port: "5432", Username: "u", Database: "db",
+			PgOutFormat: format,
+			Storage:     &storage.Params{StorageType: "local", LocalPath: t.TempDir(), OutName: "dump"},
+		}
+		built, err := argsBuilder(args, t.TempDir())
+		if err != nil {
+			t.Fatalf("argsBuilder(%s) error = %v", format, err)
+		}
+		joined := strings.Join(built, " ")
+		if !strings.Contains(joined, "--file=") {
+			t.Errorf("format %q does not use --file=, so the assumption behind excluding it from "+
+				"streaming no longer holds: %s", format, joined)
+		}
+	}
+
+	for _, format := range []string{"c", "p", "t"} {
+		args := &PgDumpArgs{
+			Host: "h", Port: "5432", Username: "u", Database: "db",
+			PgOutFormat: format,
+			Storage:     &storage.Params{StorageType: "local", LocalPath: t.TempDir(), OutName: "dump"},
+		}
+		built, err := argsBuilder(args, t.TempDir())
+		if err != nil {
+			t.Fatalf("argsBuilder(%s) error = %v", format, err)
+		}
+		if strings.Contains(strings.Join(built, " "), "--file=") {
+			t.Errorf("format %q uses --file=, so it does not write to stdout and must not be "+
+				"streamed either", format)
+		}
+	}
+}

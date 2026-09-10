@@ -75,14 +75,19 @@ configuration file or your shell history, and prefer a MongoDB user whose creden
 cheaply.
 :::
 
-**Set `output:` on the backup job, and make the artifact a single file.** Without `output`, Sentinel
-never learns the artifact's final name and writes no manifest, exactly as on PostgreSQL. MongoDB
-adds a second trap: by default `mongodump` writes a *directory tree*, and a directory cannot be
-hashed, cannot be listed by the local storage backend, and therefore cannot be staged by a restore
-job. The [first backup page](./first-backup.md) shows the one-line fix.
+**A local MongoDB artifact is a single archive file.** `mongodump --archive=` is used for local
+storage as well as remote, so the artifact hashes, lists and stages like any other engine's.
 
-**Override `scheduler.lock_dir`.** It defaults to `/var/run/sentinel`, which an unprivileged user
-cannot create. Backups do not take that lock, so the problem first appears at the restore.
+On v1.4.0 and earlier the default was `--out=`, which writes a *directory tree*: it could not be
+hashed, was skipped by the local backend's listing, and could not be staged by a restore
+([#191](https://github.com/denisakp/sentinel/issues/191)). And `output:` was required before a
+manifest was written at all ([#151](https://github.com/denisakp/sentinel/issues/151)). Both are
+fixed; the [first backup page](./first-backup.md) has the detail.
+
+**`scheduler.lock_dir` no longer defaults to a path you cannot write.** It resolves per user, and
+only root gets `/var/run/sentinel` ([#154](https://github.com/denisakp/sentinel/issues/154)).
+Backups take that lock now too ([#163](https://github.com/denisakp/sentinel/issues/163)), so it is
+no longer a restore-only concern.
 
 **A MongoDB backup to remote storage stages a local archive first.** `mongodump` cannot stream into
 a bucket, so Sentinel writes an archive to a transient directory and uploads that. This surprises

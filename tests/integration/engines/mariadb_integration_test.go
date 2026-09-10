@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/adapters/monitor"
 	dbprobe "github.com/denisakp/sentinel/internal/adapters/db_probe"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/dump/mariadb"
+	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 func TestMariaDBBackup(t *testing.T) {
@@ -50,7 +50,7 @@ func TestMariaDBBackup(t *testing.T) {
 	// Execute backup
 	t.Logf("Running MariaDB backup: host=%s:%s db=%s", db.Host, db.Port, db.Database)
 	start := time.Now()
-	_, err := mariadb.Backup(dbprobe.NewAdapter(), args)
+	_, err := mariadb.Backup(context.Background(), dbprobe.NewAdapter(), args)
 	duration := time.Since(start)
 
 	// Verify backup succeeded
@@ -103,7 +103,7 @@ func TestMariaDBRestore(t *testing.T) {
 		},
 	}
 
-	if _, err := mariadb.Backup(dbprobe.NewAdapter(), backupArgs); err != nil {
+	if _, err := mariadb.Backup(context.Background(), dbprobe.NewAdapter(), backupArgs); err != nil {
 		t.Fatalf("Failed to create backup for restore test: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestMariaDBBackupCleanupOnFailure(t *testing.T) {
 
 	// Execute backup (should fail)
 	t.Logf("Running MariaDB backup with invalid credentials (expecting failure)")
-	_, err = mariadb.Backup(dbprobe.NewAdapter(), args)
+	_, err = mariadb.Backup(context.Background(), dbprobe.NewAdapter(), args)
 
 	// Verify backup failed as expected
 	if err == nil {

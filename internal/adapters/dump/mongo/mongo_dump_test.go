@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/ports/dbprobertesting"
+	"github.com/denisakp/sentinel/internal/sanitize"
 )
 
 // fakeBackend captures Upload invocations for assertion in tests.
@@ -79,7 +79,7 @@ func TestBackup_RemoteUploadHappyPath(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	digest, err := Backup(prober, da)
+	digest, err := Backup(context.Background(), prober, da)
 	if err != nil {
 		t.Fatalf("Backup: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestBackup_RemoteUploadError_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	_, err := Backup(prober, da)
+	_, err := Backup(context.Background(), prober, da)
 	if err == nil || !strings.Contains(err.Error(), "upload boom") {
 		t.Fatalf("expected upload error, got %v", err)
 	}
@@ -147,7 +147,7 @@ func TestBackup_MongodumpFail_CleansStaging(t *testing.T) {
 			OutName:     "mongo.archive",
 		},
 	}
-	_, err := Backup(prober, da)
+	_, err := Backup(context.Background(), prober, da)
 	if err == nil || !strings.Contains(err.Error(), "failed to run mongo_dump") {
 		t.Fatalf("expected mongo_dump error, got %v", err)
 	}

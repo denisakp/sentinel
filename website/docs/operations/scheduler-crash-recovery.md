@@ -61,17 +61,25 @@ ls -la /var/lib/sentinel/locks/
 configuration and resolves every `*_env` variable before it registers a single job. A missing
 `password_env` or `encryption_key_env` stops the restart at load time.
 
-:::danger Restarting rewrites every `running` row, including live ones
-Before the cron loop starts, `schedule start` marks **every** row still in `running` as
-`interrupted`. There is no age check and no lock check: a backup that a separate process is running
-right now looks identical to one that crashed, and its row is rewritten while the dump continues.
-The artifact is unaffected; the history is what ends up wrong.
+:::note Restarting leaves live runs alone, since the fix for issue #195
+Before the cron loop starts, `schedule start` finalises rows left in `running` by a **previous**
+process, using the same lock-aware decision `sentinel repair` makes. A job still holding a live lock
+keeps its row; a lock held by another host is left to that host; only a row with no live lock is
+marked `interrupted`.
 
-Check for live dumps first, and wait for them:
+**On v1.4.0 and earlier it rewrote every `running` row.** There was no age check and no lock check, so
+a backup another process was running right then looked identical to one that had crashed, and its row
+was rewritten while the dump continued. The artifact was unaffected; the history was what ended up
+wrong, and anything reacting to a failed run acted on a false signal. On those versions, check for
+live dumps first and wait for them:
 
 ```bash
 pgrep -af 'pg_dump|mysqldump|mariadb-dump|mongodump'
 ```
+
+This depended on backups taking a lock, which they did not until
+[#163](https://github.com/denisakp/sentinel/issues/163) was fixed. Both landed before this became
+reliable.
 :::
 
 :::danger Restarting also migrates the history database
@@ -254,10 +262,17 @@ scheduler stopped
 Configure your supervisor to send `SIGTERM` and to allow a stop timeout longer than your longest
 job. This is [issue #138](https://github.com/denisakp/sentinel/issues/138).
 
-**Do not rely on `scheduler.job_timeout_minutes` to bound a hung job.** The key is accepted and
-defaults to 180, but nothing reads it: the helper that would apply a per-job deadline has no callers,
-so a wedged backup runs until the process dies. Restore jobs are the exception; their own
-`timeout_seconds` is applied. Bound backups externally if you need a ceiling.
+**`scheduler.job_timeout_minutes` bounds a scheduled backup.** The deadline reaches the dump
+subprocess, so a wedged `pg_dump` is killed rather than holding a concurrency slot forever. It applies
+to scheduled runs; a one-shot `sentinel backup --config` is bounded by whoever invoked it. Restore
+jobs use their own `timeout_seconds`.
+
+**On v1.4.0 and earlier the key did nothing.** It was accepted and defaulted to 180, and nothing read
+it. Worse, it could not have worked if wired: every dump started its subprocess without a context, so
+no deadline could reach one. A wedged backup ran until the process died, and since the scheduler has a
+concurrency limit, enough hangs stopped the whole schedule silently
+([#194](https://github.com/denisakp/sentinel/issues/194)). On those versions, bound backups
+externally.
 
 **Run `sentinel repair --dry-run` after every hard termination**, and on a schedule between them.
 Because there is no startup reap, drift accumulates silently until something skips. See

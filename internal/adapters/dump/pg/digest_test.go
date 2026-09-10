@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -53,7 +54,7 @@ func TestBackup_ReturnsInlineDigest(t *testing.T) {
 			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(prober, &PgDumpArgs{
+			digest, err := Backup(context.Background(), prober, &PgDumpArgs{
 				Host: "127.0.0.1", Port: "5432", Username: "u", Database: "d",
 				Storage: &storage.Params{StorageType: "local", LocalPath: out, OutName: "x.sql"},
 			})
@@ -82,7 +83,7 @@ func TestBackupAll_ReturnsInlineDigest(t *testing.T) {
 			installFakeEngine(t, "pg_dumpall", tc.payload)
 
 			out := t.TempDir()
-			digest, err := BackupAll(&PgDumpAllArgs{
+			digest, err := BackupAll(context.Background(), &PgDumpAllArgs{
 				Username: "u",
 				Storage:  &storage.Params{StorageType: "local", LocalPath: out, OutName: "all.sql"},
 			})

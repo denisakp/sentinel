@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -51,7 +52,7 @@ func TestBackup_ReturnsInlineDigest(t *testing.T) {
 			prober := stubConnectivity(t)
 
 			out := t.TempDir()
-			digest, err := Backup(prober, &MySqlDumpArgs{
+			digest, err := Backup(context.Background(), prober, &MySqlDumpArgs{
 				Host: "127.0.0.1", Port: "3306", Username: "u", Database: "d",
 				Storage: &storage.Params{StorageType: "local", LocalPath: out, OutName: "x.sql"},
 			})
@@ -71,7 +72,7 @@ func TestBackupAll_ReturnsInlineDigest(t *testing.T) {
 			installFakeEngine(t, "mysqldump", tc.payload)
 
 			out := t.TempDir()
-			digest, err := BackupAll(&MySqlDumpAllArgs{
+			digest, err := BackupAll(context.Background(), &MySqlDumpAllArgs{
 				Username: "u",
 				Storage:  &storage.Params{StorageType: "local", LocalPath: out, OutName: "all.sql"},
 			})

@@ -154,7 +154,7 @@ is a validation error.
 |---|---|---|---|---|
 | `gzip` | bool | No | n/a | `mongodump --gzip`. Engine-native compression. |
 | `oplog` | bool | No | n/a | Adds `--oplog`. |
-| `archive` | bool | No | n/a | Adds `--archive`. |
+| `archive` | bool | No | n/a | Adds `--archive`. Local MongoDB backups use `--archive` regardless since the fix for [#191](https://github.com/denisakp/sentinel/issues/191); on v1.4.0 and earlier this key was the only way to avoid a directory artifact. |
 
 :::note Double compression is rejected
 Pipeline `compression.enabled: true` may not coexist with engine-native compression; PostgreSQL
@@ -306,7 +306,7 @@ Per-job chain policy and engine pre-checks.
 |---|---|---|---|---|
 | `max_concurrent_backups` | int | No | the top-level `max_concurrent_backups` | Scheduler-side backup concurrency limit. |
 | `max_concurrent_restores` | int | No | `1` | Scheduler-side restore concurrency limit. |
-| `job_timeout_minutes` | int | No | `180` | Per-job timeout in minutes. |
+| `job_timeout_minutes` | int | No | `180` | Deadline for a **scheduled** backup, in minutes. The deadline reaches the dump subprocess, so a wedged dump is killed rather than holding a concurrency slot. A one-shot `sentinel backup --config` is not bounded by it. Was read by nothing on v1.4.0 and earlier ([#194](https://github.com/denisakp/sentinel/issues/194)). |
 | `stale_lock_threshold` | int | No | `60` | Age in minutes after which a lock held by a dead process is treated as stale. |
 | `lock_dir` | string | No | `/var/run/sentinel` | Directory for per-job lock files. |
 

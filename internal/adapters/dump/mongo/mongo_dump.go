@@ -26,7 +26,7 @@ var backupBackendFactory = storage.NewBackend
 // google-drive, azure) mongodump runs in archive mode against a staging file
 // under <backup_path>/.staging/<job-id>/, then the file is streamed to the
 // configured StorageBackend and the staging dir is removed (success or failure).
-func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 	storageHandler, err := storage.NewStorage(da.Storage)
 	if err != nil {
 		return "", err
@@ -86,7 +86,7 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command("mongodump", args...)
+	cmd := exec.CommandContext(ctx, "mongodump", args...)
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr
 	var stdOut bytes.Buffer
@@ -133,11 +133,12 @@ func Backup(prober ports.DBProber, da *DumpMongoArgs) (string, error) {
 		return "", nil
 	}
 
-	sum := sha256.Sum256(stdOut.Bytes())
-	digest := hex.EncodeToString(sum[:])
-
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), da.Storage.OutName); err != nil {
-		return "", fmt.Errorf("failed to write backup to storage: %w", err)
+	// mongodump wrote the archive itself, via --archive, so hash the file that
+	// exists rather than the empty stdout it produced. Hashing stdout recorded
+	// sha256("") for every local Mongo backup (#191).
+	digest, err := hashFile(da.Storage.OutName)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash backup archive: %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")

@@ -9,14 +9,15 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/streamsink"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 )
 
 // Backup backs up a PostgresSQL database using pg_dump. The prober checks
 // connectivity to the target database before pg_dump runs.
-func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
+func Backup(ctx context.Context, prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	// get the storage handler
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
@@ -45,21 +46,48 @@ func Backup(prober ports.DBProber, pda *PgDumpArgs) (string, error) {
 	}
 
 	// run pg_dump command
-	cmd := exec.Command("pg_dump", args...)
+	cmd := exec.CommandContext(ctx, "pg_dump", args...)
 
 	// capture the command error
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr
-
-	// capture the command output
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
 
 	// remove the password from the environment after the command is done
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", pda.Password)) // set the password in the environment
 	defer func() {
 		cmd.Env = cmd.Env[:len(cmd.Env)-1]
 	}()
+
+	// Local storage streams straight to the destination file, hashing on the
+	// way. Reading the whole dump into a bytes.Buffer first made peak memory
+	// track the uncompressed dump size, so a large database was killed by the
+	// OOM killer rather than failing with a useful error (#164).
+	//
+	// Remote storage still buffers, and that is a deliberate limit rather than an
+	// oversight: the remote path writes through Storage.WriteBackup, whose object
+	// key is derived differently per backend, and converting it to a streaming
+	// Upload without untangling that first risks breaking remote backups that
+	// work today. See the issue for what remains.
+	//
+	// Directory format is excluded, and that exclusion is load-bearing: with
+	// --format=d, pg_dump writes a directory through --file= and produces nothing
+	// on stdout, so streaming stdout to OutName would create an empty file where
+	// the directory belongs and record the digest of no bytes. That is exactly the
+	// shape of #191 on the Mongo side, and streaming unconditionally would have
+	// reproduced it here while fixing it there.
+	if streamsink.IsLocal(pda.Storage) && pda.PgOutFormat != "d" {
+		digest, err := streamsink.RunToSink(ctx, cmd, streamsink.Sink{LocalPath: pda.Storage.OutName})
+		if err != nil {
+			redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
+			return "", fmt.Errorf("failed to execute pg_dump command - %w, %s", err, redacted)
+		}
+		fmt.Printf("Backup complete !\n")
+		return digest, nil
+	}
+
+	// capture the command output
+	var stdOut bytes.Buffer
+	cmd.Stdout = &stdOut
 
 	err = cmd.Run()
 	if err != nil {

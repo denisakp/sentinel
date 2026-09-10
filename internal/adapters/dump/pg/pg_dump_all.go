@@ -2,14 +2,15 @@ package pg
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os/exec"
 
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/sanitize"
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -24,7 +25,7 @@ type PgDumpAllArgs struct {
 }
 
 // BackupAll backs up all PostgresSQL databases using pg_dumpall.
-func BackupAll(pda *PgDumpAllArgs) (string, error) {
+func BackupAll(ctx context.Context, pda *PgDumpAllArgs) (string, error) {
 	storageHandler, err := storage.NewStorage(pda.Storage)
 	if err != nil {
 		return "", err
@@ -49,7 +50,7 @@ func BackupAll(pda *PgDumpAllArgs) (string, error) {
 		args = append(args, additionalArgs...)
 	}
 
-	cmd := exec.Command("pg_dumpall", args...)
+	cmd := exec.CommandContext(ctx, "pg_dumpall", args...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", pda.Password))
 	defer func() {
 		cmd.Env = cmd.Env[:len(cmd.Env)-1]

@@ -1,6 +1,7 @@
 package mariadb
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
@@ -20,7 +21,7 @@ func (b *Builder) Build(ctx ports.BuildContext) (ports.BuildResult, error) {
 	if !ok {
 		return ports.BuildResult{}, fmt.Errorf("mariadb.Builder: expected *MariaDBDumpArgs, got %T", ctx.Options)
 	}
-	digest, err := Backup(b.prober, args)
+	digest, err := Backup(buildCtx(ctx), b.prober, args)
 	if err != nil {
 		return ports.BuildResult{}, err
 	}
@@ -42,4 +43,18 @@ func localArtifactPath(p *storage.Params) string {
 		return ""
 	}
 	return utils.FullPath(backupPath, p.OutName)
+}
+
+// buildCtx returns the cancellation context carried by the port, falling back to
+// a background context when the caller supplied none.
+//
+// Every builder used to drop ctx.Context entirely and start the dump with
+// exec.Command, so nothing could ever cancel a running dump. scheduler.
+// job_timeout_minutes was therefore unenforceable however it was wired: a
+// deadline that reaches no subprocess stops nothing (#194).
+func buildCtx(ctx ports.BuildContext) context.Context {
+	if ctx.Context != nil {
+		return ctx.Context
+	}
+	return context.Background()
 }
