@@ -69,6 +69,7 @@ func BuildDumpJobSpec(job BackupJob, password string, additionalArgs string) por
 		Database:       job.Database,
 		URI:            job.URI,
 		AdditionalArgs: additionalArgs,
+		TLS:            TLSPortConfig(job.TLS),
 	}
 
 	switch job.Type {
@@ -345,4 +346,25 @@ func effectiveRestoreConflict(job RestoreJob) string {
 		return "error"
 	}
 	return job.ConflictStrategy
+}
+
+// TLSPortConfig maps the YAML tls block onto the engine-agnostic port type, or
+// returns nil when the job declares none.
+//
+// It exists so the validator and the dump-spec builder cannot disagree about the
+// mapping. Before this the validator built the port type inline, validated it,
+// and discarded it, while nothing else built one at all: a `tls:` block was
+// checked for correctness and then had no effect on any connection (#189).
+func TLSPortConfig(cfg *TLSConfig) *ports.Config {
+	if cfg == nil {
+		return nil
+	}
+	return &ports.Config{
+		Enabled:              cfg.Enabled,
+		Mode:                 cfg.Mode,
+		CACertPath:           cfg.CACertPath,
+		ClientCert:           cfg.ClientCert,
+		ClientKey:            cfg.ClientKey,
+		ClientKeyPasswordEnv: cfg.ClientKeyPasswordEnv,
+	}
 }

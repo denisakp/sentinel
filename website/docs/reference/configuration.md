@@ -78,7 +78,7 @@ Each entry under `databases` is a backup job; the map key is the job name. The n
 | `uri_env` | string | No | n/a | Name of an environment variable holding the MongoDB URI. Overwrites `uri`; the variable must be set at config-load time or loading fails. |
 | `mongo_secrets_file` | string | No | n/a | Path to a Sentinel-native secrets file supplying a MongoDB password, URI, and/or TLS key passphrase. **mongodb only**: rejected on any other type. See [secrets files](#secrets-files). |
 | `mongo_secrets_file_env` | string | No | n/a | Name of an environment variable holding the path for `mongo_secrets_file`. Overwrites it; the variable must be set at config-load time or loading fails. |
-| `tls` | mapping | No | n/a | TLS settings for the database connection. Omitting it logs a `tls_not_configured` warning. See [`tls`](#tls). |
+| `tls` | mapping | No | n/a | TLS settings for the database connection. Omitting it, or setting `enabled: false`, logs a `tls_not_configured` warning. Had no effect at all before the fix for [#189](https://github.com/denisakp/sentinel/issues/189). See [`tls`](#tls). |
 
 :::info Added in v1.4.0
 `defaults_file`, `mongo_secrets_file`, `defaults_file_env`, and `mongo_secrets_file_env` were
@@ -97,7 +97,7 @@ introduced in Sentinel v1.4.0.
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `output` | string | No | `SENTINEL_<timestamp>` plus the engine extension | Artifact filename. Supports `${VAR}` interpolation. |
+| `output` | string | No | `SENTINEL_<timestamp>` plus the engine extension | Artifact filename. Supports `${VAR}` interpolation. **Used verbatim**, so a literal value such as `shop.sql` is rewritten on every run and truncates the previous artifact: retention then has nothing to prune and an incremental chain collapses onto one file. Use `{timestamp}` or `{date}` in the value, or omit the key, to get one artifact per run ([#193](https://github.com/denisakp/sentinel/issues/193)). |
 | `storage` | mapping | Conditional | inherits `defaults.storage` | Storage backend for this job. An effective `storage.type` is required after inheritance. See [storage blocks](#storage-blocks). |
 | `database_options` | mapping | No | n/a | Engine-specific dump options. See [`database_options`](#database_options). |
 | `compression` | mapping | No | inherits `defaults.compression` | Pipeline compression. See [`compression`](#compression). |
@@ -233,7 +233,25 @@ Engine-agnostic streaming compression inserted between the dump and the hash/enc
 
 ## `tls`
 
-Per-job TLS settings for the database connection. Applies to all four engines.
+Per-job TLS settings for the database connection. Applies to all four engines, on the **backup**
+path.
+
+:::note The block had no effect at all on v1.4.0 and earlier
+Every engine's argument builder read a TLS field and nothing ever populated one. The validator built
+the configuration from this block, checked it, and discarded it. So a job with `tls:` connected in
+plaintext, for **every** engine, not only MongoDB as [issue #189](https://github.com/denisakp/sentinel/issues/189)
+reported.
+
+Worse, the `tls_not_configured` warning fired only when the block was **absent**, so adding it
+silenced the one diagnostic that would have said the connection was unencrypted. Someone hardening a
+deployment saw the warning stop and concluded it had worked.
+
+The block now reaches all four engines, and the warning depends on whether the connection will
+actually be encrypted rather than on whether the key exists: `tls: {enabled: false}` still warns.
+
+**Restore jobs remain unaffected**, because `restores.<name>` has no `tls:` key at all. That is a
+missing feature rather than broken wiring, and it is not covered by the fix.
+:::
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
@@ -364,7 +382,7 @@ reserved and rejected.
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `restore_mode` | string | No | `full` | `full`, `pitr`, or `incremental`. |
+| `restore_mode` | string | No | `full` | `full`, `pitr`, or `incremental`. `pitr` and `incremental` are accepted only for `postgres`; the validator rejects them for MySQL, MariaDB and MongoDB, because the planner cannot run them. `incremental` was accepted for all four before the fix for [issue #186](https://github.com/denisakp/sentinel/issues/186), and failed at `restore run` instead. |
 | `pitr_timestamp` | string | Conditional | n/a | RFC3339 timestamp with timezone. Required when `restore_mode: pitr`; rejected in other modes. **postgres only**: `pitr` mode is rejected for other engines. |
 | `pitr_target_timeline` | string | No | n/a | Recovery timeline for PITR. Valid only when `restore_mode: pitr`. |
 | `incremental_from_backup` | string | Conditional | n/a | Baseline backup for incremental planning. Required when `restore_mode: incremental`; rejected in other modes. |

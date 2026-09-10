@@ -167,10 +167,14 @@ Notifications are also per job. There is no aggregate drill summary notification
 
 **Nothing ran.** `No enabled restore jobs to run.` Add `enabled: true` and a `schedule` to each job.
 
-**A named job you thought was disabled ran anyway.** `sentinel restore run <job-name>` executes the
-job whether or not it is enabled; the `enabled` flag governs only `--all` and the scheduler
-([issue #139](https://github.com/denisakp/sentinel/issues/139)). Do not rely on `enabled: false` as a
-safety catch on an explicit invocation.
+**A named job is refused as disabled.** `sentinel restore run <job-name>` now checks `enabled`, so a
+job set to `enabled: false` is refused before anything is locked or staged. Set `enabled: true` to
+allow it.
+
+**On v1.4.0 and earlier that job would have run.** `enabled` governed only `--all` and the scheduler,
+so an explicit invocation executed a disabled job: it passed validation, acquired the lock, and
+reached the staging step. On those versions do not rely on `enabled: false` as a safety catch
+([issue #139](https://github.com/denisakp/sentinel/issues/139)).
 
 **You tried to disable a job with the CLI.** There is no such command. `restore enable`, `disable`,
 `pause` and `resume` were removed, because they printed a success message and persisted nothing

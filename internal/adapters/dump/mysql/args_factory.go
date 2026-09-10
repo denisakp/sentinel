@@ -15,5 +15,6 @@ func (ArgsFactory) BuildDumpArgs(spec ports.DumpJobSpec) (ports.EngineOptions, e
 		Password:       spec.Password,
 		Database:       spec.Database,
 		AdditionalArgs: spec.AdditionalArgs,
+		TLS:            spec.TLS,
 	}, nil
 }
