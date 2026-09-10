@@ -154,7 +154,7 @@ is a validation error.
 |---|---|---|---|---|
 | `gzip` | bool | No | n/a | `mongodump --gzip`. Engine-native compression. |
 | `oplog` | bool | No | n/a | Adds `--oplog`. |
-| `archive` | bool | No | n/a | Adds `--archive`. |
+| `archive` | bool | No | n/a | Adds `--archive`. Local MongoDB backups use `--archive` regardless since the fix for [#191](https://github.com/denisakp/sentinel/issues/191); on v1.4.0 and earlier this key was the only way to avoid a directory artifact. |
 
 :::note Double compression is rejected
 Pipeline `compression.enabled: true` may not coexist with engine-native compression; PostgreSQL

@@ -128,29 +128,35 @@ mounted secret. If the named variable is unset, loading fails before validation:
 **`database_options: {archive: true}` is what makes the artifact a single file.** This is the most
 important line on the page, and it has no equivalent on any other engine.
 
-:::caution Without `archive: true`, the backup is a directory and is not restorable
+:::note A local backup is a single archive file, since the fix for issue #191
 
-By default Sentinel invokes `mongodump --out=<path>`, which writes a *directory tree* of BSON files.
-Three things follow, all of them bad:
+Sentinel invokes `mongodump --archive=<path>` for local storage, as it has always done for remote,
+so the artifact is one file with a real size and a digest of its own bytes. It verifies and it
+restores.
 
-- The manifest's `size_bytes` is `0`, because a directory has no size to record.
-- The recorded hash is the SHA-256 of `mongodump`'s standard output, which in directory mode is
-  empty. Every directory-mode MongoDB backup therefore records the same constant digest,
-  `e3b0c442…b855`, which fingerprints nothing.
-- `sentinel backup verify` cannot re-read a directory as a byte stream, so it reports an operational
-  failure rather than `ok`, and the local storage backend's listing skips directories entirely, so a
-  restore job can never find the artifact.
+**On v1.4.0 and earlier the default was `--out=<path>`**, which writes a *directory tree* of BSON
+files. Three things followed, all of them bad:
 
-`archive: true` adds `--archive` to the `mongodump` invocation, which makes it write a single archive
-stream to standard output instead. Sentinel hashes that stream and writes it to `output`. That
-artifact has a real size, a real digest, verifies, and restores.
+- The manifest's `size_bytes` was `0`, because a directory has no size to record.
+- The recorded hash was the SHA-256 of `mongodump`'s standard output, which in directory mode is
+  empty. Every directory-mode MongoDB backup therefore recorded the same constant digest,
+  `e3b0c442…b855`, which fingerprints nothing. The manifest did not merely lack a hash: it carried
+  one that was wrong in a way that looked valid, so an integrity sweep saw a well-formed record for
+  an unrestorable backup.
+- `sentinel backup verify` cannot re-read a directory as a byte stream, and the local storage
+  backend's listing skips directories, so a restore job could never find the artifact.
+
+On those versions, `archive: true` was the workaround. It is no longer needed for local storage,
+though setting it remains harmless.
 :::
 
-**`output: catalog.archive` names the artifact, and that is what produces the manifest.** Without
-`output`, Sentinel does not learn the artifact's name and writes no `.manifest.json` sidecar, so
-`sentinel backup verify` reports `missing_manifest` and a restore has no hash to check. Unlike the
-SQL engines, MongoDB jobs do not get a `.sql` extension appended, so the name you give is the name
-you get.
+**`output: catalog.archive` names the artifact.** Since the fix for
+[#151](https://github.com/denisakp/sentinel/issues/151) a manifest is written whether or not you set
+it, so `output` is now about choosing the name rather than about getting integrity at all. Note that
+a literal name is reused on every run and overwrites the previous artifact; use `{timestamp}` in it,
+or omit it, to keep one file per run ([#193](https://github.com/denisakp/sentinel/issues/193)).
+Unlike the SQL engines, MongoDB jobs do not get a `.sql` extension appended, so the name you give is
+the name you get.
 
 **`history_db_path: ./history.db` keeps the execution history local.** The default is
 `~/.sentinel/history.db`, shared by every configuration on the machine.

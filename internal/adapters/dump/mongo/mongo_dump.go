@@ -133,11 +133,12 @@ func Backup(ctx context.Context, prober ports.DBProber, da *DumpMongoArgs) (stri
 		return "", nil
 	}
 
-	sum := sha256.Sum256(stdOut.Bytes())
-	digest := hex.EncodeToString(sum[:])
-
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), da.Storage.OutName); err != nil {
-		return "", fmt.Errorf("failed to write backup to storage: %w", err)
+	// mongodump wrote the archive itself, via --archive, so hash the file that
+	// exists rather than the empty stdout it produced. Hashing stdout recorded
+	// sha256("") for every local Mongo backup (#191).
+	digest, err := hashFile(da.Storage.OutName)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash backup archive: %w", err)
 	}
 
 	fmt.Printf("Backup complete !\n")

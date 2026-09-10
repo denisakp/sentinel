@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	mongotls "github.com/denisakp/sentinel/internal/adapters/mongo_tls"
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	backup "github.com/denisakp/sentinel/internal/domain/backup"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 )
@@ -64,7 +64,18 @@ func argsBuilder(da *DumpMongoArgs, backupPath, stagingArchive string) ([]string
 	case remote && !hasArchive:
 		args = append(args, fmt.Sprintf("--archive=%s", stagingArchive))
 	case !remote && !hasArchive:
-		args = append(args, fmt.Sprintf("--out=%s", da.Storage.OutName))
+		// --archive, not --out, so a local backup is a single file.
+		//
+		// --out makes mongodump write a DIRECTORY and produce nothing on stdout.
+		// The pipeline then hashed an empty stdout, recorded sha256("") with a
+		// size of 0, and pointed the manifest at a path the local backend cannot
+		// enumerate because it lists files. The job reported success and the
+		// history recorded a completed backup that `backup verify` could not
+		// check and restore could not read. A manifest hash that is wrong in a
+		// way that looks valid is worse than a missing one (#191).
+		//
+		// The remote path has always used --archive; this makes local match.
+		args = append(args, fmt.Sprintf("--archive=%s", da.Storage.OutName))
 	}
 	args = append(args, "--quiet")
 	if da.Database != "" {
