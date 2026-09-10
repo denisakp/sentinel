@@ -75,8 +75,9 @@ create. Backups do not take that lock, so the problem only appears at the first 
 `sentinel restore run` will not execute it. Set `enabled: true` explicitly.
 
 **MariaDB does not write binary logs unless you ask it to.** Unlike MySQL 8, binary logging is off by
-default, and Sentinel only collects files named `mariadb-bin.NNNNNN`. The
-[binary-log page](./incremental-binlog.md) shows how to start the container so both conditions hold.
+default. The file names themselves no longer matter to Sentinel, which collects any
+`<basename>.NNNNNN` segment since issue #190 was fixed. The
+[binary-log page](./incremental-binlog.md) shows how to start the container.
 
 ## Where this track stops
 

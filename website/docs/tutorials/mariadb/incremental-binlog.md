@@ -40,11 +40,14 @@ Three conditions have to hold, and on MariaDB none of them is the default.
 track. MySQL 8 writes binary logs out of the box; MariaDB does not log at all until `--log-bin` is
 given.
 
-**The file names must begin with `mariadb-bin.`** When Sentinel scans the log directory it keeps only
-regular files whose name starts with `mariadb-bin.` or `mysql-bin.`, skipping directories and any
-`.index` file. MariaDB derives its log file names from `--log-basename` or the host name, so a
-server started with a bare `--log-bin` will typically produce `<hostname>-bin.NNNNNN`, which the scan
-discards. Passing the value explicitly, `--log-bin=mariadb-bin`, removes the guesswork.
+**The file names no longer have to match a fixed prefix.** When Sentinel scans the log directory it
+keeps every regular file with a numbered segment suffix, `<basename>.NNNNNN`, skipping directories
+and any `.index` file, and it reads the server's own `.index` file when one is present. MariaDB
+derives its log file names from `--log-basename` or the host name, so a server started with a bare
+`--log-bin` typically produces `<hostname>-bin.NNNNNN`; that is collected. Until issue #190 was fixed
+the scan matched only `mariadb-bin.` and `mysql-bin.`, and everything else was silently discarded.
+Passing `--log-bin=mariadb-bin` explicitly is still worth doing for predictable file names, but it is
+no longer what makes the scan work.
 
 **The directory must be readable by Sentinel, on Sentinel's own filesystem.** `mysql.binlog_path` is
 validated at configuration load: it is resolved to an absolute path and must exist and be a
