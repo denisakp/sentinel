@@ -97,8 +97,10 @@ Output covers job name, period, execution count, success rate, failure count, av
 
 The CSV export has a fixed header: `id`, `backup_name`, `database_type`, `timestamp`, `duration_ms`, `status`, `error_message`, `storage_backend`, `file_path`, `file_size_bytes`, `checksum`, `backup_type`, `chain_id`, `chain_index`, `delta_size_bytes`, `full_backup_size_bytes`, `created_at`. Writing to `--output` uses mode `0644`.
 
-:::caution `list`, `show`, `stats`, and `export` print to stderr, not stdout
-These four subcommands emit their results through Cobra's default print stream, which is stderr. Redirecting stdout captures nothing: `sentinel monitor export --config sentinel.yaml > history.json` produces an empty file, and `sentinel monitor list --format json | jq` receives no input. Use `-o`/`--output` for `export`, or redirect stderr with `2>` for the others. `monitor doctor` and [`sentinel repair`](./repair.md) write to stdout correctly.
+:::note `list`, `show`, `stats` and `export` write to stdout, since the fix for issue #165
+All four send their results to stdout, so `sentinel monitor export --config sentinel.yaml > history.json` writes the export and `sentinel monitor list --format json | jq` receives it. Log lines and the `--output` confirmation go to stderr, so a pipe carries data only.
+
+**On v1.4.0 and earlier these four emitted through Cobra's default print stream, which is stderr.** Redirecting stdout captured nothing. On those versions use `-o`/`--output` for `export`, or redirect stderr with `2>` for the others. `monitor doctor` and [`sentinel repair`](./repair.md) were always correct; the same defect did affect `schedule list`, `schedule status` and `retention`, fixed at the same time.
 :::
 
 ### `sentinel monitor doctor`

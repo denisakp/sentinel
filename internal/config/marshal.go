@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/restore/incremental/mysqlbinlog"
+	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/ports"
 )
 
@@ -290,30 +290,53 @@ func RestorePasswordFromEnv(envName string) (string, error) {
 	return value, nil
 }
 
-// BuildRestoreAdditionalArgs builds a space-separated args string from restore options.
+// BuildRestoreAdditionalArgs builds a space-separated args string from restore
+// options: the recognised boolean flags first, then the operator's own
+// restore_options.additional_args string.
+//
+// That string used to be dropped. It was parsed and validated at configuration
+// load and then never read here, so engine-specific restore flags were accepted,
+// reported as valid, and silently ignored. Nothing in the output said so (#172).
+//
+// The boolean keys are emitted in a fixed order. Ranging over the map produced a
+// different argument order on every run, since Go randomises map iteration, which
+// made the command non-reproducible and any assertion on it flaky.
 func BuildRestoreAdditionalArgs(job RestoreJob) string {
 	if len(job.RestoreOptions) == 0 {
 		return ""
 	}
+
+	// Declared order, not map order.
+	flagOrder := []struct {
+		key, flag string
+		mongoOnly bool
+	}{
+		{key: "clean", flag: "--clean"},
+		{key: "if_exists", flag: "--if-exists"},
+		{key: "no_owner", flag: "--no-owner"},
+		{key: "no_privileges", flag: "--no-privileges"},
+		{key: "gzip", flag: "--gzip", mongoOnly: true},
+	}
+
 	var args []string
-	for key, value := range job.RestoreOptions {
-		if flag, ok := value.(bool); ok && flag {
-			switch key {
-			case "clean":
-				args = append(args, "--clean")
-			case "if_exists":
-				args = append(args, "--if-exists")
-			case "no_owner":
-				args = append(args, "--no-owner")
-			case "no_privileges":
-				args = append(args, "--no-privileges")
-			case "gzip":
-				if job.Type == "mongodb" {
-					args = append(args, "--gzip")
-				}
-			}
+	for _, f := range flagOrder {
+		if f.mongoOnly && job.Type != "mongodb" {
+			continue
+		}
+		if flag, ok := job.RestoreOptions[f.key].(bool); ok && flag {
+			args = append(args, f.flag)
 		}
 	}
+
+	// The operator's own arguments go last, so they sit nearest the engine
+	// invocation and can override a flag derived above where the tool honours
+	// the later occurrence.
+	if raw, ok := job.RestoreOptions["additional_args"]; ok {
+		if extra, isString := raw.(string); isString && strings.TrimSpace(extra) != "" {
+			args = append(args, strings.TrimSpace(extra))
+		}
+	}
+
 	return strings.Join(args, " ")
 }
 

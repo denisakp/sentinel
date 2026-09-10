@@ -11,7 +11,7 @@ Sentinel forwards operator-supplied extra arguments to the underlying dump and r
 | Surface | Applies to | Notes |
 |---|---|---|
 | `sentinel backup --args "…"` | Every job in the run | The only free-form argument surface for backups. When `--config` is also given, the flag replaces whatever the job would otherwise have contributed, for that run only. |
-| `restore_options.additional_args` in the YAML | One restore job | Validated at configuration load. See the caution below before relying on it. |
+| `restore_options.additional_args` in the YAML | One restore job | Validated at configuration load and forwarded to the restore tool. Dropped on v1.4.0 and earlier; see the note below. |
 
 There is **no `additional_args` key on a backup job**. `database_options:` is an allowlist of typed keys per engine, so a free-form string is rejected:
 
@@ -25,10 +25,12 @@ Error: invalid config "sentinel.yaml": backup 'demo': unsupported postgres optio
 | MySQL, MariaDB | `single_transaction`, `routines`, `triggers`, `events` |
 | MongoDB | `gzip`, `oplog`, `archive` |
 
-:::caution `restore_options.additional_args` is validated but not forwarded, as of v1.4.0
-The configuration loader parses the value and rejects a malformed one, but the translation from a YAML restore job into the engine-agnostic restore spec builds its argument string only from the boolean restore options (`clean`, `if_exists`, `no_owner`, `no_privileges`, `gzip`). The `additional_args` string is never copied in, so `sentinel restore run` does not pass it to `pg_restore`, `mysql`, `mariadb`, or `mongorestore`.
+:::note `restore_options.additional_args` is forwarded, since the fix for issue #172
+The value reaches the restore tool. It is appended **after** the flags derived from the boolean restore options (`clean`, `if_exists`, `no_owner`, `no_privileges`, `gzip`), so where a tool honours the later occurrence of a flag your own arguments win.
 
-A configuration containing it validates cleanly and appears to work. Treat the key as inert until this is fixed; do not depend on it for correctness of a restore.
+Those derived flags are now emitted in a fixed order. They previously came out in Go map order, which is randomised, so the same configuration produced a different argument string from one run to the next.
+
+**On v1.4.0 and earlier the string was dropped.** The loader parsed and validated it, and the translation into the restore spec built its argument string from the boolean options only, so `sentinel restore run` never passed it to `pg_restore`, `mysql`, `mariadb` or `mongorestore`. A configuration containing it validated cleanly and appeared to work. On those versions treat the key as inert.
 :::
 
 ## Tokenisation rules

@@ -101,9 +101,9 @@ func runRetention(cmd *cobra.Command, preview bool) error {
 
 	summary := applyAllRetention(ctx, cfg, mon, dryRun)
 	for job, count := range summary.ByBackupJob {
-		cmd.Printf("%s: deleted %d backups\n", job, count)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: deleted %d backups\n", job, count)
 	}
-	cmd.Printf("total deleted: %d backups\n", summary.TotalDeleted)
+	fmt.Fprintf(cmd.OutOrStdout(), "total deleted: %d backups\n", summary.TotalDeleted)
 
 	// Per-job failures used to be collected, summarised as a single line with no
 	// detail, and then discarded: the command returned nil and exited 0. The
@@ -268,8 +268,8 @@ func printRetentionSummary(cmd *cobra.Command, jobName string, deleted []domainr
 	if dryRun {
 		mode = "preview"
 	}
-	cmd.Printf("retention %s for %s\n", mode, jobName)
+	fmt.Fprintf(cmd.OutOrStdout(), "retention %s for %s\n", mode, jobName)
 	for _, item := range deleted {
-		cmd.Printf("- %s (%d bytes) - %s\n", item.FilePath, item.FileSize, item.ReasonDeleted)
+		fmt.Fprintf(cmd.OutOrStdout(), "- %s (%d bytes) - %s\n", item.FilePath, item.FileSize, item.ReasonDeleted)
 	}
 }
