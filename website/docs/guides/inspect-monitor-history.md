@@ -1,6 +1,6 @@
 ---
 title: Inspecting execution history
-description: Read the SQLite execution history with monitor doctor, list, show, stats, and export, and work around the stream defects.
+description: Read the SQLite execution history with monitor doctor, list, show, stats, and export, and redirect or pipe the output reliably.
 sidebar_position: 14
 ---
 
@@ -30,12 +30,17 @@ to open, you are in [Migrating the monitor schema](./monitor-schema-migration.md
   engine option that engine does not accept, will stop a history query that touches no database at
   all.
 
-:::caution `list`, `show`, `stats`, and `export` write to stderr
-All four print through Cobra's default stream, which is stderr rather than stdout. Redirecting
-stdout captures nothing at all: `sentinel monitor export --format json > history.json` leaves a
-zero-byte file, and `sentinel monitor list --format json | jq` receives no input. Use `--output` for
-`export`, and `2>&1` before any pipe for the others. `monitor doctor` is unaffected and writes to
-stdout correctly. Tracked as issue #165.
+:::note `list`, `show`, `stats` and `export` write to stdout, since the fix for issue #165
+All four send their results to stdout, so redirecting or piping works as expected:
+`sentinel monitor export --format json > history.json` writes the export, and
+`sentinel monitor list --format json | jq` receives it. Log lines and status messages go to stderr,
+so a pipe carries only data.
+
+**On v1.4.0 and earlier all four wrote to stderr**, through Cobra's default print stream. A redirect
+left a zero-byte file and a pipe received nothing, with no error either way. On those versions use
+`--output` for `export`, and `2>&1` before any pipe for the others. `monitor doctor` was always
+correct. The same defect affected `schedule list`, `schedule status` and the `retention` output, all
+fixed together.
 :::
 
 ## Steps
@@ -168,8 +173,8 @@ day value (`1d`), or an hour value that is a whole multiple of 24 (`720h` reads 
 
 ### 5. Export history for a dashboard or an auditor
 
-Always write to a file. This is the one path that is not affected by the stderr defect, because the
-file is written directly.
+Either redirect stdout or write to a file with `--output`. Both work; `--output` additionally reports
+the path it wrote.
 
 ```bash
 sentinel monitor export --config sentinel.yaml \
@@ -180,9 +185,10 @@ sentinel monitor export --config sentinel.yaml \
 exported csv history to /var/log/sentinel/history-90d.csv
 ```
 
-The confirmation line itself goes to stderr; the file does not. With `--output` omitted the whole
-export goes to stderr, which is why redirecting stdout produces an empty file. `--last` has no
-default here, unlike `list`, so an unfiltered export covers the entire history.
+The confirmation line goes to stderr, deliberately: with `--output` the data is already in the file,
+so stdout stays empty and a caller piping this command receives nothing but the export. With
+`--output` omitted, the export itself goes to stdout and can be redirected. `--last` has no default
+here, unlike `list`, so an unfiltered export covers the entire history.
 
 ## Verify
 
@@ -207,8 +213,10 @@ One header line plus one line per execution. A zero-byte file means `--output` w
 
 ## If it goes wrong
 
-**Nothing appears on stdout, or a redirect produces an empty file.** The stderr defect above. Add
-`2>&1` before the pipe, or use `--output` for `export`.
+**Nothing appears on stdout, or a redirect produces an empty file.** On v1.4.0 and earlier this was
+issue #165: the output went to stderr. Add `2>&1` before the pipe, or use `--output` for `export`. On
+a current version, an empty result means there is genuinely no matching history; widen `--last` or
+drop the filters.
 
 **`Error: invalid config ...` from a command that only reads SQLite.** `monitor` validates the whole
 configuration before opening the history database, so an unrelated job's problem blocks the query.
