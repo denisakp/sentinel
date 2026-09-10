@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/domain/schedule"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/scheduler"
@@ -58,7 +58,7 @@ var scheduleStartCmd = &cobra.Command{
 			return fmt.Errorf("failed to reconcile stale executions: %w", err)
 		}
 		if reconciledCount > 0 {
-			cmd.Printf("Reconciled %d stale execution(s) from previous shutdown\n", reconciledCount)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Reconciled %d stale execution(s) from previous shutdown\n", reconciledCount)
 		}
 
 		s := scheduler.NewScheduler(cfg.MaxConcurrentBackups)
@@ -125,20 +125,20 @@ var scheduleStartCmd = &cobra.Command{
 			return err
 		}
 
-		cmd.Printf("Scheduler started with %d backup job(s) and %d restore job(s)\n",
+		fmt.Fprintf(cmd.ErrOrStderr(), "Scheduler started with %d backup job(s) and %d restore job(s)\n",
 			len(cfg.Databases), len(cfg.Restores))
 		if integrityScheduled {
-			cmd.Printf("Scheduled integrity sweep registered (%s)\n", cfg.Integrity.ScheduledCheck.Cron)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Scheduled integrity sweep registered (%s)\n", cfg.Integrity.ScheduledCheck.Cron)
 		}
 		stopCh := make(chan os.Signal, 1)
 		signal.Notify(stopCh, syscall.SIGTERM, syscall.SIGINT)
 		<-stopCh
 
-		cmd.Println("scheduler stopping...")
+		fmt.Fprintln(cmd.ErrOrStderr(), "scheduler stopping...")
 		if err := s.Stop(); err != nil {
 			return err
 		}
-		cmd.Println("scheduler stopped")
+		fmt.Fprintln(cmd.ErrOrStderr(), "scheduler stopped")
 		return nil
 	},
 }
@@ -208,9 +208,9 @@ var scheduleListCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("failed to marshal schedule list json: %w", err)
 			}
-			cmd.Println(string(data))
+			fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		default:
-			cmd.Print(renderScheduleListTable(rows))
+			fmt.Fprint(cmd.OutOrStdout(), renderScheduleListTable(rows))
 		}
 		return nil
 	},
@@ -244,6 +244,16 @@ func buildScheduleListRows(infos []schedule.JobInfo, restoreJobs map[string]conf
 	}
 	return rows
 }
+
+// Output streams here are chosen explicitly. `schedule list` and `schedule
+// status` are queried for data, so their results go to stdout and can be
+// redirected or piped. `schedule start` is a daemon, so its lifecycle and
+// progress messages go to stderr and stay out of anyone's pipe.
+//
+// Cobra's cmd.Print family writes to OutOrStderr(), which sent every one of
+// these to stderr, so `schedule list --format json | jq` received nothing. Issue
+// #165 reported this for the monitor command group; the same defect was here, and
+// the documentation already said so.
 
 func renderScheduleListTable(rows []scheduleListRow) string {
 	headers := []string{"TYPE", "NAME", "SCHEDULE", "NEXT EXECUTION"}
@@ -292,13 +302,13 @@ var scheduleStatusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cmd.Printf("Job: %s\n", status.Name)
-		cmd.Printf("Schedule: %s\n", status.Schedule)
-		cmd.Printf("Next Execution: %s\n", status.NextExecution.Format(time.RFC3339))
-		cmd.Printf("Last Execution: %s\n", status.LastExecution.Format(time.RFC3339))
-		cmd.Printf("Last Status: %s\n", status.LastStatus)
+		fmt.Fprintf(cmd.OutOrStdout(), "Job: %s\n", status.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "Schedule: %s\n", status.Schedule)
+		fmt.Fprintf(cmd.OutOrStdout(), "Next Execution: %s\n", status.NextExecution.Format(time.RFC3339))
+		fmt.Fprintf(cmd.OutOrStdout(), "Last Execution: %s\n", status.LastExecution.Format(time.RFC3339))
+		fmt.Fprintf(cmd.OutOrStdout(), "Last Status: %s\n", status.LastStatus)
 		if status.LastError != "" {
-			cmd.Printf("Last Error: %s\n", status.LastError)
+			fmt.Fprintf(cmd.OutOrStdout(), "Last Error: %s\n", status.LastError)
 		}
 		return nil
 	},

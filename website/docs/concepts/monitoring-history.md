@@ -167,12 +167,15 @@ sentinel monitor export --config sentinel.yaml --format json --output history.js
 
 ## Failure modes
 
-**`monitor list`, `show`, `stats` and `export` print to stderr, not stdout.** This is a defect
-([issue #165](https://github.com/denisakp/sentinel/issues/165)), and it means
-`sentinel monitor export --format json > history.json` produces an empty file. The same applies to
-`sentinel schedule list` and the `sentinel retention` output. Two workarounds are reliable:
-`monitor export --output <file>`, which writes the file directly with no stream involved, or
-`2>&1` on the redirect. `sentinel monitor doctor` is unaffected; it writes to stdout, including `--json`.
+**`monitor list`, `show`, `stats` and `export` write to stdout.** Redirecting and piping work.
+Log lines and status messages go to stderr, so a pipe carries data only.
+
+**On v1.4.0 and earlier all four wrote to stderr**, so
+`sentinel monitor export --format json > history.json` produced an empty file
+([issue #165](https://github.com/denisakp/sentinel/issues/165)). The same defect affected
+`sentinel schedule list`, `schedule status` and the `sentinel retention` output, and all were fixed
+together. On those versions two workarounds are reliable: `monitor export --output <file>`, which
+writes the file directly, or `2>&1` on the redirect. `sentinel monitor doctor` was always correct.
 
 **`monitor stats --last 12h` silently reports on all time.** `stats` converts its window to whole days,
 so any duration shorter than 24 hours truncates to zero, and a zero window is interpreted as unbounded.

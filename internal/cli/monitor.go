@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/adapters/monitor"
+	"github.com/denisakp/sentinel/internal/config"
 	"github.com/denisakp/sentinel/internal/ports"
 	"github.com/denisakp/sentinel/internal/utils"
 	"github.com/spf13/cobra"
@@ -168,7 +168,7 @@ var monitorExportCmd = &cobra.Command{
 		}
 
 		if output == "" {
-			cmd.Println(string(data))
+			fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			return nil
 		}
 
@@ -176,7 +176,10 @@ var monitorExportCmd = &cobra.Command{
 			return fmt.Errorf("failed to write export file: %w", err)
 		}
 
-		cmd.Printf("exported %s history to %s\n", strings.ToLower(format), output)
+		// A status line, not data. Kept on stderr so that
+		// `monitor export --output f.json` writes nothing to stdout, which is what
+		// a caller piping this command expects.
+		fmt.Fprintf(cmd.ErrOrStderr(), "exported %s history to %s\n", strings.ToLower(format), output)
 		return nil
 	},
 }
@@ -302,12 +305,26 @@ func parseInt(value string) (int, error) {
 	return out, nil
 }
 
+// Output streams in this file are chosen EXPLICITLY, via cmd.OutOrStdout() and
+// cmd.ErrOrStderr(), rather than through Cobra's cmd.Print family.
+//
+// Cobra's Print, Printf and Println write to OutOrStderr(), so every one of the
+// 42 call sites here sent its output to stderr. `monitor export --format json >
+// history.json` produced an empty file while the data scrolled past on the
+// terminal, and `monitor list --format json | jq` piped nothing, with no error
+// either way. The whole point of export is to be redirected (#165).
+//
+// `monitor doctor` and `repair` were already correct, so the inconsistency sat
+// inside one command group. Being explicit also removes the implicit default that
+// caused this: these calls no longer change stream depending on whether some
+// caller happened to have set an output writer.
+
 func printJSON(cmd *cobra.Command, executions []ports.Execution) error {
 	data, err := json.MarshalIndent(executions, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal json output: %w", err)
 	}
-	cmd.Println(string(data))
+	fmt.Fprintln(cmd.OutOrStdout(), string(data))
 	return nil
 }
 
@@ -316,11 +333,12 @@ func printCSV(cmd *cobra.Command, mon *monitor.Monitor, filter *ports.Filter) er
 	if err != nil {
 		return err
 	}
-	cmd.Println(string(data))
+	fmt.Fprintln(cmd.OutOrStdout(), string(data))
 	return nil
 }
 
 func printTable(cmd *cobra.Command, executions []ports.Execution) error {
+	out := cmd.OutOrStdout()
 	if len(executions) == 0 {
 		printNoMatchingRecords(cmd)
 		return nil
@@ -356,7 +374,7 @@ func printTable(cmd *cobra.Command, executions []ports.Execution) error {
 		})
 	}
 
-	cmd.Print(formatAlignedTable(headers, rows))
+	fmt.Fprint(out, formatAlignedTable(headers, rows))
 	return nil
 }
 
@@ -368,62 +386,65 @@ func loadStatistics(ctx context.Context, mon *monitor.Monitor, job string, days 
 }
 
 func printNoMatchingRecords(cmd *cobra.Command) {
-	cmd.Println(noMatchingRecordsMessage)
+	out := cmd.OutOrStdout()
+	fmt.Fprintln(out, noMatchingRecordsMessage)
 }
 
 func printStats(cmd *cobra.Command, stats *monitor.Statistics) {
-	cmd.Printf("Backup Job: %s\n", stats.BackupName)
-	cmd.Printf("Period: %s\n\n", stats.JobsPeriod)
-	cmd.Printf("Executions: %d\n", stats.TotalExecutions)
-	cmd.Printf("Success Rate: %.1f%% (%d/%d)\n", stats.SuccessRate*100, stats.SuccessCount, stats.TotalExecutions)
-	cmd.Printf("Failures: %d\n\n", stats.FailureCount)
-	cmd.Printf("Duration:\n")
-	cmd.Printf("  Average: %s\n", utils.FmtDuration(time.Duration(stats.AverageDurationMs)*time.Millisecond))
-	cmd.Printf("  Median: %s\n", utils.FmtDuration(time.Duration(stats.MedianDurationMs)*time.Millisecond))
-	cmd.Printf("  Min: %s\n", utils.FmtDuration(time.Duration(stats.MinDurationMs)*time.Millisecond))
-	cmd.Printf("  Max: %s\n", utils.FmtDuration(time.Duration(stats.MaxDurationMs)*time.Millisecond))
-	cmd.Printf("\nSize:\n")
-	cmd.Printf("  Total: %d\n", stats.TotalBackupSize)
-	cmd.Printf("  Average: %d\n\n", averageSize(stats.TotalBackupSize, stats.TotalExecutions))
-	cmd.Printf("Trend: %s\n", stats.Trend)
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Backup Job: %s\n", stats.BackupName)
+	fmt.Fprintf(out, "Period: %s\n\n", stats.JobsPeriod)
+	fmt.Fprintf(out, "Executions: %d\n", stats.TotalExecutions)
+	fmt.Fprintf(out, "Success Rate: %.1f%% (%d/%d)\n", stats.SuccessRate*100, stats.SuccessCount, stats.TotalExecutions)
+	fmt.Fprintf(out, "Failures: %d\n\n", stats.FailureCount)
+	fmt.Fprintf(out, "Duration:\n")
+	fmt.Fprintf(out, "  Average: %s\n", utils.FmtDuration(time.Duration(stats.AverageDurationMs)*time.Millisecond))
+	fmt.Fprintf(out, "  Median: %s\n", utils.FmtDuration(time.Duration(stats.MedianDurationMs)*time.Millisecond))
+	fmt.Fprintf(out, "  Min: %s\n", utils.FmtDuration(time.Duration(stats.MinDurationMs)*time.Millisecond))
+	fmt.Fprintf(out, "  Max: %s\n", utils.FmtDuration(time.Duration(stats.MaxDurationMs)*time.Millisecond))
+	fmt.Fprintf(out, "\nSize:\n")
+	fmt.Fprintf(out, "  Total: %d\n", stats.TotalBackupSize)
+	fmt.Fprintf(out, "  Average: %d\n\n", averageSize(stats.TotalBackupSize, stats.TotalExecutions))
+	fmt.Fprintf(out, "Trend: %s\n", stats.Trend)
 	if stats.LastExecution != nil {
-		cmd.Printf("\nLast Execution:\n")
-		cmd.Printf("  Status: %s\n", stats.LastExecution.Status)
-		cmd.Printf("  Time: %s\n", utils.FmtTimestamp(stats.LastExecution.Timestamp))
-		cmd.Printf("  Duration: %s\n", utils.FmtDuration(time.Duration(stats.LastExecution.DurationMs)*time.Millisecond))
-		cmd.Printf("  Size: %d\n", stats.LastExecution.FileSizeBytes)
+		fmt.Fprintf(out, "\nLast Execution:\n")
+		fmt.Fprintf(out, "  Status: %s\n", stats.LastExecution.Status)
+		fmt.Fprintf(out, "  Time: %s\n", utils.FmtTimestamp(stats.LastExecution.Timestamp))
+		fmt.Fprintf(out, "  Duration: %s\n", utils.FmtDuration(time.Duration(stats.LastExecution.DurationMs)*time.Millisecond))
+		fmt.Fprintf(out, "  Size: %d\n", stats.LastExecution.FileSizeBytes)
 	}
 }
 
 func printExecution(cmd *cobra.Command, exec *ports.Execution) {
-	cmd.Printf("Execution Details\n")
-	cmd.Printf("=================\n\n")
-	cmd.Printf("ID: %s\n", exec.ID)
-	cmd.Printf("Backup Job: %s\n", exec.BackupName)
-	cmd.Printf("Database Type: %s\n", exec.DatabaseType)
-	cmd.Printf("Started: %s\n", utils.FmtTimestamp(exec.Timestamp))
-	cmd.Printf("Duration: %s\n\n", utils.FmtDuration(time.Duration(exec.DurationMs)*time.Millisecond))
-	cmd.Printf("Status: %s\n", exec.Status)
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Execution Details\n")
+	fmt.Fprintf(out, "=================\n\n")
+	fmt.Fprintf(out, "ID: %s\n", exec.ID)
+	fmt.Fprintf(out, "Backup Job: %s\n", exec.BackupName)
+	fmt.Fprintf(out, "Database Type: %s\n", exec.DatabaseType)
+	fmt.Fprintf(out, "Started: %s\n", utils.FmtTimestamp(exec.Timestamp))
+	fmt.Fprintf(out, "Duration: %s\n\n", utils.FmtDuration(time.Duration(exec.DurationMs)*time.Millisecond))
+	fmt.Fprintf(out, "Status: %s\n", exec.Status)
 	if exec.BackupType != "" {
-		cmd.Printf("Backup Type: %s\n", exec.BackupType)
+		fmt.Fprintf(out, "Backup Type: %s\n", exec.BackupType)
 	}
 	if exec.ChainID != "" {
-		cmd.Printf("Chain ID: %s\n", exec.ChainID)
-		cmd.Printf("Chain Index: %d\n", exec.ChainIndex)
+		fmt.Fprintf(out, "Chain ID: %s\n", exec.ChainID)
+		fmt.Fprintf(out, "Chain Index: %d\n", exec.ChainIndex)
 	}
-	cmd.Printf("File: %s\n", exec.FilePath)
-	cmd.Printf("Size: %d\n", exec.FileSizeBytes)
+	fmt.Fprintf(out, "File: %s\n", exec.FilePath)
+	fmt.Fprintf(out, "Size: %d\n", exec.FileSizeBytes)
 	if exec.DeltaSizeBytes > 0 {
-		cmd.Printf("Delta Size: %d\n", exec.DeltaSizeBytes)
+		fmt.Fprintf(out, "Delta Size: %d\n", exec.DeltaSizeBytes)
 	}
 	if exec.FullBackupSizeBytes > 0 {
-		cmd.Printf("Full Backup Size: %d\n", exec.FullBackupSizeBytes)
+		fmt.Fprintf(out, "Full Backup Size: %d\n", exec.FullBackupSizeBytes)
 	}
 	if exec.Checksum != "" {
-		cmd.Printf("Checksum: %s\n", exec.Checksum)
+		fmt.Fprintf(out, "Checksum: %s\n", exec.Checksum)
 	}
 	if exec.ErrorMessage != "" {
-		cmd.Printf("Error: %s\n", exec.ErrorMessage)
+		fmt.Fprintf(out, "Error: %s\n", exec.ErrorMessage)
 	}
 }
 
