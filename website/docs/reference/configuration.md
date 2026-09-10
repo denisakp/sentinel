@@ -97,7 +97,7 @@ introduced in Sentinel v1.4.0.
 
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `output` | string | No | `SENTINEL_<timestamp>` plus the engine extension | Artifact filename. Supports `${VAR}` interpolation. |
+| `output` | string | No | `SENTINEL_<timestamp>` plus the engine extension | Artifact filename. Supports `${VAR}` interpolation. **Used verbatim**, so a literal value such as `shop.sql` is rewritten on every run and truncates the previous artifact: retention then has nothing to prune and an incremental chain collapses onto one file. Use `{timestamp}` or `{date}` in the value, or omit the key, to get one artifact per run ([#193](https://github.com/denisakp/sentinel/issues/193)). |
 | `storage` | mapping | Conditional | inherits `defaults.storage` | Storage backend for this job. An effective `storage.type` is required after inheritance. See [storage blocks](#storage-blocks). |
 | `database_options` | mapping | No | n/a | Engine-specific dump options. See [`database_options`](#database_options). |
 | `compression` | mapping | No | inherits `defaults.compression` | Pipeline compression. See [`compression`](#compression). |
