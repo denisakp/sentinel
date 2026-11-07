@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -95,6 +96,12 @@ func (g *MyGoogleDriveClient) createGoogleDriveFolder(name, parentId string) (st
 // Returns:
 // - error: an error if the upload fails.
 func (g *MyGoogleDriveClient) uploadFile(data []byte, name, parentId string) error {
+	return g.uploadReader(bytes.NewReader(data), name, parentId)
+}
+
+// uploadReader is uploadFile for a stream, so callers holding a file need not
+// read it into memory first.
+func (g *MyGoogleDriveClient) uploadReader(file io.Reader, name, parentId string) error {
 	name = filepath.Base(name)
 	fmt.Printf("uploading file: %s \n", name)
 
@@ -104,7 +111,6 @@ func (g *MyGoogleDriveClient) uploadFile(data []byte, name, parentId string) err
 		MimeType: "application/octet-stream",
 	}
 
-	file := bytes.NewReader(data)
 	_, err := g.service.Files.Create(fileMetadata).Media(file).Do()
 	if err != nil {
 		return fmt.Errorf("failed to upload file: %w", err)

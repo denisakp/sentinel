@@ -3,14 +3,12 @@ package mariadb
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os/exec"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/streamsink"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -50,13 +48,6 @@ func BackupAll(ctx context.Context, mda *MariaDBDumpAllArgs) (string, error) {
 
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
-
-	if err := cmd.Run(); err != nil {
-		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return "", fmt.Errorf("failed to execute mariadb-dump command - %w, %s", err, redacted)
-	}
 
 	storageHandler, err := storage.NewStorage(mda.Storage)
 	if err != nil {
@@ -70,11 +61,9 @@ func BackupAll(ctx context.Context, mda *MariaDBDumpAllArgs) (string, error) {
 	mda.Storage.OutName = utils.FinalOutName(mda.Storage.OutName)
 	fullPath := utils.FullPath(backupPath, mda.Storage.OutName)
 
-	sum := sha256.Sum256(stdOut.Bytes())
-	digest := hex.EncodeToString(sum[:])
-
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return "", fmt.Errorf("failed to write backup to storage - %w", err)
+	digest, err := streamsink.Run(ctx, cmd, mda.Storage, fullPath)
+	if err != nil {
+		return "", streamsink.Describe(err, "mariadb-dump", stdErr.Bytes())
 	}
 
 	fmt.Printf("Backup complete !\n")

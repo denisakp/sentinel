@@ -3,14 +3,12 @@ package pg
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os/exec"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
+	"github.com/denisakp/sentinel/internal/adapters/streamsink"
 	backup "github.com/denisakp/sentinel/internal/domain/backup"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/utils"
 )
 
@@ -58,22 +56,13 @@ func BackupAll(ctx context.Context, pda *PgDumpAllArgs) (string, error) {
 
 	var stdErr bytes.Buffer
 	cmd.Stderr = &stdErr
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
-
-	if err := cmd.Run(); err != nil {
-		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return "", fmt.Errorf("failed to execute pg_dumpall command - %w, %s", err, redacted)
-	}
 
 	pda.Storage.OutName = utils.FinalOutName(pda.Storage.OutName)
 	fullPath := utils.FullPath(backupPath, pda.Storage.OutName)
 
-	sum := sha256.Sum256(stdOut.Bytes())
-	digest := hex.EncodeToString(sum[:])
-
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return "", fmt.Errorf("failed to write backup to storage - %w", err)
+	digest, err := streamsink.Run(ctx, cmd, pda.Storage, fullPath)
+	if err != nil {
+		return "", streamsink.Describe(err, "pg_dumpall", stdErr.Bytes())
 	}
 
 	fmt.Printf("Backup complete !\n")

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 
@@ -38,7 +39,13 @@ func (b *S3Backend) Upload(ctx context.Context, src, dest string) error {
 	}
 	defer f.Close()
 
-	_, err = b.client.Client.PutObject(ctx, &s3.PutObjectInput{
+	// The multipart uploader reads the file in parts, so a dump larger than the
+	// 5 GiB single-PutObject limit uploads without being held in memory (#164).
+	uploader := manager.NewUploader(b.client.Client, func(u *manager.Uploader) {
+		u.PartSize = 10 * 1024 * 1024
+		u.Concurrency = 4
+	})
+	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.client.Bucket),
 		Key:    aws.String(dest),
 		Body:   f,

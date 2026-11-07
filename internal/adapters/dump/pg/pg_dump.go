@@ -63,11 +63,8 @@ func Backup(ctx context.Context, prober ports.DBProber, pda *PgDumpArgs) (string
 	// track the uncompressed dump size, so a large database was killed by the
 	// OOM killer rather than failing with a useful error (#164).
 	//
-	// Remote storage still buffers, and that is a deliberate limit rather than an
-	// oversight: the remote path writes through Storage.WriteBackup, whose object
-	// key is derived differently per backend, and converting it to a streaming
-	// Upload without untangling that first risks breaking remote backups that
-	// work today. See the issue for what remains.
+	// Remote storage streams too, through a staging file uploaded under the same
+	// object key WriteBackup used.
 	//
 	// Directory format is excluded, and that exclusion is load-bearing: with
 	// --format=d, pg_dump writes a directory through --file= and produces nothing
@@ -75,11 +72,10 @@ func Backup(ctx context.Context, prober ports.DBProber, pda *PgDumpArgs) (string
 	// the directory belongs and record the digest of no bytes. That is exactly the
 	// shape of #191 on the Mongo side, and streaming unconditionally would have
 	// reproduced it here while fixing it there.
-	if streamsink.IsLocal(pda.Storage) && pda.PgOutFormat != "d" {
-		digest, err := streamsink.RunToSink(ctx, cmd, streamsink.Sink{LocalPath: pda.Storage.OutName})
+	if pda.PgOutFormat != "d" {
+		digest, err := streamsink.Run(ctx, cmd, pda.Storage, pda.Storage.OutName)
 		if err != nil {
-			redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-			return "", fmt.Errorf("failed to execute pg_dump command - %w, %s", err, redacted)
+			return "", streamsink.Describe(err, "pg_dump", stdErr.Bytes())
 		}
 		fmt.Printf("Backup complete !\n")
 		return digest, nil
