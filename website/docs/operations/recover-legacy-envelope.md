@@ -114,10 +114,8 @@ which is exactly the audit trail you will want during the next incident. Set the
 command that needs it.
 :::
 
-Note that the flag has no effect on `sentinel backup verify`. That command only re-hashes stored
-bytes and never decrypts, so it neither refuses a legacy envelope nor accepts one; the flag is
-registered but inert. Tracked in
-[#164](https://github.com/denisakp/sentinel/issues/164).
+Note that `sentinel backup verify` does not take this flag. That command only re-hashes stored
+bytes and never decrypts, so it neither refuses a legacy envelope nor accepts one.
 
 ### 4. When the source is gone, migrate the artifact with `security reencrypt`
 

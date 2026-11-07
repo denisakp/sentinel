@@ -173,7 +173,6 @@ func runVerifyAll(t *testing.T, configPath string, f sweepFlags) (string, error)
 	cmd.Flags().String("since", "", "")
 	cmd.Flags().String("job", "", "")
 	cmd.Flags().Bool("ignore-missing-manifest", false, "")
-	cmd.Flags().Bool("allow-legacy-envelope", false, "")
 
 	if f.all {
 		_ = cmd.Flags().Set("all", "true")

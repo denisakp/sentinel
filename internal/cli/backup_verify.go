@@ -678,8 +678,6 @@ func init() {
 	BackupCmd.AddCommand(backupVerifyCmd)
 	backupVerifyCmd.Flags().String("config", "", "Path to sentinel YAML config")
 	backupVerifyCmd.Flags().String("output", "", "Output format: json or text")
-	backupVerifyCmd.Flags().Bool("allow-legacy-envelope", legacyEnvelopeEnvDefault(),
-		"Decrypt artifacts produced before the v2 envelope fix. UNSAFE: pre-v2 streams used a flawed nonce scheme. Use only to recover plaintext for re-encryption.")
 
 	// Repository-wide integrity sweep.
 	backupVerifyCmd.Flags().Bool("all", false, "Verify every recorded backup (repository-wide integrity sweep); mutually exclusive with <backup-id>")
