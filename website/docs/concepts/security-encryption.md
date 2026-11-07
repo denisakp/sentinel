@@ -76,12 +76,11 @@ restore tool. Artifacts written before envelope v2 carry no `SENC` header. Senti
 default and needs `--allow-legacy-envelope` on `sentinel restore` to proceed, because the pre-v2
 nonce scheme was flawed and any such ciphertext should be treated as potentially compromised.
 
-:::caution `backup verify` never decrypts, so its `--allow-legacy-envelope` flag does nothing
-The flag is registered on `sentinel backup verify`, but `verifyExecution` discards its options
-parameter (`internal/cli/backup_verify.go:178` takes it as `_`) and only hashes the stored bytes.
-Verification therefore confirms that an encrypted artifact is byte-for-byte intact; it cannot tell
-you whether the artifact is decryptable with the key you hold. A verified backup and a restorable
-backup are not the same claim here. Tracked in [#164](https://github.com/denisakp/sentinel/issues/164).
+:::caution `backup verify` never decrypts
+`sentinel backup verify` only hashes the stored bytes, so it takes no `--allow-legacy-envelope` flag.
+Verification confirms that an encrypted artifact is byte-for-byte intact; it cannot tell you
+whether the artifact is decryptable with the key you hold. A verified backup and a restorable
+backup are not the same claim here.
 :::
 
 ### The secrets file container: `SSEC`

@@ -18,7 +18,6 @@ func runVerify(t *testing.T, configPath, backupID string) error {
 	cmd := &cobra.Command{Use: "verify-test"}
 	cmd.Flags().String("config", configPath, "")
 	cmd.Flags().String("output", "text", "")
-	cmd.Flags().Bool("allow-legacy-envelope", false, "")
 	return backupVerifyCmd.RunE(cmd, []string{backupID})
 }
 

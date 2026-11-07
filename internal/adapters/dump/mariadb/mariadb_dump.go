@@ -3,17 +3,15 @@ package mariadb
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strconv"
+
+	"os/exec"
 
 	"github.com/denisakp/sentinel/internal/adapters/storage"
 	"github.com/denisakp/sentinel/internal/adapters/streamsink"
 	"github.com/denisakp/sentinel/internal/ports"
-	"github.com/denisakp/sentinel/internal/sanitize"
 	"github.com/denisakp/sentinel/internal/utils"
-	"os/exec"
 )
 
 // Backup backs up a MariaDB database using mariadb-dump. The prober checks
@@ -68,35 +66,11 @@ func Backup(ctx context.Context, prober ports.DBProber, mda *MariaDBDumpArgs) (s
 	// uncompressed dump size, so a large database was killed by the OOM killer
 	// rather than failing with a useful error (#164).
 	//
-	// Remote storage still buffers, deliberately: that path writes through
-	// Storage.WriteBackup, whose object key is derived differently per backend, and
-	// converting it to a streaming Upload without untangling that first risks
-	// breaking remote backups that work today.
-	if streamsink.IsLocal(mda.Storage) {
-		digest, serr := streamsink.RunToSink(ctx, cmd, streamsink.Sink{LocalPath: fullPath})
-		if serr != nil {
-			redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-			return "", fmt.Errorf("failed to execute mariadb-dump command - %w, %s", serr, redacted)
-		}
-		fmt.Printf("Backup complete !\n")
-		return digest, nil
-	}
-
-	var stdOut bytes.Buffer
-	cmd.Stdout = &stdOut
-
-	err = cmd.Run()
-	if err != nil {
-		redacted, _ := sanitize.RedactStderr(stdErr.Bytes())
-		return "", fmt.Errorf("failed to execute maridb-dump command - %w, %s", err, redacted)
-	}
-
-	sum := sha256.Sum256(stdOut.Bytes())
-	digest := hex.EncodeToString(sum[:])
-
-	// write backup to storage
-	if err := storageHandler.WriteBackup(stdOut.Bytes(), fullPath); err != nil {
-		return "", fmt.Errorf("failed to write backup to storage - %w", err)
+	// Remote storage streams too: the dump goes to a staging file and is uploaded
+	// under the same object key WriteBackup used, so memory stays flat there as well.
+	digest, serr := streamsink.Run(ctx, cmd, mda.Storage, fullPath)
+	if serr != nil {
+		return "", streamsink.Describe(serr, "mariadb-dump", stdErr.Bytes())
 	}
 
 	fmt.Printf("Backup complete !\n")

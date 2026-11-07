@@ -152,7 +152,7 @@ echo "exit=$?"
 Exit `0` is a hash match. Exit `3` is `missing_manifest`, which almost always means the job has no `output:` set: the dump engine invents a filename that never reaches the manifest writer, so no manifest is created and the history records the artifact as `unknown`. Set `output:` and re-run. Tracked as issue #151.
 
 :::caution A verified encrypted artifact is not a proven restorable one
-`backup verify` hashes the bytes as stored and never decrypts, so it proves the ciphertext is unchanged, not that your key still opens it. `--allow-legacy-envelope` is accepted here and has no effect. Prove the key separately, per [Encryption and key management](../concepts/security-encryption.md). Tracked as issue #164.
+`backup verify` hashes the bytes as stored and never decrypts, so it proves the ciphertext is unchanged, not that your key still opens it. Prove the key separately, per [Encryption and key management](../concepts/security-encryption.md).
 :::
 
 Finally, close the loop on the history itself:

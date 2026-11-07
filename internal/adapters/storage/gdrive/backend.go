@@ -24,11 +24,14 @@ func NewGDriveBackend(client *MyGoogleDriveClient) *GDriveBackend {
 
 // Upload uploads the local file at src to the Google Drive folder with name dest.
 func (b *GDriveBackend) Upload(_ context.Context, src, dest string) error {
-	data, err := os.ReadFile(src)
+	// Stream from the file rather than reading it whole: a large dump would
+	// otherwise be held in memory for the upload (#164).
+	f, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("gdrive: failed to read source file %q: %w", src, err)
 	}
-	return b.client.uploadFile(data, filepath.Base(dest), b.client.folderId)
+	defer f.Close()
+	return b.client.uploadReader(f, filepath.Base(dest), b.client.folderId)
 }
 
 // Download downloads the Google Drive file matching src filename to local dest.

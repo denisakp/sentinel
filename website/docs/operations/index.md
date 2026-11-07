@@ -39,7 +39,7 @@ an incident are:
 
 **A passing `sentinel backup verify` does not mean an encrypted backup is restorable.** Verification
 hashes the stored bytes and never decrypts, so an artifact encrypted under a key you no longer hold
-passes ([#164](https://github.com/denisakp/sentinel/issues/164)). The only real test is an actual
+passes. The only real test is an actual
 restore. The repository's key-loss runbook says otherwise, which is why
 [the page here](./key-loss-incident.md) contradicts it.
 

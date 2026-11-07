@@ -48,11 +48,8 @@ encrypted secrets file '/etc/sentinel/mysql.cnf.enc' but no decryption key confi
 
 :::caution A passing `backup verify` is not evidence that your key works
 `sentinel backup verify` re-computes the SHA-256 of the **stored** bytes and compares it to the
-manifest. It never decrypts. `verifyExecution` discards its options parameter
-(`internal/cli/backup_verify.go:178` takes it as `_`), which also means the `--allow-legacy-envelope`
-flag registered on `backup verify` does nothing. A verified encrypted artifact is proven **intact**.
-It is not proven **decryptable with the key you hold**. Tracked in
-[#164](https://github.com/denisakp/sentinel/issues/164).
+manifest. It never decrypts. A verified encrypted artifact is proven **intact**. It is not proven
+**decryptable with the key you hold**.
 
 `sentinel restore dry-run` does not decrypt either; it prints the job's configuration. The only
 check that exercises the key is a real restore.

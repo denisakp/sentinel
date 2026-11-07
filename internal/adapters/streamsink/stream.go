@@ -93,7 +93,7 @@ func RunToSink(ctx context.Context, cmd *exec.Cmd, sink Sink) (string, error) {
 
 	if sink.Backend != nil {
 		if err := sink.Backend.Upload(ctx, sink.LocalPath, sink.RemoteName); err != nil {
-			return "", fmt.Errorf("dumpio: uploading %q: %w", sink.RemoteName, err)
+			return "", fmt.Errorf("%w: uploading %q: %w", ErrUpload, sink.RemoteName, err)
 		}
 	}
 
