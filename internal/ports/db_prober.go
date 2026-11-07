@@ -27,6 +27,27 @@ type DBProber interface {
 	// BlockingReason — the caller still decides whether to proceed based on
 	// the returned SafeToProceed flag.
 	AssessPostgresCascadeSafety(ctx context.Context, conn DatabaseConfig, target CascadeTarget) (*CascadeSafetyResult, error)
+
+	// ProbeIncrementalCapabilities reads the LIVE server state that
+	// incremental backup depends on (binary logging, WAL summarization,
+	// replica-set membership, oplog window). Only the fields relevant to
+	// conn.Type are populated. A connection or query failure is returned as
+	// an error, never as a "capability absent" result.
+	ProbeIncrementalCapabilities(ctx context.Context, conn DatabaseConfig) (*IncrementalCapabilities, error)
+}
+
+// IncrementalCapabilities is the observed server state relevant to
+// incremental backup. Fields not applicable to the engine stay zero.
+type IncrementalCapabilities struct {
+	// PostgreSQL: server major version and summarize_wal (PG17+).
+	VersionMajor      int
+	WALSummaryEnabled bool
+	// MySQL/MariaDB: @@log_bin.
+	LogBinEnabled bool
+	// MongoDB: member of a replica set (false = standalone) and the observed
+	// oplog window in whole hours (first to last entry).
+	ReplicaSet       bool
+	OplogWindowHours int
 }
 
 // CascadeTarget carries the per-job options relevant to a cascade-safety

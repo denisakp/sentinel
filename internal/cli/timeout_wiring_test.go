@@ -124,3 +124,7 @@ func (stubProber) ListDatabases(context.Context, ports.DatabaseConfig) ([]string
 func (stubProber) AssessPostgresCascadeSafety(context.Context, ports.DatabaseConfig, ports.CascadeTarget) (*ports.CascadeSafetyResult, error) {
 	return nil, errors.New("not used")
 }
+
+func (stubProber) ProbeIncrementalCapabilities(context.Context, ports.DatabaseConfig) (*ports.IncrementalCapabilities, error) {
+	return &ports.IncrementalCapabilities{}, nil
+}

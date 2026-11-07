@@ -68,3 +68,7 @@ func TestBackupErrorDoesNotLeakPassword(t *testing.T) {
 		t.Errorf("password leaked into the error returned by Backup(context.Background(), ).\ngot: %s", msg)
 	}
 }
+
+func (okProber) ProbeIncrementalCapabilities(context.Context, ports.DatabaseConfig) (*ports.IncrementalCapabilities, error) {
+	return &ports.IncrementalCapabilities{}, nil
+}
