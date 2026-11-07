@@ -20,6 +20,9 @@ type MockProber struct {
 	cascade      *ports.CascadeSafetyResult
 	cascadeErr   error
 
+	caps    *ports.IncrementalCapabilities
+	capsErr error
+
 	pingCalls    []DatabaseCall
 	listCalls    []DatabaseCall
 	cascadeCalls []CascadeCall
@@ -125,4 +128,25 @@ func (m *MockProber) CascadeCalls() []CascadeCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]CascadeCall(nil), m.cascadeCalls...)
+}
+
+// SeedIncrementalCapabilities sets what ProbeIncrementalCapabilities returns.
+func (m *MockProber) SeedIncrementalCapabilities(c *ports.IncrementalCapabilities, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.caps = c
+	m.capsErr = err
+}
+
+func (m *MockProber) ProbeIncrementalCapabilities(_ context.Context, _ ports.DatabaseConfig) (*ports.IncrementalCapabilities, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.capsErr != nil {
+		return nil, m.capsErr
+	}
+	if m.caps == nil {
+		return &ports.IncrementalCapabilities{}, nil
+	}
+	c := *m.caps
+	return &c, nil
 }

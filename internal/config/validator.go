@@ -351,14 +351,15 @@ func validateIncrementalBackupPolicy(job BackupJob) error {
 	case "postgres":
 		return nil
 	case "mysql", "mariadb":
-		if result := backupincremental.ValidateMySQLIncrementalPrerequisites(true, job.MySQL.BinlogPath); !result.Passed {
+		// Static check only. Whether log_bin is ON is server state, verified
+		// at backup execution (domain/backup.CheckIncrementalPrerequisites).
+		if result := backupincremental.ValidateMySQLBinlogPathPrerequisite(job.MySQL.BinlogPath); !result.Passed {
 			return fmt.Errorf("%s (type=%s)", result.Detail, job.Type)
 		}
 		return nil
 	case "mongodb":
-		if result := backupincremental.ValidateMongoIncrementalPrerequisites(true); !result.Passed {
-			return fmt.Errorf("%s (type=mongodb)", result.Detail)
-		}
+		// Replica-set membership and oplog window are server state, verified
+		// at backup execution (domain/backup.CheckIncrementalPrerequisites).
 		if job.IncrementalBackup.OplogWindowWarnHours < 0 {
 			return fmt.Errorf("incremental_backup.oplog_window_warn_hours must be greater than or equal to 0")
 		}

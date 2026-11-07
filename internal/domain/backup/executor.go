@@ -120,6 +120,19 @@ func (e *Executor) Run(ctx context.Context, job Job) (RunResult, error) {
 		}
 	}
 
+	// 3b. Incremental prerequisites against the live server (#185).
+	if job.IncrementalEnabled {
+		warns, preErr := CheckIncrementalPrerequisites(ctx, e.prober, job)
+		res.Warnings = append(res.Warnings, warns...)
+		if preErr != nil {
+			runErr := fmt.Errorf("backup '%s': %w", job.Name, preErr)
+			res.FinishedAt = time.Now()
+			e.record(ctx, job, &res, runErr, nil, "")
+			e.notify(job, &res, runErr)
+			return res, runErr
+		}
+	}
+
 	// 4–5. Plan + dump. The full-vs-incremental decision is derived inside
 	// the pipeline (it needs the produced artifact size, same as pre-carve).
 	build, dumpErr := e.dumps.Build(ports.BuildContext{

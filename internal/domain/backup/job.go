@@ -51,6 +51,10 @@ type Job struct {
 	MaxChainDepth      int
 	ForceFull          bool
 
+	// OplogWindowWarnHours is the MongoDB oplog window threshold (hours)
+	// below which a warning is emitted. 0 disables the check.
+	OplogWindowWarnHours int
+
 	Scheduled bool
 
 	Retention retention.Policy

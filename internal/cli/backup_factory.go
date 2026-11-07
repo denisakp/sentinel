@@ -308,9 +308,13 @@ func buildDomainBackupJob(
 	normalized := config.NormalizeIncrementalBackupConfig(job)
 	incrementalEnabled := normalized.IncrementalBackup != nil && normalized.IncrementalBackup.Enabled
 	maxChainDepth := 0
+	oplogWarnHours := 0
 	if incrementalEnabled {
 		maxChainDepth = normalized.IncrementalBackup.MaxChainDepth
+		oplogWarnHours = normalized.IncrementalBackup.OplogWindowWarnHours
 	}
+	// Best effort: a missing password surfaces as a probe/dump auth failure.
+	password, _ := config.ResolveJobPassword(job)
 
 	djob := backup.Job{
 		Name:     job.Name,
@@ -321,14 +325,18 @@ func buildDomainBackupJob(
 			Host:     job.Host,
 			Port:     job.Port,
 			Username: job.Username,
+			Password: password,
+			Database: job.Database,
+			URI:      job.URI,
 		},
-		Options:            engineOpts,
-		IncrementalEnabled: incrementalEnabled,
-		MaxChainDepth:      maxChainDepth,
-		ForceFull:          forceFull,
-		Scheduled:          scheduled,
-		Retention:          buildRetentionPolicy(job.Retention, false),
-		VerifyArtifactHash: verifyIncrementalArtifactHash,
+		Options:              engineOpts,
+		OplogWindowWarnHours: oplogWarnHours,
+		IncrementalEnabled:   incrementalEnabled,
+		MaxChainDepth:        maxChainDepth,
+		ForceFull:            forceFull,
+		Scheduled:            scheduled,
+		Retention:            buildRetentionPolicy(job.Retention, false),
+		VerifyArtifactHash:   verifyIncrementalArtifactHash,
 	}
 
 	if storageParams != nil {
